@@ -391,9 +391,9 @@ function buildNav() {
     b.onclick = () => setView(v); box.appendChild(b);
   }));
 }
-function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' ? 'lib' : V.v))); }
+function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' || V.v === 'colist' ? 'lib' : V.v))); }
 const stateObj = () => ({ v: V.v, id: V.id, sheet: document.body.classList.contains('sheet') ? 1 : 0 });
-function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); }
+function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); if (G.u && (v === 'friends' || v === 'lib')) gLoad(); }
 function openSheet() { if (!document.body.classList.contains('sheet')) { document.body.classList.add('sheet'); history.pushState({ v: V.v, id: V.id, sheet: 1 }, ''); } }
 function closeSheet() { if (!document.body.classList.contains('sheet')) return; if (history.state && history.state.sheet) history.back(); else document.body.classList.remove('sheet'); }
 window.addEventListener('popstate', e => {
@@ -414,8 +414,10 @@ function trackMenu(t, ctx) {
     act(b, 'Putar berikutnya', () => { if (qi < 0) playFrom([t], 0); else { queue.splice(qi + 1, 0, slim(t)); upNext = pickNext(); toast('Akan diputar berikutnya'); } }, '', 'next2');
     act(b, isLiked(t.id) ? 'Hapus dari Favorit' : 'Tambah ke Favorit', () => toggleLike(t), '', 'heart');
     act(b, 'Tambah ke playlist', () => pickList(t), '', 'plus');
+    if (G.u) { act(b, 'Kirim ke teman', () => pickFriend(t), '', 'share'); act(b, 'Tambah ke playlist bersama', () => pickCol(t), '', 'list'); }
     act(b, 'Bagikan', () => { const txt = t.title + ' - ' + (t.author || '') + ' https://youtu.be/' + t.id; if (window.AlyaApp && AlyaApp.share) AlyaApp.share(txt); else if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else toast('Berbagi tidak didukung'); }, '', 'share');
     act(b, 'Buka di YouTube', () => openExt('https://youtu.be/' + t.id), '', 'ext');
+    if (ctx && ctx.col) act(b, 'Hapus dari playlist bersama', () => colDel(ctx.col, t.id), 'danger', 'trash');
     if (ctx && ctx.list) act(b, 'Hapus dari playlist ini', () => { removeFrom(ctx.list, t.id); render(); }, 'danger', 'trash');
   });
 }
@@ -533,6 +535,7 @@ function rHome(m) {
     sec(m, 'Teman sedang mendengarkan', 'Semua', () => setView('friends'));
     G.friends.filter(f => f.now).sort((a, b) => b.now.ts - a.now.ts).slice(0, 3).forEach(f => m.appendChild(friendRow(f, true)));
   }
+  inboxSec(m, 3);
   if (DB.recent.length) { sec(m, 'Terakhir diputar'); m.appendChild(rail(DB.recent.slice(0, 14))); }
   const last = DB.recent[0];
   if (last && last.author) railSlot(m, 'Mirip ' + last.author, last.author + ' lagu terbaik');
@@ -599,7 +602,7 @@ function rList(m) {
 }
 function render() {
   const m = $('main'); m.innerHTML = '';
-  ({ home: rHome, search: rSearch, lib: rLib, list: rList, me: rMe, friends: rFriends }[V.v] || rHome)(m);
+  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, me: rMe, friends: rFriends }[V.v] || rHome)(m);
   updNav(); markNow(); paintLikes();
 }
 
@@ -749,7 +752,7 @@ function rMe(m) {
 }
 
 // ---------- login Google, sinkronisasi cloud & teman (Firebase lewat REST) ----------
-const G = { u: null, cfg: null, friends: [], reqs: [] };
+const G = { u: null, cfg: null, friends: [], reqs: [], inbox: [], cols: [], cur: null, sig: '' };
 try { G.cfg = JSON.parse(window.AlyaApp && AlyaApp.cfg ? AlyaApp.cfg() : 'null'); } catch (e) {}
 try { G.u = JSON.parse(localStorage.getItem('alya_g') || 'null'); } catch (e) {}
 const gSave = () => { try { localStorage.setItem('alya_g', JSON.stringify(G.u)); } catch (e) {} };
@@ -797,7 +800,10 @@ async function gLoad() {
     G.reqs = await qry('reqs', 'to', G.u.uid);
     const b = ids.length ? await fs(':batchGet', 'POST', { documents: ids.map(i => FSN() + '/users/' + i) }) : [];
     G.friends = (b || []).filter(x => x.found).map(x => Object.assign({ uid: x.found.name.split('/').pop() }, uo(x.found.fields || {})));
-    if (V.v === 'home' || V.v === 'friends') render();
+    try { const x = await fs(me + '/inbox'); G.inbox = ((x && x.documents) || []).map(d => Object.assign({ id: d.name.split('/').pop() }, uo(d.fields || {}))).filter(i => okId(i.tid)).sort((a, b) => b.ts - a.ts).slice(0, 20); } catch (e) {}
+    try { const x = await fs(me + '/colists'); G.cols = ((x && x.documents) || []).map(d => Object.assign({ id: d.name.split('/').pop() }, uo(d.fields || {}))); } catch (e) {}
+    const sig = JSON.stringify([G.friends, G.reqs, G.inbox, G.cols]);
+    if (sig !== G.sig) { G.sig = sig; const ae = document.activeElement; if (!(ae && ae.tagName === 'INPUT') && ['home', 'friends', 'lib'].indexOf(V.v) >= 0) render(); }
   } catch (e) { if (V.v === 'friends') toast(e.message); }
 }
 let pubT;
@@ -838,6 +844,7 @@ function rFriends(m) {
   btn(mb, 'Segarkan', () => gLoad().then(() => toast('Diperbarui')));
   const ad = box(m, 'Tambah teman'); const i = h('input', 'minput'); i.placeholder = 'Masukkan kode teman'; i.autocapitalize = 'characters'; ad.appendChild(i);
   btn(ad, 'Kirim permintaan', () => { if (!i.value.trim()) { toast('Isi kodenya dulu'); return; } addFriend(i.value).then(n => { i.value = ''; toast('Permintaan dikirim ke ' + n); }).catch(e => toast(e.message)); }, 'pbtn');
+  inboxSec(m, 20);
   if (G.reqs.length) {
     sec(m, 'Permintaan masuk (' + G.reqs.length + ')');
     G.reqs.forEach(q => { const r = h('div', 'fr'); r.appendChild(av(q.name, q.photo)); const b = h('div', 'rb'); b.appendChild(h('div', 'rt', q.name || 'Pengguna')); r.appendChild(b);
@@ -846,7 +853,6 @@ function rFriends(m) {
   sec(m, 'Daftar teman (' + G.friends.length + ')');
   if (!G.friends.length) m.appendChild(h('div', 'msg', 'Belum ada teman. Masukkan kode teman di atas.'));
   G.friends.forEach(f => { const r = friendRow(f, true); r.appendChild(ib('trash', 'Hapus teman', () => confirmBox('Hapus ' + (f.name || 'teman') + ' dari daftar?', 'Hapus', () => dropFriend(f.uid).catch(e => toast(e.message))))); m.appendChild(r); });
-  setTimeout(() => { if (V.v === 'friends' && !window.__fr) { window.__fr = 1; gLoad().then(() => { window.__fr = 0; }); } }, 0);
 }
 function gBox(m) {
   const g = box(m, 'Akun Google');
@@ -855,6 +861,84 @@ function gBox(m) {
     line(g, 'Playlist dan favorit tersinkron otomatis ke akun ini.');
     const a = h('div', 'acts'); g.appendChild(a); btn(a, 'Sinkronkan', () => gSync().then(() => toast('Tersinkron'))); btn(a, 'Keluar', () => confirmBox('Keluar dari akun Google? Data di HP ini tetap ada.', 'Keluar', gOut));
   } else { line(g, 'Masuk untuk sinkron playlist antar HP dan berteman dengan pengguna lain.'); const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; g.appendChild(gb); }
+}
+
+// ---------- kirim lagu ke teman & playlist bersama ----------
+const err = e => toast(e.message || 'Gagal');
+async function sendTo(f, t) { await fs('/users/' + f.uid + '/inbox', 'POST', { fields: fo({ from: G.u.uid, name: G.u.name, photo: G.u.photo, tid: t.id, title: t.title, author: t.author || '', ts: Date.now() }) }); toast('Terkirim ke ' + (f.name || 'teman')); }
+function pickFriend(t) {
+  if (!G.friends.length) { toast('Belum ada teman. Tambahkan lewat tab Teman'); return; }
+  modal('Kirim ke teman', b => G.friends.forEach(f => act(b, f.name || 'Teman', () => sendTo(f, t).catch(err), '', 'user')));
+}
+function inboxSec(m, n) {
+  if (!G.u || !G.inbox.length) return;
+  sec(m, 'Dikirim teman');
+  G.inbox.slice(0, n).forEach(x => {
+    const r = h('div', 'fr'); r.appendChild(av(x.name, x.photo)); const b = h('div', 'rb');
+    b.append(h('div', 'rt', x.title), h('div', 'rs', 'Dikirim oleh ' + (x.name || 'teman') + (x.author ? ' • ' + x.author : ''))); r.appendChild(b);
+    r.append(ib('play', 'Putar', () => playFrom([{ id: x.tid, title: x.title, author: x.author }], 0)),
+      ib('trash', 'Hapus', () => fs('/users/' + G.u.uid + '/inbox/' + x.id, 'DELETE').then(() => { G.inbox = G.inbox.filter(i => i.id !== x.id); render(); }).catch(err)));
+    m.appendChild(r);
+  });
+}
+const cslim = t => ({ id: t.tid, title: t.title, author: t.author + (t.byName ? ' • oleh ' + t.byName : '') });
+function pickCol(t) {
+  modal('Tambah ke playlist bersama', b => {
+    act(b, '+ Playlist bersama baru', () => ask('Playlist bersama', '', 'Buat', n => newCol(n).then(id => colAdd(id, t)).catch(err)), '', 'plus');
+    G.cols.forEach(c => act(b, c.name, () => colAdd(c.id, t).catch(err), '', 'list'));
+  });
+}
+async function newCol(name) {
+  const id = 'c' + uid() + uid(), me = G.u.uid;
+  await put('/colists/' + id, { name, owner: me, members: { [me]: true }, names: { [me]: G.u.name } });
+  await put('/users/' + me + '/colists/' + id, { name, owner: me }); await gLoad(); return id;
+}
+async function colAdd(id, t) { await put('/colists/' + id + '/tracks/' + t.id, { tid: t.id, title: t.title, author: t.author || '', by: G.u.uid, byName: G.u.name, ts: Date.now() }); toast('Ditambahkan'); if (G.cur && G.cur.id === id) G.cur = null; }
+function colDel(id, tid) { fs('/colists/' + id + '/tracks/' + tid, 'DELETE').then(() => { G.cur = null; render(); }).catch(err); }
+async function colInvite(c, f) {
+  await fs('/colists/' + c.id, 'PATCH', { fields: fo({ members: { [f.uid]: true }, names: { [f.uid]: f.name || 'Teman' } }) }, '?updateMask.fieldPaths=members.' + f.uid + '&updateMask.fieldPaths=names.' + f.uid);
+  await put('/users/' + f.uid + '/colists/' + c.id, { name: c.name, owner: G.u.uid }); G.cur = null; toast((f.name || 'Teman') + ' diundang');
+}
+async function colLoad(id) {
+  try {
+    const d = await fs('/colists/' + id), t = await fs('/colists/' + id + '/tracks');
+    if (!d) throw new Error('Playlist tidak ditemukan');
+    const o = uo(d.fields || {});
+    G.cur = { id, name: o.name, owner: o.owner, names: o.names || {}, tracks: ((t && t.documents) || []).map(x => uo(x.fields || {})).filter(x => okId(x.tid)).sort((a, b) => a.ts - b.ts) };
+  } catch (e) { G.cur = { id, bad: e.message || 'Gagal memuat' }; }
+}
+function colSection(m) {
+  if (!G.u) return;
+  const t = h('div', 'sec'); t.appendChild(h('h2', '', 'Playlist bersama'));
+  const nb = h('button', 'sbtn'); nb.type = 'button'; nb.append(h('span', '', '+ Baru')); nb.onclick = () => ask('Playlist bersama', '', 'Buat', n => newCol(n).then(id => setView('colist', id)).catch(err)); t.appendChild(nb); m.appendChild(t);
+  if (!G.cols.length) { m.appendChild(h('div', 'mut', 'Buat playlist yang bisa diisi bareng teman.')); return; }
+  const g = h('div', 'grid');
+  G.cols.forEach(c => { const b = h('button', 'pl'); b.type = 'button'; const cv = h('div', 'cv'), em = h('div', 'em'); setIc(em, 'friends', 34); cv.appendChild(em); b.append(cv, h('div', 'ct', c.name), h('div', 'ca', c.owner === G.u.uid ? 'Milikmu' : 'Bersama')); b.onclick = () => setView('colist', c.id); g.appendChild(b); });
+  m.appendChild(g);
+}
+function rColist(m) {
+  const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Playlist')); bk.onclick = () => history.back(); m.appendChild(bk);
+  const c = G.cur;
+  if (!G.u) { m.appendChild(h('div', 'msg', 'Masuk dengan Google dulu.')); return; }
+  if (!c || c.id !== V.id) { m.appendChild(h('div', 'msg', 'Memuat...')); colLoad(V.id).then(() => { if (V.v === 'colist') render(); }); return; }
+  if (c.bad) { m.appendChild(h('div', 'msg', c.bad)); return; }
+  const own = c.owner === G.u.uid, names = Object.keys(c.names).map(k => c.names[k]);
+  const hd = h('div', 'dhead'), cv = h('div', 'dcv'), em = h('div', 'em'); setIc(em, 'friends', 44); cv.appendChild(em); hd.appendChild(cv);
+  const tx = h('div'); tx.append(h('h1', '', c.name), h('div', 'mut', c.tracks.length + ' lagu • ' + names.length + ' anggota'), h('div', 'mut', names.join(', '))); hd.appendChild(tx); m.appendChild(hd);
+  const items = c.tracks.map(cslim), a = h('div', 'acts');
+  const pl = h('button', 'pbtn', 'Putar'); pl.type = 'button'; pl.onclick = () => { if (items.length) playFrom(items, 0); }; a.appendChild(pl);
+  btn(a, 'Acak', () => { if (!items.length) return; DB.prefs.shuffle = true; save(); paintToggles(); playFrom(items, Math.floor(Math.random() * items.length)); });
+  if (own) btn(a, 'Undang', () => {
+    const rest = G.friends.filter(f => !c.names[f.uid]);
+    if (!rest.length) { toast('Semua teman sudah masuk, atau belum punya teman'); return; }
+    modal('Undang teman', b => rest.forEach(f => act(b, f.name || 'Teman', () => colInvite(c, f).then(render).catch(err), '', 'user')));
+  });
+  btn(a, 'Segarkan', () => { G.cur = null; render(); });
+  btn(a, own ? 'Hapus' : 'Keluar', () => confirmBox(own ? 'Hapus playlist bersama untuk semua?' : 'Keluar dari playlist ini?', own ? 'Hapus' : 'Keluar', () =>
+    (own ? fs('/colists/' + c.id, 'DELETE') : Promise.resolve()).then(() => fs('/users/' + G.u.uid + '/colists/' + c.id, 'DELETE')).then(() => { G.cur = null; return gLoad(); }).then(() => history.back()).catch(err)));
+  m.appendChild(a);
+  if (!items.length) { m.appendChild(h('div', 'msg', 'Belum ada lagu. Tambahkan lewat menu ⋮ di lagu mana saja, pilih "Tambah ke playlist bersama".')); return; }
+  const ls = h('div', 'list'); items.forEach((t, i) => ls.appendChild(row(t, items, i, { col: c.id }))); m.appendChild(ls);
 }
 
 // ---------- antrean ----------

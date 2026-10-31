@@ -11,6 +11,17 @@ service cloud.firestore {
         allow update: if request.auth.uid == u;
         allow delete: if request.auth.uid == u || request.auth.uid == f;
       }
+      match /inbox/{i} {
+        allow read, delete: if request.auth.uid == u;
+        allow create: if request.auth.uid == request.resource.data.from
+          && exists(/databases/$(db)/documents/users/$(u)/friends/$(request.auth.uid));
+      }
+      match /colists/{c} {
+        allow read, delete: if request.auth.uid == u;
+        allow create, update: if request.auth.uid == u
+          || (request.auth.uid == request.resource.data.owner
+              && exists(/databases/$(db)/documents/users/$(u)/friends/$(request.auth.uid)));
+      }
     }
     match /reqs/{id} {
       allow read: if request.auth.uid == resource.data.to || request.auth.uid == resource.data.from;
@@ -20,6 +31,15 @@ service cloud.firestore {
     }
     match /sync/{u} {
       allow read, write: if request.auth.uid == u;
+    }
+    match /colists/{c} {
+      allow read: if request.auth.uid in resource.data.members;
+      allow create: if request.auth.uid == request.resource.data.owner
+        && request.auth.uid in request.resource.data.members;
+      allow update, delete: if request.auth.uid == resource.data.owner;
+      match /tracks/{t} {
+        allow read, write: if request.auth.uid in get(/databases/$(db)/documents/colists/$(c)).data.members;
+      }
     }
   }
 }
