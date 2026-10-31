@@ -6,7 +6,9 @@ import org.json.JSONTokener;
 import org.schabi.newpipe.extractor.InfoItem;
 import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.ListExtractor;
 import org.schabi.newpipe.extractor.ServiceList;
+import org.schabi.newpipe.extractor.playlist.PlaylistExtractor;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.downloader.Downloader;
 import org.schabi.newpipe.extractor.downloader.Request;
@@ -89,6 +91,41 @@ final class Backend {
             if (out.length() >= 12) break;
         }
         return out;
+    }
+
+    // ---------- impor playlist YouTube ----------
+    private static void addItem(JSONArray out, StreamInfoItem s) throws Exception {
+        String url = s.getUrl();
+        int k = url == null ? -1 : url.indexOf("v=");
+        if (k < 0 || url.length() < k + 13) return;
+        String id = url.substring(k + 2, k + 13);
+        if (!validId(id)) return;
+        JSONObject o = new JSONObject();
+        o.put("id", id);
+        o.put("title", s.getName());
+        o.put("author", cleanArtist(s.getUploaderName()));
+        o.put("duration", fmt(s.getDuration()));
+        o.put("thumb", "/thumb/" + id);
+        out.put(o);
+    }
+
+    static JSONObject playlist(String raw) throws Exception {
+        Matcher m = Pattern.compile("[?&]list=([A-Za-z0-9_-]{10,64})").matcher(raw == null ? "" : raw);
+        if (!m.find()) throw new Exception("Link playlist tidak valid");
+        init();
+        StreamingService yt = ServiceList.YouTube;
+        PlaylistExtractor pe = yt.getPlaylistExtractor("https://www.youtube.com/playlist?list=" + m.group(1));
+        pe.fetchPage();
+        String name = pe.getName();
+        JSONArray out = new JSONArray();
+        ListExtractor.InfoItemsPage<StreamInfoItem> pg = pe.getInitialPage();
+        int pages = 0;
+        while (pg != null) {
+            for (StreamInfoItem s : pg.getItems()) { addItem(out, s); if (out.length() >= 300) break; }
+            if (out.length() >= 300 || !pg.hasNextPage() || ++pages > 4) break;
+            pg = pe.getPage(pg.getNextPage());
+        }
+        return new JSONObject().put("name", name == null ? "" : name).put("items", out);
     }
 
     // ---------- info + alamat audio ----------

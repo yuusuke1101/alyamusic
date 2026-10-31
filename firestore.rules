@@ -14,6 +14,7 @@ service cloud.firestore {
       match /inbox/{i} {
         allow read, delete: if request.auth.uid == u;
         allow create: if request.auth.uid == request.resource.data.from
+          && request.resource.data.get('txt', '').size() <= 200
           && exists(/databases/$(db)/documents/users/$(u)/friends/$(request.auth.uid));
       }
       match /colists/{c} {
