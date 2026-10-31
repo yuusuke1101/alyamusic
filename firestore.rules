@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /users/{u} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == u;
+      match /friends/{f} {
+        allow read: if request.auth.uid == u;
+        allow create: if request.auth.uid == u
+          || (request.auth.uid == f && exists(/databases/$(db)/documents/reqs/$(f + '_' + u)));
+        allow update: if request.auth.uid == u;
+        allow delete: if request.auth.uid == u || request.auth.uid == f;
+      }
+    }
+    match /reqs/{id} {
+      allow read: if request.auth.uid == resource.data.to || request.auth.uid == resource.data.from;
+      allow create: if request.auth.uid == request.resource.data.from;
+      allow update: if request.auth.uid == resource.data.from;
+      allow delete: if request.auth.uid == resource.data.to || request.auth.uid == resource.data.from;
+    }
+    match /sync/{u} {
+      allow read, write: if request.auth.uid == u;
+    }
+  }
+}

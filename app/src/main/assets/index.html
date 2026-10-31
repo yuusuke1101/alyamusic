@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a12">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Alya Music</title>
+<style>
+:root{--bg:#0a0a12;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.1);--line:rgba(255,255,255,.1);--ink:#f5f5fb;--mut:rgba(245,245,251,.62);--a:#8b5cf6;--b:#22d3ee;--sb:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{background:radial-gradient(800px 420px at 0% -10%,rgba(139,92,246,.22),transparent),radial-gradient(700px 420px at 100% 0%,rgba(34,211,238,.12),transparent),var(--bg);background-attachment:fixed;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+button{font:inherit;color:inherit;cursor:pointer}
+img{display:block}
+.ic{display:inline-flex}
+.app{display:grid;grid-template-columns:minmax(0,1fr)}
+.side{display:none}
+.main{padding:max(14px,env(safe-area-inset-top)) 16px calc(150px + var(--sb));max-width:900px;width:100%;margin:0 auto}
+h1{font-size:24px;letter-spacing:-.02em}
+h2{font-size:17px;letter-spacing:-.01em}
+.mut{color:var(--mut);font-size:13px}
+/* navigasi */
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;padding-bottom:var(--sb);background:rgba(12,12,22,.96);border-top:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 8px;background:none;border:none;color:var(--mut);font-size:11px;font-weight:600}
+.nb.on{color:#fff}.nb.on .ic{color:var(--b)}
+.side .nb{flex:none;flex-direction:row;gap:12px;padding:12px 14px;border-radius:14px;font-size:14px;justify-content:flex-start}
+.side .nb.on{background:var(--card2)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;padding:4px 6px 18px}
+.brand img{width:38px;height:38px;border-radius:11px}
+/* beranda */
+.hhead{display:flex;align-items:center;gap:14px;margin:6px 0 14px}
+.hhead img{width:58px;height:58px;border-radius:18px;border:2px solid var(--card2);flex:none}
+.sbar{display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;border-radius:16px;background:#14141f;border:1px solid var(--line);color:var(--mut);font-size:15px;text-align:left;margin-bottom:16px}
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:18px;min-height:168px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;border:1px solid var(--line);background:linear-gradient(135deg,#2a1f55,#0f3b52);margin-bottom:16px}
+.hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.4;filter:blur(2px)}
+.hero:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 10%,rgba(10,10,18,.85))}
+.hero>*:not(.bg){position:relative;z-index:1}
+.hero .k{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--b)}
+.hero .t{font-size:20px;font-weight:800;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pbtn{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;margin-top:6px;padding:10px 20px;border:none;border-radius:99px;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;font-weight:700;font-size:14px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:none}
+.chips::-webkit-scrollbar,.rail::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:9px 15px;border-radius:99px;background:var(--card);border:1px solid var(--line);font-size:13px;font-weight:600}
+.chip:active{transform:scale(.95)}
+.sec{margin:22px 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+.sec button{background:none;border:none;color:var(--b);font-size:13px;font-weight:600}
+.rail{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;scrollbar-width:none}
+.card{flex:none;width:142px;text-align:left;background:none;border:none;scroll-snap-align:start}
+.card img,.card .sk,.pl .cv{width:142px;height:142px;border-radius:16px;object-fit:cover;background:#1a1a26}
+.ct{font-size:13px;font-weight:600;margin-top:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ca{font-size:12px;color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now .ct,.now .rt{color:var(--b)}
+.sk{background:linear-gradient(90deg,#161622,#232335,#161622);background-size:200% 100%;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+/* daftar lagu */
+.list{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;align-items:center;gap:12px;padding:7px;border-radius:14px;background:var(--card);border:1px solid transparent;cursor:pointer}
+.row:hover,.row.now{border-color:var(--line)}
+.row img{width:84px;height:48px;border-radius:9px;object-fit:cover;flex:none;background:#1a1a26}
+.rb{flex:1;min-width:0}
+.rt{font-size:14px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rs{font-size:12px;color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:40px;height:40px;border-radius:12px;border:none;background:none;display:grid;place-items:center;flex:none;color:var(--mut)}
+.ib:active{transform:scale(.9)}
+.ib.on{color:#ff5d8f}
+.msg{color:var(--mut);font-size:13px;padding:26px 6px;text-align:center;line-height:1.6}
+/* cari */
+.sform{display:flex;gap:8px;position:sticky;top:0;z-index:5;padding:10px 0 12px;background:linear-gradient(var(--bg) 80%,transparent)}
+.sform input{flex:1;min-width:0;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#14141f;color:var(--ink);font-size:16px}
+.sform input:focus{outline:2px solid var(--b);outline-offset:1px}
+.sform button{padding:0 20px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;font-weight:700}
+/* playlist */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.pl{background:none;border:none;text-align:left}
+.pl .cv,.dcv{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;position:relative;width:100%;aspect-ratio:1/1;height:auto;border-radius:16px;background:linear-gradient(135deg,#2a1f55,#0f3b52)}
+.cv img,.dcv img{width:100%;height:100%;object-fit:cover}
+.cv .one,.dcv .one{grid-column:1/-1;grid-row:1/-1}
+.cv .em,.dcv .em{grid-column:1/-1;grid-row:1/-1;display:grid;place-items:center;color:rgba(255,255,255,.7)}
+.dhead{display:flex;gap:16px;align-items:flex-end;margin:6px 0 16px}
+.dcv{width:132px;flex:none}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}
+.acts .pbtn{margin:0}
+.sbtn{padding:10px 16px;border-radius:99px;background:var(--card2);border:1px solid var(--line);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:7px}
+.back{display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:var(--mut);font-size:13px;padding:6px 0}
+/* pemutar */
+.stage{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;transform:translateY(105%);visibility:hidden;transition:transform .3s ease,visibility 0s .3s}
+body.sheet .stage{transform:none;visibility:visible;transition:transform .3s ease}
+.sh{flex:none;display:flex;align-items:center;gap:6px;padding:max(6px,env(safe-area-inset-top)) 10px 4px}
+.shl{flex:1;font-size:13px;font-weight:600;color:var(--mut);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tg{padding:7px 11px;border-radius:99px;background:var(--card);border:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--mut)}
+.tg.on{background:linear-gradient(135deg,var(--a),var(--b));border-color:transparent;color:#fff}
+.fw{position:relative;flex:1;min-height:0}
+.stage iframe{width:100%;height:100%;border:0;background:transparent;display:block}
+.ph{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px;color:var(--mut);font-size:14px;line-height:1.6}
+.ph.hide{display:none}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--b);animation:r 1s linear infinite;margin:0 auto 12px}
+@keyframes r{to{transform:rotate(360deg)}}
+.mini{position:fixed;left:8px;right:8px;bottom:calc(66px + var(--sb));z-index:24;display:flex;align-items:center;gap:2px;padding:7px;border-radius:18px;background:rgba(26,26,42,.95);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.mini[hidden]{display:none}
+.mo{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:none;text-align:left}
+.mo img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;background:#1a1a26}
+.mt{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ma{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini .ib{color:var(--ink);width:42px;height:42px}
+.mini .main-b{background:linear-gradient(135deg,var(--a),var(--b));color:#fff}
+/* modal + toast */
+.modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.modal[hidden]{display:none}
+.mbox{width:100%;max-width:480px;max-height:80vh;overflow-y:auto;background:#181826;border:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 16px calc(16px + var(--sb))}
+.mh{font-weight:700;font-size:15px;margin:2px 4px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act{display:flex;align-items:center;gap:12px;width:100%;padding:14px 10px;background:none;border:none;border-radius:12px;text-align:left;font-size:15px}
+.act:active{background:var(--card2)}
+.act.danger{color:#ff7a8a}
+.minput{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#101019;color:var(--ink);font-size:16px;margin-bottom:12px}
+.brow{display:flex;gap:8px;justify-content:flex-end}
+.brow button{padding:11px 20px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-weight:600}
+.brow .go{background:linear-gradient(135deg,var(--a),var(--b));border-color:transparent;color:#fff}
+.toast{position:fixed;left:50%;bottom:calc(140px + var(--sb));transform:translate(-50%,20px);background:#262638;border:1px solid var(--line);padding:10px 18px;border-radius:99px;font-size:13px;z-index:70;opacity:0;pointer-events:none;transition:.25s;max-width:90vw}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.upd{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;background:linear-gradient(135deg,rgba(139,92,246,.28),rgba(34,211,238,.18));border:1px solid var(--line);margin-bottom:14px}
+.upd>div{flex:1;min-width:0}
+.set{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:14px 0}
+.set h3{font-size:15px;margin-bottom:8px}
+.set .mut{margin:6px 0;line-height:1.55}
+.set .acts{margin:10px 0 0}
+.set .minput{margin:10px 0}
+textarea.minput{resize:vertical}
+.qrow{display:flex;align-items:center}
+.qrow .act{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.qrow.cur .act{color:var(--b);font-weight:700}
+
+/* beranda baru + teman */
+.qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px;border-radius:16px;background:var(--card);border:1px solid var(--line);font-size:11.5px;font-weight:600}
+.tile b{font-size:22px;line-height:1}.tile:active{transform:scale(.95)}
+.qp{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.qp button{display:flex;align-items:center;gap:8px;min-width:0;padding:0 8px 0 0;border-radius:10px;background:var(--card);border:1px solid transparent;text-align:left;overflow:hidden}
+.qp img{width:48px;height:48px;object-fit:cover;flex:none}.qp span{font-size:12px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gens{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gen{padding:18px 14px;border-radius:16px;text-align:left;font-weight:800;font-size:15px;color:#fff;min-height:72px;border:none}
+.arts{display:flex;gap:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:6px}.arts::-webkit-scrollbar{display:none}
+.art{flex:none;width:84px;background:none;border:none;text-align:center}.art img{width:84px;height:84px;border-radius:50%;object-fit:cover;background:#1a1a26}
+.art div{font-size:12px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none;display:grid;place-items:center;font-weight:800;background:linear-gradient(135deg,var(--a),var(--b));color:#fff}
+.fr{display:flex;align-items:center;gap:12px;padding:10px;border-radius:16px;background:var(--card);border:1px solid var(--line);margin-bottom:8px}
+.fr .rb{flex:1;min-width:0}
+.promo{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:16px;border-radius:18px;background:linear-gradient(135deg,rgba(139,92,246,.28),rgba(34,211,238,.16));border:1px solid var(--line);margin:18px 0 4px}
+.gbtn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:99px;border:none;background:#fff;color:#222;font-weight:700;font-size:14px}
+.code{font-size:26px;font-weight:800;letter-spacing:.18em;color:var(--b);margin:4px 0}
+/* layar lebar */
+@media(min-width:900px){
+ .app{grid-template-columns:220px minmax(0,1fr) 410px}
+ .side{display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:20px 12px;border-right:1px solid var(--line)}
+ .bnav,.mini{display:none!important}
+ .main{padding:24px 26px 40px;max-width:none;margin:0}
+ .stage{position:sticky;inset:auto;top:16px;transform:none;visibility:visible;transition:none;height:calc(100vh - 32px);margin:16px 16px 16px 0;border-radius:28px;border:1px solid var(--line);overflow:hidden;background:rgba(0,0,0,.25);z-index:auto}
+ #close{display:none}
+ .toast{bottom:30px}
+ .modal{align-items:center}.mbox{border-radius:22px;max-height:70vh}
+}
+@media(prefers-reduced-motion:reduce){.stage,.spin,.sk{transition:none;animation:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><img src="/mascot.png" alt="">Alya Music</div>
+    <nav id="snav"></nav>
+    <button class="sbtn" id="srv" hidden style="margin-top:auto">Alamat server</button>
+  </aside>
+  <main class="main" id="main"></main>
+  <aside class="stage" id="stage">
+    <div class="sh">
+      <button class="ib" id="close" aria-label="Tutup pemutar"></button>
+      <div class="shl">Sedang diputar</div>
+      <button class="tg on" id="t-auto">Otomatis</button>
+      <button class="tg" id="t-shuf">Acak</button>
+      <button class="tg" id="t-rep">Ulangi</button>
+      <button class="ib" id="s-like" aria-label="Favorit"></button>
+      <button class="ib" id="s-q" aria-label="Antrean"></button>
+    </div>
+    <div class="fw">
+      <iframe id="frame" title="Pemutar" allow="autoplay" hidden></iframe>
+      <div class="ph" id="ph">Pilih lagu untuk mulai memutar.</div>
+    </div>
+  </aside>
+</div>
+<nav class="bnav" id="bnav"></nav>
+<div class="mini" id="mini" hidden>
+  <button class="mo" id="m-open" aria-label="Buka pemutar"><img id="m-img" alt=""><span style="min-width:0"><div class="mt" id="m-t"></div><div class="ma" id="m-a"></div></span></button>
+  <button class="ib" id="m-prev" aria-label="Sebelumnya"></button>
+  <button class="ib main-b" id="m-play" aria-label="Putar atau jeda"></button>
+  <button class="ib" id="m-next" aria-label="Berikutnya"></button>
+</div>
+<div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const h = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x != null) n.textContent = x; return n; };
+const P = {
+  home: '<path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-7h6v7"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  lib: '<path d="M4 6h16M4 12h16M4 18h9"/><path d="M17 15v5M14.5 17.5h5"/>',
+  heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  dots: '<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
+  play: '<path d="M8 5v14l11-7z"/>',
+  pause: '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>',
+  prev: '<path d="M6 6h2v12H6zM9.5 12 18 18V6z"/>',
+  next: '<path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/>',
+  shuffle: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  next2: '<path d="M5 6h9M5 12h9M5 18h5M17 14l4 3-4 3z"/>',
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
+  friends: '<circle cx="9" cy="8" r="3.5"/><path d="M2 21c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c3 0 5 2 5 4.5"/>',
+  ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>'
+};
+const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
+const svg = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="' + (FILL[n] ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + P[n] + '</svg>';
+const setIc = (el, n, s) => { el.innerHTML = svg(n, s); };
+const ib = (n, label, fn, cls) => { const b = h('button', 'ib ' + (cls || '')); b.type = 'button'; b.setAttribute('aria-label', label); setIc(b, n); b.addEventListener('click', e => { e.stopPropagation(); fn(e); }); return b; };
+
+// ---------- data ----------
+const load = () => {
+  try { const d = JSON.parse(localStorage.getItem('alya_v2') || 'null'); if (d && d.lists) return norm(d); } catch (e) {}
+  let recent = []; try { recent = JSON.parse(localStorage.getItem('alya_recent') || '[]'); } catch (e) {}
+  return { recent: recent.map(slim), likes: [], lists: [], gone: {}, favTs: 0, prefs: { auto: true, shuffle: false, repeat: false } };
+};
+function norm(d) { d.gone = d.gone || {}; d.favTs = d.favTs || 0; d.lists.forEach(l => { l.ts = l.ts || 0; }); d.prefs = d.prefs || { auto: true, shuffle: false, repeat: false }; return d; }
+function slim(t) { return { id: t.id, title: t.title, author: t.author || '', duration: t.duration || '' }; }
+let DB = load();
+const save = n => { try { localStorage.setItem('alya_v2', JSON.stringify(DB)); } catch (e) {} if (!n) queueSync(); };
+const thumb = id => 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
+const isLiked = id => DB.likes.some(t => t.id === id);
+const uid = () => Math.random().toString(36).slice(2, 9);
+function listOf(id) { return id === 'fav' ? { id: 'fav', name: 'Favorit', tracks: DB.likes, fav: true } : DB.lists.find(l => l.id === id); }
+function addRecent(t) { DB.recent = [slim(t)].concat(DB.recent.filter(x => x.id !== t.id)).slice(0, 24); save(); }
+function toggleLike(t) {
+  DB.favTs = Date.now();
+  if (isLiked(t.id)) { DB.likes = DB.likes.filter(x => x.id !== t.id); toast('Dihapus dari Favorit'); }
+  else { DB.likes.unshift(slim(t)); toast('Ditambahkan ke Favorit'); }
+  save(); paintLikes();
+  if (V.v === 'lib' || V.v === 'list') render();
+}
+function addToList(lid, t) {
+  if (lid === 'fav') { if (!isLiked(t.id)) toggleLike(t); else toast('Sudah ada di Favorit'); return; }
+  const l = listOf(lid);
+  if (l.tracks.some(x => x.id === t.id)) { toast('Sudah ada di ' + l.name); return; }
+  l.tracks.push(slim(t)); l.ts = Date.now(); save(); toast('Ditambahkan ke ' + l.name);
+  if (V.v === 'lib') render();
+}
+function removeFrom(lid, id) {
+  if (lid === 'fav') { DB.likes = DB.likes.filter(x => x.id !== id); DB.favTs = Date.now(); }
+  else { const l = listOf(lid); l.tracks = l.tracks.filter(x => x.id !== id); l.ts = Date.now(); }
+  save(); paintLikes();
+}
+
+// ---------- umum ----------
+let tt;
+function toast(m) { const t = $('toast'); t.textContent = m; t.className = 'toast show'; clearTimeout(tt); tt = setTimeout(() => { t.className = 'toast'; }, 2200); }
+function modal(title, build) {
+  const b = $('mbox'); b.innerHTML = '';
+  if (title) b.appendChild(h('div', 'mh', title));
+  build(b); $('modal').hidden = false;
+}
+const closeModal = () => { $('modal').hidden = true; };
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+function act(box, text, fn, cls, icon) {
+  const b = h('button', 'act ' + (cls || '')); b.type = 'button';
+  if (icon) { const s = h('span', 'ic'); setIc(s, icon, 20); b.appendChild(s); }
+  b.appendChild(h('span', '', text));
+  b.addEventListener('click', () => { closeModal(); fn(); });
+  box.appendChild(b);
+}
+function ask(title, value, okText, cb) {
+  modal(title, box => {
+    const i = h('input', 'minput'); i.value = value || ''; i.maxLength = 40; i.placeholder = 'Nama playlist'; box.appendChild(i);
+    const r = h('div', 'brow'), c = h('button', '', 'Batal'), o = h('button', 'go', okText);
+    c.onclick = closeModal;
+    o.onclick = () => { const v = i.value.trim(); if (!v) return; closeModal(); cb(v); };
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') o.click(); });
+    r.append(c, o); box.appendChild(r); setTimeout(() => i.focus(), 50);
+  });
+}
+function confirmBox(title, okText, cb) {
+  modal(title, box => {
+    const r = h('div', 'brow'), c = h('button', '', 'Batal'), o = h('button', 'go', okText);
+    c.onclick = closeModal; o.onclick = () => { closeModal(); cb(); };
+    r.append(c, o); box.appendChild(r);
+  });
+}
+function mosaic(tracks, cls) {
+  const d = h('div', cls);
+  if (!tracks.length) { const e = h('div', 'em'); setIc(e, 'music', 34); d.appendChild(e); return d; }
+  const t4 = tracks.length >= 4 ? tracks.slice(0, 4) : [tracks[0]];
+  t4.forEach(t => { const i = h('img', t4.length === 1 ? 'one' : ''); i.src = thumb(t.id); i.alt = ''; i.loading = 'lazy'; d.appendChild(i); });
+  return d;
+}
+
+// ---------- pemutaran ----------
+let queue = [], qi = -1, upNext = -1, fstate = 0, playing = false, errStreak = 0;
+const media = { pos: 0, dur: 0, rate: 1, playing: false };
+const frame = $('frame'), ph = $('ph');
+const SPIN = '<div><div class="spin"></div>Menyiapkan lagu...</div>';
+function pickNext() {
+  if (!queue.length) return -1;
+  if (DB.prefs.shuffle && queue.length > 1) { let r; do { r = Math.floor(Math.random() * queue.length); } while (r === qi); return r; }
+  if (qi + 1 < queue.length) return qi + 1;
+  return DB.prefs.repeat ? 0 : -1;
+}
+function playFrom(items, i) { queue = items.map(slim); go(i); }
+function go(i) {
+  if (i < 0 || i >= queue.length) return;
+  qi = i; const t = queue[i];
+  addRecent(t); upNext = pickNext(); pubNow(t);
+  updMini(); paintLikes(); markNow();
+  media.pos = 0; media.dur = 0; pushMedia();
+  document.title = t.title + ' - Alya Music';
+  if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-load', id: t.id, auto: true }, location.origin);
+  else { fstate = 1; ph.className = 'ph'; ph.innerHTML = SPIN; frame.hidden = true; frame.src = '/player/' + encodeURIComponent(t.id) + '?auto=1'; }
+}
+function next() { if (upNext >= 0) go(upNext); else toast('Antrean selesai'); }
+function prev() { if (media.pos > 3) { cmdPlayer({ cmd: 'seek', ms: 0 }); return; } if (qi > 0) go(qi - 1); }
+frame.addEventListener('load', () => { ph.className = 'ph hide'; frame.hidden = false; });
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
+  const d = e.data; if (!d || typeof d !== 'object') return;
+  if (d.type === 'alya-hello') fstate = 2;
+  else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
+  else if (d.type === 'alya-pos') { media.pos = d.pos || 0; media.dur = d.dur || 0; media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
+  else if (d.type === 'alya-ended') { if (DB.prefs.auto) next(); }
+  else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
+  else if (d.type === 'alya-near') { const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
+  else if (d.type === 'alya-blocked') openSheet();
+  else if (d.type === 'alya-error') { errStreak++; if (DB.prefs.auto && errStreak < 3) setTimeout(next, 1500); }
+});
+function updMini() {
+  const t = queue[qi]; if (!t) return;
+  $('mini').hidden = false; $('m-img').src = thumb(t.id); $('m-t').textContent = t.title; $('m-a').textContent = t.author;
+}
+function markNow() {
+  const id = queue[qi] ? queue[qi].id : '';
+  document.querySelectorAll('[data-id]').forEach(n => n.classList.toggle('now', n.dataset.id === id));
+}
+function paintLikes() {
+  document.querySelectorAll('.like').forEach(b => b.classList.toggle('on', isLiked(b.dataset.lk)));
+  const t = queue[qi], s = $('s-like'); s.classList.toggle('on', !!t && isLiked(t.id));
+}
+function paintToggles() {
+  $('t-auto').classList.toggle('on', DB.prefs.auto); $('t-shuf').classList.toggle('on', DB.prefs.shuffle); $('t-rep').classList.toggle('on', DB.prefs.repeat);
+}
+['auto', 'shuf', 'rep'].forEach(k => $('t-' + k).addEventListener('click', () => {
+  const key = { auto: 'auto', shuf: 'shuffle', rep: 'repeat' }[k]; DB.prefs[key] = !DB.prefs[key]; save(); paintToggles(); upNext = pickNext();
+}));
+$('s-like').addEventListener('click', () => { if (queue[qi]) toggleLike(queue[qi]); });
+
+// ---------- navigasi ----------
+let V = { v: 'home' };
+const NAV = [['home', 'Beranda'], ['search', 'Cari'], ['lib', 'Playlist'], ['friends', 'Teman'], ['me', 'Saya']];
+function buildNav() {
+  [$('snav'), $('bnav')].forEach(box => NAV.forEach(([v, label]) => {
+    const b = h('button', 'nb'); b.type = 'button'; b.dataset.nav = v;
+    const s = h('span', 'ic'); setIc(s, v === 'me' ? 'user' : v, 22); b.append(s, h('span', '', label));
+    b.onclick = () => setView(v); box.appendChild(b);
+  }));
+}
+function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' ? 'lib' : V.v))); }
+const stateObj = () => ({ v: V.v, id: V.id, sheet: document.body.classList.contains('sheet') ? 1 : 0 });
+function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); }
+function openSheet() { if (!document.body.classList.contains('sheet')) { document.body.classList.add('sheet'); history.pushState({ v: V.v, id: V.id, sheet: 1 }, ''); } }
+function closeSheet() { if (!document.body.classList.contains('sheet')) return; if (history.state && history.state.sheet) history.back(); else document.body.classList.remove('sheet'); }
+window.addEventListener('popstate', e => {
+  const s = e.state || { v: 'home' };
+  document.body.classList.toggle('sheet', !!s.sheet);
+  if (s.v !== V.v || s.id !== V.id) { V = { v: s.v || 'home', id: s.id }; render(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSheet(); } });
+$('close').addEventListener('click', closeSheet); setIc($('close'), 'down');
+$('m-open').addEventListener('click', openSheet);
+setIc($('m-prev'), 'prev'); setIc($('m-next'), 'next'); setIc($('m-play'), 'play'); setIc($('s-like'), 'heart');
+$('m-prev').addEventListener('click', prev); $('m-next').addEventListener('click', next);
+$('m-play').addEventListener('click', () => { if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-cmd', cmd: 'toggle' }, location.origin); else openSheet(); });
+
+// ---------- komponen ----------
+function trackMenu(t, ctx) {
+  modal(t.title, b => {
+    act(b, 'Putar berikutnya', () => { if (qi < 0) playFrom([t], 0); else { queue.splice(qi + 1, 0, slim(t)); upNext = pickNext(); toast('Akan diputar berikutnya'); } }, '', 'next2');
+    act(b, isLiked(t.id) ? 'Hapus dari Favorit' : 'Tambah ke Favorit', () => toggleLike(t), '', 'heart');
+    act(b, 'Tambah ke playlist', () => pickList(t), '', 'plus');
+    act(b, 'Bagikan', () => { const txt = t.title + ' - ' + (t.author || '') + ' https://youtu.be/' + t.id; if (window.AlyaApp && AlyaApp.share) AlyaApp.share(txt); else if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else toast('Berbagi tidak didukung'); }, '', 'share');
+    act(b, 'Buka di YouTube', () => openExt('https://youtu.be/' + t.id), '', 'ext');
+    if (ctx && ctx.list) act(b, 'Hapus dari playlist ini', () => { removeFrom(ctx.list, t.id); render(); }, 'danger', 'trash');
+  });
+}
+function pickList(t) {
+  modal('Tambah ke playlist', b => {
+    act(b, '+ Playlist baru', () => ask('Playlist baru', '', 'Buat', n => { const l = { id: uid(), name: n, tracks: [], ts: Date.now() }; DB.lists.push(l); save(); addToList(l.id, t); }), '', 'plus');
+    DB.lists.forEach(l => act(b, l.name + '  (' + l.tracks.length + ')', () => addToList(l.id, t), '', 'music'));
+  });
+}
+function row(t, items, i, ctx) {
+  const r = h('div', 'row'); r.dataset.id = t.id; r.tabIndex = 0;
+  const im = h('img'); im.src = thumb(t.id); im.alt = ''; im.loading = 'lazy';
+  const bx = h('div', 'rb'); bx.append(h('div', 'rt', t.title), h('div', 'rs', (t.author || '') + (t.duration ? ' • ' + t.duration : '')));
+  const lk = ib('heart', 'Favorit', () => toggleLike(t), 'like'); lk.dataset.lk = t.id; lk.classList.toggle('on', isLiked(t.id));
+  r.append(im, bx, lk, ib('dots', 'Menu', () => trackMenu(t, ctx)));
+  r.onclick = () => playFrom(items, i);
+  r.addEventListener('keydown', e => { if (e.key === 'Enter') playFrom(items, i); });
+  return r;
+}
+function card(t, items, i) {
+  const c = h('button', 'card'); c.type = 'button'; c.dataset.id = t.id;
+  const im = h('img'); im.src = thumb(t.id); im.alt = ''; im.loading = 'lazy';
+  c.append(im, h('div', 'ct', t.title), h('div', 'ca', t.author));
+  c.onclick = () => playFrom(items, i);
+  c.addEventListener('contextmenu', e => { e.preventDefault(); trackMenu(t); });
+  return c;
+}
+function sec(m, title, label, fn) {
+  const s = h('div', 'sec'); s.appendChild(h('h2', '', title));
+  if (label) { const b = h('button', '', label); b.type = 'button'; b.onclick = fn; s.appendChild(b); }
+  m.appendChild(s);
+}
+const rail = items => { const r = h('div', 'rail'); items.forEach((t, i) => r.appendChild(card(t, items, i))); return r; };
+
+// ---------- pencarian ----------
+const api = q => fetch('/api/search?q=' + encodeURIComponent(q)).then(r => { if (!r.ok) throw 0; return r.json(); });
+function cached(q) {
+  const k = 'alya_c_' + q;
+  try { const c = JSON.parse(localStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < 216e5) return Promise.resolve(c.d); } catch (e) {}
+  return api(q).then(d => { try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), d: d.map(slim) })); } catch (e) {} return d; });
+}
+let lastQ = '', results = null, searching = false;
+const MOODS = [['🌙 Santai', 'lagu santai'], ['⚡ Semangat', 'lagu semangat'], ['🎯 Fokus', 'focus music instrumental'], ['💔 Galau', 'lagu galau'], ['🎌 Anime', 'anime songs'], ['🇮🇩 Indonesia', 'lagu indonesia populer']];
+const RAILS = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai']];
+function runSearch(q) {
+  lastQ = q; results = null; searching = true; setView('search'); 
+  api(q).then(d => { results = d; }).catch(() => { results = []; }).then(() => { searching = false; if (V.v === 'search') render(); });
+}
+function chipsRow(m) {
+  const c = h('div', 'chips');
+  MOODS.forEach(([l, q]) => { const b = h('button', 'chip', l); b.type = 'button'; b.onclick = () => runSearch(q); c.appendChild(b); });
+  m.appendChild(c);
+}
+
+// ---------- halaman ----------
+const QUICK = [['🔎', 'Cari', () => setView('search')], ['📚', 'Playlist', () => setView('lib')], ['❤️', 'Favorit', () => setView('list', 'fav')], ['👥', 'Teman', () => setView('friends')],
+  ['🔥', 'Trending', () => runSearch('lagu viral trending')], ['🆕', 'Rilis baru', () => runSearch('lagu baru rilis minggu ini')], ['🎤', 'Karaoke', () => runSearch('karaoke lirik')], ['🎲', 'Acak', shufflePlay]];
+const GENRES = [['Pop', '#ec4899,#8b5cf6', 'pop hits'], ['Dangdut', '#f59e0b,#ef4444', 'dangdut populer'], ['Rock', '#ef4444,#7f1d1d', 'rock classic'], ['Hip-Hop', '#10b981,#065f46', 'hip hop hits'],
+  ['EDM', '#22d3ee,#6366f1', 'edm best'], ['Jazz', '#f97316,#7c2d12', 'jazz santai'], ['Reggae', '#84cc16,#166534', 'reggae santai'], ['Klasik', '#a78bfa,#312e81', 'musik klasik piano']];
+const POOL = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai'],
+  ['Pop Barat', 'top pop songs'], ['Indie Indonesia', 'indie indonesia'], ['Throwback 2000an', 'lagu 2000an'], ['Galau', 'lagu galau'], ['Workout', 'workout music'], ['Nasyid & religi', 'lagu religi'], ['Film & game OST', 'epic ost']];
+function daily(a, n) { let s = Math.floor(Date.now() / 864e5), x = a.slice(); for (let i = x.length - 1; i > 0; i--) { s = (s * 9301 + 49297) % 233280; const j = Math.floor(s / 233280 * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x.slice(0, n); }
+function shufflePlay() { const p = DB.likes.concat(DB.recent); if (!p.length) { toast('Putar atau sukai lagu dulu'); return; } DB.prefs.shuffle = true; save(); paintToggles(); playFrom(p, Math.floor(Math.random() * p.length)); }
+const okId = x => /^[A-Za-z0-9_-]{11}$/.test(x || '');
+function av(name, photo, sz) {
+  let e;
+  if (photo && photo.indexOf('https://lh3.googleusercontent.com/') === 0) { e = h('img', 'av'); e.src = photo; e.alt = ''; e.referrerPolicy = 'no-referrer'; } else { e = h('div', 'av', (name || '?').trim().charAt(0).toUpperCase()); }
+  if (sz) { e.style.width = e.style.height = sz + 'px'; } return e;
+}
+function railSlot(m, title, q) {
+  sec(m, title, 'Lihat semua', () => runSearch(q));
+  const slot = h('div', 'rail');
+  for (let i = 0; i < 5; i++) { const c = h('div', 'card'); c.append(h('div', 'sk'), h('div', 'ct', ' ')); slot.appendChild(c); }
+  m.appendChild(slot); lazyLoad(slot, q);
+}
+function friendRow(f, withPlay) {
+  const r = h('div', 'fr'); r.appendChild(av(f.name, f.photo));
+  const b = h('div', 'rb'); b.appendChild(h('div', 'rt', f.name || 'Teman'));
+  const n = f.now && okId(f.now.id) ? f.now : null;
+  if (n) { const mn = Math.round((Date.now() - n.ts) / 60000); b.appendChild(h('div', 'rs', (mn < 5 ? '🎧 Sedang mendengarkan: ' : 'Terakhir (' + (mn < 60 ? mn + ' mnt' : Math.round(mn / 60) + ' jam') + ' lalu): ') + n.title)); } else b.appendChild(h('div', 'rs', 'Belum ada aktivitas'));
+  r.appendChild(b);
+  if (n && withPlay) r.appendChild(ib('play', 'Dengarkan juga', () => playFrom([{ id: n.id, title: n.title, author: n.author }], 0)));
+  return r;
+}
+function rHome(m) {
+  const hr = new Date().getHours();
+  const g = hr < 4 ? 'Selamat malam' : hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
+  const top = h('div', 'hhead'); let mi;
+  if (G.u) { mi = av(G.u.name, G.u.photo, 58); mi.onclick = () => setView('me'); } else { mi = h('img'); mi.src = '/mascot.png'; mi.alt = ''; }
+  const tx = h('div'); tx.append(h('h1', '', G.u ? g + ', ' + G.u.name.split(' ')[0] : g), h('div', 'mut', 'Mau dengar apa hari ini?')); top.append(mi, tx); m.appendChild(top);
+  const sb = h('button', 'sbar'); sb.type = 'button'; const si = h('span', 'ic'); setIc(si, 'search', 20); sb.append(si, h('span', '', 'Cari lagu atau artis')); sb.onclick = () => setView('search'); m.appendChild(sb);
+  banner(m);
+  const qg = h('div', 'qgrid'); QUICK.forEach(([e, l, fn]) => { const t = h('button', 'tile'); t.type = 'button'; t.append(h('b', '', e), h('span', '', l)); t.onclick = fn; qg.appendChild(t); }); m.appendChild(qg);
+
+  const last = DB.recent[0];
+  const hero = h('div', 'hero');
+  if (last) {
+    const bg = h('img', 'bg'); bg.src = thumb(last.id); bg.alt = ''; hero.appendChild(bg);
+    hero.append(h('div', 'k', 'Lanjutkan'), h('div', 't', last.title), h('div', 'mut', last.author));
+    const pb = h('button', 'pbtn'); pb.type = 'button'; const pi = h('span', 'ic'); setIc(pi, 'play', 18); pb.append(pi, h('span', '', 'Putar'));
+    pb.onclick = () => playFrom(DB.recent, 0); hero.appendChild(pb);
+  } else {
+    hero.append(h('div', 'k', 'Selamat datang'), h('div', 't', 'Mulai dengan mencari lagu favoritmu'), h('div', 'mut', 'Buat playlist, simpan favorit, dan berteman.'));
+    const pb = h('button', 'pbtn', 'Cari lagu'); pb.type = 'button'; pb.onclick = () => setView('search'); hero.appendChild(pb);
+  }
+  m.appendChild(hero);
+  if (DB.recent.length > 1) { sec(m, 'Pilihan cepat'); const q = h('div', 'qp'); DB.recent.slice(0, 6).forEach((t, i) => { const b = h('button'); b.type = 'button'; b.dataset.id = t.id; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('span', '', t.title)); b.onclick = () => playFrom(DB.recent, i); q.appendChild(b); }); m.appendChild(q); }
+
+  if (G.u) {
+    const act = G.friends.filter(f => f.now); sec(m, 'Teman sedang mendengarkan', 'Semua', () => setView('friends'));
+    if (act.length) act.sort((a, b) => b.now.ts - a.now.ts).slice(0, 3).forEach(f => m.appendChild(friendRow(f, true))); else m.appendChild(h('div', 'mut', G.friends.length ? 'Belum ada aktivitas teman.' : 'Belum ada teman. Tambahkan lewat kode teman.'));
+  } else {
+    const pr = h('div', 'promo'); pr.append(h('b', '', 'Masuk & berteman'), h('div', 'mut', 'Login dengan Google untuk menyimpan playlist di cloud dan melihat apa yang didengar temanmu.'));
+    const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; pr.appendChild(gb); m.appendChild(pr);
+  }
+  chipsRow(m);
+  const au = []; DB.recent.forEach(t => { if (t.author && !au.some(x => x.author === t.author)) au.push(t); });
+  if (au.length > 2) { sec(m, 'Artis untukmu'); const ar = h('div', 'arts'); au.slice(0, 10).forEach(t => { const b = h('button', 'art'); b.type = 'button'; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('div', '', t.author)); b.onclick = () => runSearch(t.author + ' lagu terbaik'); ar.appendChild(b); }); m.appendChild(ar); }
+  if (DB.recent.length) { sec(m, 'Terakhir diputar'); m.appendChild(rail(DB.recent.slice(0, 14))); }
+  if (DB.likes.length) { sec(m, 'Favoritmu', 'Lihat semua', () => setView('list', 'fav')); m.appendChild(rail(DB.likes.slice(0, 14))); }
+  if (DB.lists.length) { sec(m, 'Playlist kamu', 'Lihat semua', () => setView('lib')); const r = h('div', 'rail'); DB.lists.slice(0, 10).forEach(l => { r.appendChild(plCard(l, true)); }); m.appendChild(r); }
+  railSlot(m, hr < 11 ? 'Awali pagimu' : hr < 18 ? 'Teman santai sore' : 'Temani malammu', hr < 11 ? 'lagu pagi semangat' : hr < 18 ? 'lagu santai sore' : 'lagu malam tenang');
+  if (last && last.author) railSlot(m, 'Karena kamu mendengar ' + last.author, last.author + ' lagu terbaik');
+  sec(m, 'Jelajahi genre'); const gg = h('div', 'gens');
+  GENRES.forEach(([n, c, q]) => { const b = h('button', 'gen', n); b.type = 'button'; b.style.background = 'linear-gradient(135deg,' + c + ')'; b.onclick = () => runSearch(q); gg.appendChild(b); }); m.appendChild(gg);
+  daily(POOL, 5).forEach(([t, q]) => railSlot(m, t, q));
+  if (window.AlyaApp && typeof AlyaApp.changeServer === 'function') $('srv').hidden = false;
+}
+let loadQ = Promise.resolve();
+function lazyLoad(slot, q) {
+  const go = () => { loadQ = loadQ.then(() => cached(q).then(d => { if (!slot.isConnected) return; slot.replaceWith(rail(d.slice(0, 10))); markNow(); }).catch(() => { if (slot.isConnected) slot.replaceWith(h('div', 'mut', 'Gagal memuat. Periksa koneksi.')); })); };
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => { if (es[0].isIntersecting) { io.disconnect(); go(); } }, { rootMargin: '200px' }); io.observe(slot);
+  } else go();
+}
+function rSearch(m) {
+  const f = h('form', 'sform'); const i = h('input'); i.type = 'search'; i.placeholder = 'Judul lagu atau artis'; i.value = lastQ; i.autocomplete = 'off'; i.enterKeyHint = 'search';
+  const b = h('button', '', 'Cari'); b.type = 'submit'; f.append(i, b);
+  f.onsubmit = e => { e.preventDefault(); const q = i.value.trim(); if (q) { i.blur(); runSearch(q); } };
+  m.appendChild(f);
+  if (!lastQ) { sec(m, 'Coba cari'); chipsRow(m); const r = DB.recent; if (r.length) { sec(m, 'Terakhir diputar'); const l = h('div', 'list'); r.slice(0, 8).forEach((t, k) => l.appendChild(row(t, r, k))); m.appendChild(l); } return; }
+  if (searching) { m.appendChild(h('div', 'msg', 'Mencari...')); return; }
+  if (!results || !results.length) { m.appendChild(h('div', 'msg', 'Lagu tidak ditemukan. Coba kata kunci lain.')); return; }
+  sec(m, 'Hasil untuk "' + lastQ + '"');
+  const l = h('div', 'list'); results.forEach((t, k) => l.appendChild(row(t, results, k))); m.appendChild(l);
+}
+function plCard(l, small) {
+  const c = h('button', 'pl'); c.type = 'button'; if (small) c.style.cssText = 'flex:none;width:142px';
+  c.append(mosaic(l.tracks, 'cv'), h('div', 'ct', l.name), h('div', 'ca', l.tracks.length + ' lagu'));
+  c.onclick = () => setView('list', l.id); return c;
+}
+function rLib(m) {
+  const t = h('div', 'sec'); t.appendChild(h('h1', '', 'Playlist'));
+  const nb = h('button', 'sbtn'); nb.type = 'button'; const pi = h('span', 'ic'); setIc(pi, 'plus', 16); nb.append(pi, h('span', '', 'Baru'));
+  nb.onclick = () => ask('Playlist baru', '', 'Buat', n => { DB.lists.push({ id: uid(), name: n, tracks: [], ts: Date.now() }); save(); render(); });
+  t.appendChild(nb); m.appendChild(t);
+  const g = h('div', 'grid'); g.appendChild(plCard(listOf('fav')));
+  DB.lists.forEach(l => g.appendChild(plCard(l))); m.appendChild(g);
+  if (!DB.lists.length) m.appendChild(h('div', 'msg', 'Belum ada playlist. Tekan "Baru" untuk membuat, lalu tambahkan lagu lewat tombol ⋮ di setiap lagu.'));
+}
+function rList(m) {
+  const l = listOf(V.id);
+  if (!l) { setView('lib'); return; }
+  const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Playlist')); bk.onclick = () => history.back(); m.appendChild(bk);
+  const hd = h('div', 'dhead'); hd.appendChild(mosaic(l.tracks, 'dcv'));
+  const tx = h('div'); tx.append(h('h1', '', l.name), h('div', 'mut', l.tracks.length + ' lagu')); hd.appendChild(tx); m.appendChild(hd);
+  const a = h('div', 'acts');
+  const pl = h('button', 'pbtn'); pl.type = 'button'; const p1 = h('span', 'ic'); setIc(p1, 'play', 18); pl.append(p1, h('span', '', 'Putar'));
+  pl.onclick = () => { if (l.tracks.length) playFrom(l.tracks, 0); };
+  const sh = h('button', 'sbtn'); sh.type = 'button'; const p2 = h('span', 'ic'); setIc(p2, 'shuffle', 16); sh.append(p2, h('span', '', 'Acak'));
+  sh.onclick = () => { if (!l.tracks.length) return; DB.prefs.shuffle = true; save(); paintToggles(); playFrom(l.tracks, Math.floor(Math.random() * l.tracks.length)); };
+  a.append(pl, sh);
+  if (!l.fav) {
+    const rn = h('button', 'sbtn'); rn.type = 'button'; const p3 = h('span', 'ic'); setIc(p3, 'edit', 16); rn.append(p3, h('span', '', 'Nama'));
+    rn.onclick = () => ask('Ganti nama', l.name, 'Simpan', n => { l.name = n; l.ts = Date.now(); save(); render(); });
+    const dl = h('button', 'sbtn'); dl.type = 'button'; const p4 = h('span', 'ic'); setIc(p4, 'trash', 16); dl.append(p4, h('span', '', 'Hapus'));
+    dl.onclick = () => confirmBox('Hapus playlist "' + l.name + '"?', 'Hapus', () => { DB.lists = DB.lists.filter(x => x.id !== l.id); DB.gone[l.id] = Date.now(); save(); history.back(); });
+    a.append(rn, dl);
+  }
+  m.appendChild(a);
+  if (!l.tracks.length) { m.appendChild(h('div', 'msg', l.fav ? 'Belum ada favorit. Tekan ikon hati di lagu mana saja.' : 'Playlist masih kosong. Tambahkan lagu lewat tombol ⋮ di hasil pencarian.')); return; }
+  const ls = h('div', 'list'); l.tracks.forEach((t, i) => ls.appendChild(row(t, l.tracks, i, { list: l.id }))); m.appendChild(ls);
+}
+function render() {
+  const m = $('main'); m.innerHTML = '';
+  ({ home: rHome, search: rSearch, lib: rLib, list: rList, me: rMe, friends: rFriends }[V.v] || rHome)(m);
+  updNav(); markNow(); paintLikes();
+}
+
+
+// ---------- kontrol dari notifikasi / layar kunci ----------
+let pmT;
+function pushMedia() {
+  if (!(window.AlyaApp && AlyaApp.setMedia)) return;
+  clearTimeout(pmT);
+  pmT = setTimeout(() => {
+    const t = queue[qi]; if (!t) return;
+    try { AlyaApp.setMedia(t.title, t.author || '', t.id, !!media.playing, (media.dur || 0) * 1000, (media.pos || 0) * 1000, media.rate || 1); } catch (e) {}
+  }, 60);
+}
+function cmdPlayer(o) { if (fstate === 2) frame.contentWindow.postMessage(Object.assign({ type: 'alya-cmd' }, o), location.origin); }
+window.alyaCmd = c => {
+  if (c === 'play' || c === 'pause' || c === 'toggle') cmdPlayer({ cmd: c });
+  else if (c === 'next') next();
+  else if (c === 'prev') prev();
+  else if (c.indexOf('seek:') === 0) cmdPlayer({ cmd: 'seek', ms: Number(c.slice(5)) });
+};
+
+// ---------- update aplikasi ----------
+let updInfo = null;
+const openExt = url => { if (window.AlyaApp && AlyaApp.openUrl) AlyaApp.openUrl(url); else window.open(url, '_blank'); };
+function checkUpdate(force) {
+  return fetch('/api/update' + (force ? '?force=1' : '')).then(r => (r.ok ? r.json() : null)).then(d => { updInfo = d; if (V.v === 'home' || V.v === 'me') render(); return d; }).catch(() => null);
+}
+function banner(m) {
+  let no = ''; try { no = localStorage.getItem('alya_upd_no') || ''; } catch (e) {}
+  if (!updInfo || !updInfo.available || no === String(updInfo.latest)) return;
+  const c = h('div', 'upd'), t = h('div');
+  t.append(h('b', '', 'Update ' + updInfo.latestName + ' tersedia'), h('div', 'mut', 'Kamu memakai ' + updInfo.currentName + '. Ketuk Unduh, lalu pasang.'));
+  const go2 = h('button', 'pbtn', 'Unduh'); go2.type = 'button'; go2.style.margin = '0'; go2.onclick = () => openExt(updInfo.url);
+  const x = h('button', 'ib', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Nanti');
+  x.onclick = () => { try { localStorage.setItem('alya_upd_no', String(updInfo.latest)); } catch (e) {} render(); };
+  c.append(t, go2, x); m.appendChild(c);
+}
+
+// ---------- akun: sinkronisasi lewat GitHub Gist pribadi ----------
+const TOK = 'alya_tok', GID = 'alya_gid', GFILE = 'alya-music.json';
+const tok = () => { try { return localStorage.getItem(TOK) || ''; } catch (e) { return ''; } };
+const ghReq = (path, method, body) => fetch('https://api.github.com' + path, { method: method || 'GET', headers: { Authorization: 'Bearer ' + tok(), Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+const snap = () => ({ v: 2, lists: DB.lists, likes: DB.likes, favTs: DB.favTs || 0, gone: DB.gone || {}, recent: DB.recent.slice(0, 24) });
+function mergeIn(r) {
+  if (!r || !Array.isArray(r.lists)) return false;
+  const before = JSON.stringify(snap());
+  const gone = Object.assign({}, DB.gone); Object.keys(r.gone || {}).forEach(k => { gone[k] = Math.max(gone[k] || 0, r.gone[k]); });
+  const map = {}; DB.lists.concat(r.lists).forEach(l => { const o = map[l.id]; if (!o || (l.ts || 0) > (o.ts || 0)) map[l.id] = l; });
+  DB.lists = Object.keys(map).map(k => map[k]).filter(l => !(gone[l.id] && gone[l.id] >= (l.ts || 0)));
+  DB.gone = gone;
+  if ((r.favTs || 0) > (DB.favTs || 0)) { DB.likes = r.likes || []; DB.favTs = r.favTs; }
+  const seen = {}; DB.recent = DB.recent.concat(r.recent || []).filter(t => !seen[t.id] && (seen[t.id] = 1)).slice(0, 24);
+  return JSON.stringify(snap()) !== before;
+}
+let syncing = false, syncT, syncMsg = '';
+function queueSync() { if (G.u) gQueue(); if (!tok()) return; clearTimeout(syncT); syncT = setTimeout(() => syncNow(true), 4000); }
+async function syncNow(silent) {
+  if (!tok() || syncing) return;
+  syncing = true;
+  try {
+    let id = localStorage.getItem(GID) || '', remote = '';
+    if (!id) {
+      const r = await ghReq('/gists?per_page=100');
+      if (!r.ok) throw new Error('Token ditolak (' + r.status + ')');
+      const g = (await r.json()).find(x => x.files && x.files[GFILE]); if (g) id = g.id;
+    }
+    if (id) {
+      const r = await ghReq('/gists/' + id);
+      if (r.status === 404) { id = ''; localStorage.removeItem(GID); }
+      else if (!r.ok) throw new Error('Gagal membaca (' + r.status + ')');
+      else {
+        const f = (await r.json()).files[GFILE];
+        remote = f ? f.content : '';
+        if (f && f.truncated) remote = await (await fetch(f.raw_url)).text();
+        if (remote) mergeIn(JSON.parse(remote));
+      }
+    }
+    const content = JSON.stringify(snap());
+    if (!id || content !== remote) {
+      const body = { description: 'Alya Music sync', files: { [GFILE]: { content } } };
+      const w = id ? await ghReq('/gists/' + id, 'PATCH', body) : await ghReq('/gists', 'POST', Object.assign({ public: false }, body));
+      if (!w.ok) throw new Error('Gagal menyimpan (' + w.status + ')');
+      if (!id) localStorage.setItem(GID, (await w.json()).id);
+    }
+    save(true); localStorage.setItem('alya_sync_at', String(Date.now())); syncMsg = 'Tersinkron';
+    if (!silent) toast('Tersinkron');
+    if (V.v === 'home' || V.v === 'lib' || V.v === 'me' || V.v === 'list') render();
+  } catch (e) { syncMsg = 'Gagal: ' + (e.message || e); if (!silent) toast(syncMsg); }
+  syncing = false;
+}
+function login(t) {
+  if (!t) { toast('Tempel token dulu'); return; }
+  fetch('https://api.github.com/user', { headers: { Authorization: 'Bearer ' + t, Accept: 'application/vnd.github+json' } })
+    .then(r => { if (!r.ok) throw new Error('Token tidak valid'); return r.json(); })
+    .then(u => { localStorage.setItem(TOK, t); localStorage.setItem('alya_user', u.login); localStorage.removeItem(GID); render(); syncNow(false); })
+    .catch(e => toast(e.message || 'Gagal masuk'));
+}
+const ago = () => { const t = Number(localStorage.getItem('alya_sync_at') || 0); if (!t) return 'belum pernah'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'baru saja' : m < 60 ? m + ' menit lalu' : Math.round(m / 60) + ' jam lalu'; };
+const exportCode = () => btoa(unescape(encodeURIComponent(JSON.stringify(snap()))));
+function importModal() {
+  modal('Pulihkan dari kode', bx => {
+    const t = h('textarea', 'minput'); t.rows = 5; t.placeholder = 'Tempel kode cadangan'; bx.appendChild(t);
+    const r = h('div', 'brow'), c = h('button', '', 'Batal'), o = h('button', 'go', 'Pulihkan');
+    c.onclick = closeModal;
+    o.onclick = () => { try { mergeIn(JSON.parse(decodeURIComponent(escape(atob(t.value.trim()))))); save(); closeModal(); toast('Berhasil dipulihkan'); render(); } catch (e) { toast('Kode tidak valid'); } };
+    r.append(c, o); bx.appendChild(r);
+  });
+}
+
+// ---------- halaman Saya ----------
+function box(m, title) { const c = h('div', 'set'); c.appendChild(h('h3', '', title)); m.appendChild(c); return c; }
+function line(c, text) { c.appendChild(h('div', 'mut', text)); }
+function btn(c, text, fn, cls) { const b = h('button', cls || 'sbtn', text); b.type = 'button'; b.onclick = fn; c.appendChild(b); return b; }
+function rMe(m) {
+  m.appendChild(h('h1', '', 'Saya'));
+  gBox(m);
+  const u = box(m, 'Pembaruan');
+  line(u, !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub.' : updInfo.error ? 'Tidak bisa memeriksa update.' : updInfo.available ? 'Update baru (' + updInfo.latestName + ') tersedia!' : 'Aplikasi sudah up-to-date.');
+  const ua = h('div', 'acts'); u.appendChild(ua);
+  btn(ua, 'Periksa sekarang', () => { checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
+  if (updInfo && updInfo.available) btn(ua, 'Unduh ' + updInfo.latestName, () => openExt(updInfo.url), 'pbtn');
+
+  const a = box(m, 'Akun & sinkronisasi');
+  if (tok()) {
+    line(a, 'Masuk sebagai @' + (localStorage.getItem('alya_user') || 'GitHub'));
+    line(a, syncing ? 'Menyinkronkan...' : (syncMsg || 'Terakhir: ' + ago()));
+    const ac = h('div', 'acts'); a.appendChild(ac);
+    btn(ac, 'Sinkronkan sekarang', () => syncNow(false));
+    btn(ac, 'Keluar', () => confirmBox('Keluar dari akun? Data di HP ini tetap ada.', 'Keluar', () => { localStorage.removeItem(TOK); localStorage.removeItem(GID); localStorage.removeItem('alya_user'); render(); }));
+  } else {
+    line(a, 'Simpan playlist dan favorit di akun GitHub-mu (Gist pribadi) supaya tidak perlu mengatur ulang di HP lain. Gratis, tanpa server tambahan.');
+    btn(a, 'Buat token GitHub', () => openExt('https://github.com/settings/tokens/new?scopes=gist&description=Alya%20Music'));
+    line(a, 'Di halaman itu, centang hanya "gist", buat token, salin, lalu tempel di bawah.');
+    const i = h('input', 'minput'); i.type = 'password'; i.placeholder = 'Tempel token'; a.appendChild(i);
+    btn(a, 'Masuk', () => login(i.value.trim()), 'pbtn');
+  }
+
+  const b = box(m, 'Cadangan manual');
+  line(b, 'Salin kode cadangan untuk dipindahkan ke HP lain, atau pulihkan dari kode.');
+  const bc = h('div', 'acts'); b.appendChild(bc);
+  btn(bc, 'Salin kode cadangan', () => { const code = exportCode(); if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(code); else if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => toast('Kode disalin'), () => toast('Gagal menyalin')); });
+  btn(bc, 'Pulihkan dari kode', importModal);
+
+  const ab = box(m, 'Tentang');
+  line(ab, 'Alya Music. Playlist: ' + DB.lists.length + ', favorit: ' + DB.likes.length + ', riwayat: ' + DB.recent.length + '.');
+}
+
+// ---------- login Google, sinkronisasi cloud & teman (Firebase lewat REST) ----------
+const G = { u: null, cfg: null, friends: [], reqs: [] };
+try { G.cfg = JSON.parse(window.AlyaApp && AlyaApp.cfg ? AlyaApp.cfg() : 'null'); } catch (e) {}
+try { G.u = JSON.parse(localStorage.getItem('alya_g') || 'null'); } catch (e) {}
+const gSave = () => { try { localStorage.setItem('alya_g', JSON.stringify(G.u)); } catch (e) {} };
+const FSN = () => 'projects/' + G.cfg.project + '/databases/(default)/documents';
+const fo = o => { const f = {}; Object.keys(o).forEach(k => { f[k] = fv(o[k]); }); return f; };
+const fv = v => v == null ? { nullValue: null } : typeof v === 'string' ? { stringValue: v } : typeof v === 'number' ? { integerValue: String(Math.round(v)) } : typeof v === 'object' ? { mapValue: { fields: fo(v) } } : { booleanValue: !!v };
+const uv = v => v.stringValue !== undefined ? v.stringValue : v.integerValue !== undefined ? Number(v.integerValue) : v.mapValue ? uo(v.mapValue.fields || {}) : v.booleanValue !== undefined ? v.booleanValue : null;
+const uo = f => { const o = {}; Object.keys(f).forEach(k => { o[k] = uv(f[k]); }); return o; };
+const gCode = () => G.u.uid.replace(/[^A-Za-z0-9]/g, '').slice(0, 7).toUpperCase();
+async function gTok() {
+  if (G.u.exp > Date.now()) return G.u.t;
+  const r = await fetch('https://securetoken.googleapis.com/v1/token?key=' + G.cfg.apiKey, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(G.u.rt) });
+  const d = await r.json(); if (!r.ok) { gOut(); throw new Error('Sesi habis, masuk lagi'); }
+  G.u.t = d.id_token; G.u.rt = d.refresh_token; G.u.exp = Date.now() + (Number(d.expires_in) - 60) * 1000; gSave(); return G.u.t;
+}
+async function fs(path, method, body, q) {
+  const r = await fetch('https://firestore.googleapis.com/v1/' + FSN() + path + (q || ''), { method: method || 'GET', headers: { Authorization: 'Bearer ' + await gTok(), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 404) return null; const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error((d.error && d.error.message) || 'Error ' + r.status); return d;
+}
+const put = (path, o, merge) => fs(path, 'PATCH', { fields: fo(o) }, merge ? '?' + Object.keys(o).map(k => 'updateMask.fieldPaths=' + k).join('&') : '');
+async function qry(coll, field, val) {
+  const d = await fs(':runQuery', 'POST', { structuredQuery: { from: [{ collectionId: coll }], where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: { stringValue: val } } }, limit: 30 } });
+  return (d || []).filter(x => x.document).map(x => Object.assign({ id: x.document.name.split('/').pop() }, uo(x.document.fields || {})));
+}
+function gStart() {
+  if (!G.cfg || !G.cfg.apiKey) { toast('Firebase belum diisi (lihat PANDUAN)'); return; }
+  if (window.AlyaApp && AlyaApp.googleSignIn) AlyaApp.googleSignIn(); else toast('Login Google hanya di aplikasi Android');
+}
+window.alyaGoogle = async r => {
+  if (r.error) { toast('Login gagal: ' + r.error); return; }
+  try {
+    const x = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=' + G.cfg.apiKey, { method: 'POST', body: JSON.stringify({ postBody: 'id_token=' + r.idToken + '&providerId=google.com', requestUri: 'http://localhost', returnIdpCredential: true, returnSecureToken: true }) });
+    const d = await x.json(); if (!x.ok) throw new Error((d.error && d.error.message) || 'Login gagal');
+    G.u = { uid: d.localId, name: d.displayName || d.email || 'Pengguna', photo: d.photoUrl || '', rt: d.refreshToken, t: d.idToken, exp: Date.now() + (Number(d.expiresIn) - 60) * 1000 }; gSave();
+    await put('/users/' + G.u.uid, { name: G.u.name, photo: G.u.photo, code: gCode() }, true);
+    toast('Halo, ' + G.u.name); render(); gSync(); gLoad();
+  } catch (e) { toast(e.message || 'Login gagal'); }
+};
+function gOut() { G.u = null; G.friends = []; G.reqs = []; try { localStorage.removeItem('alya_g'); } catch (e) {} render(); }
+async function gLoad() {
+  if (!G.u) return;
+  try {
+    const me = '/users/' + G.u.uid, f = await fs(me + '/friends');
+    const ids = ((f && f.documents) || []).map(d => d.name.split('/').pop());
+    G.reqs = await qry('reqs', 'to', G.u.uid);
+    const b = ids.length ? await fs(':batchGet', 'POST', { documents: ids.map(i => FSN() + '/users/' + i) }) : [];
+    G.friends = (b || []).filter(x => x.found).map(x => Object.assign({ uid: x.found.name.split('/').pop() }, uo(x.found.fields || {})));
+    if (V.v === 'home' || V.v === 'friends') render();
+  } catch (e) { if (V.v === 'friends') toast(e.message); }
+}
+let pubT;
+function pubNow(t) { if (!G.u) return; clearTimeout(pubT); pubT = setTimeout(() => put('/users/' + G.u.uid, { now: { id: t.id, title: t.title, author: t.author || '', ts: Date.now() } }, true).catch(() => {}), 2500); }
+let gT;
+function gQueue() { clearTimeout(gT); gT = setTimeout(gSync, 5000); }
+async function gSync() {
+  if (!G.u) return;
+  try {
+    const d = await fs('/sync/' + G.u.uid), j = d && d.fields ? uo(d.fields).json : '';
+    const ch = j ? mergeIn(JSON.parse(j)) : false;
+    await put('/sync/' + G.u.uid, { json: JSON.stringify(snap()) }); save(true);
+    if (ch && (V.v === 'home' || V.v === 'lib' || V.v === 'list')) render();
+  } catch (e) {}
+}
+async function addFriend(code) {
+  const r = await qry('users', 'code', code.trim().toUpperCase());
+  if (!r.length) throw new Error('Kode tidak ditemukan'); const f = r[0];
+  if (f.id === G.u.uid) throw new Error('Itu kodemu sendiri');
+  if (G.friends.some(x => x.uid === f.id)) throw new Error('Sudah berteman');
+  await put('/reqs/' + f.id + '_' + G.u.uid, { from: G.u.uid, to: f.id, name: G.u.name, photo: G.u.photo }); return f.name;
+}
+async function acceptReq(q) {
+  const me = G.u.uid, t = Date.now();
+  await put('/users/' + q.from + '/friends/' + me, { since: t }); await put('/users/' + me + '/friends/' + q.from, { since: t });
+  await fs('/reqs/' + q.id, 'DELETE'); await gLoad();
+}
+async function dropFriend(uid) { await fs('/users/' + G.u.uid + '/friends/' + uid, 'DELETE'); await fs('/users/' + uid + '/friends/' + G.u.uid, 'DELETE').catch(() => {}); await gLoad(); }
+function rFriends(m) {
+  m.appendChild(h('h1', '', 'Teman'));
+  if (!G.u) {
+    const pr = h('div', 'promo'); pr.append(h('b', '', 'Masuk dulu untuk berteman'), h('div', 'mut', 'Dengan akun Google kamu punya kode teman, bisa menambah teman, dan melihat lagu yang sedang mereka dengar.'));
+    const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; pr.appendChild(gb); m.appendChild(pr); return;
+  }
+  const me = box(m, 'Kode temanmu'); me.appendChild(h('div', 'code', gCode())); line(me, 'Bagikan kode ini supaya temanmu bisa menambahkanmu.');
+  const mb = h('div', 'acts'); me.appendChild(mb);
+  btn(mb, 'Bagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); });
+  btn(mb, 'Segarkan', () => gLoad().then(() => toast('Diperbarui')));
+  const ad = box(m, 'Tambah teman'); const i = h('input', 'minput'); i.placeholder = 'Masukkan kode teman'; i.autocapitalize = 'characters'; ad.appendChild(i);
+  btn(ad, 'Kirim permintaan', () => { if (!i.value.trim()) { toast('Isi kodenya dulu'); return; } addFriend(i.value).then(n => { i.value = ''; toast('Permintaan dikirim ke ' + n); }).catch(e => toast(e.message)); }, 'pbtn');
+  if (G.reqs.length) {
+    sec(m, 'Permintaan masuk (' + G.reqs.length + ')');
+    G.reqs.forEach(q => { const r = h('div', 'fr'); r.appendChild(av(q.name, q.photo)); const b = h('div', 'rb'); b.appendChild(h('div', 'rt', q.name || 'Pengguna')); r.appendChild(b);
+      r.append(ib('plus', 'Terima', () => acceptReq(q).then(() => toast('Berteman dengan ' + q.name)).catch(e => toast(e.message))), ib('trash', 'Tolak', () => fs('/reqs/' + q.id, 'DELETE').then(gLoad).catch(e => toast(e.message)))); m.appendChild(r); });
+  }
+  sec(m, 'Daftar teman (' + G.friends.length + ')');
+  if (!G.friends.length) m.appendChild(h('div', 'msg', 'Belum ada teman. Masukkan kode teman di atas.'));
+  G.friends.forEach(f => { const r = friendRow(f, true); r.appendChild(ib('trash', 'Hapus teman', () => confirmBox('Hapus ' + (f.name || 'teman') + ' dari daftar?', 'Hapus', () => dropFriend(f.uid).catch(e => toast(e.message))))); m.appendChild(r); });
+  setTimeout(() => { if (V.v === 'friends' && !window.__fr) { window.__fr = 1; gLoad().then(() => { window.__fr = 0; }); } }, 0);
+}
+function gBox(m) {
+  const g = box(m, 'Akun Google');
+  if (G.u) {
+    const w = h('div', 'fr'); w.appendChild(av(G.u.name, G.u.photo)); const b = h('div', 'rb'); b.append(h('div', 'rt', G.u.name), h('div', 'rs', 'Kode teman: ' + gCode())); w.appendChild(b); g.appendChild(w);
+    line(g, 'Playlist dan favorit tersinkron otomatis ke akun ini.');
+    const a = h('div', 'acts'); g.appendChild(a); btn(a, 'Sinkronkan', () => gSync().then(() => toast('Tersinkron'))); btn(a, 'Keluar', () => confirmBox('Keluar dari akun Google? Data di HP ini tetap ada.', 'Keluar', gOut));
+  } else { line(g, 'Masuk untuk sinkron playlist antar HP dan berteman dengan pengguna lain.'); const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; g.appendChild(gb); }
+}
+
+// ---------- antrean ----------
+function openQueue() {
+  if (!queue.length) { toast('Antrean kosong'); return; }
+  modal('Antrean (' + queue.length + ')', bx => {
+    queue.forEach((t, i) => {
+      const r = h('div', 'qrow' + (i === qi ? ' cur' : ''));
+      const b = h('button', 'act', (i === qi ? '▶ ' : (i + 1) + '. ') + t.title); b.type = 'button';
+      b.onclick = () => { closeModal(); go(i); };
+      r.appendChild(b);
+      if (i !== qi) r.appendChild(ib('trash', 'Hapus dari antrean', () => { queue.splice(i, 1); if (i < qi) qi--; upNext = pickNext(); openQueue(); }));
+      bx.appendChild(r);
+    });
+  });
+}
+setIc($('s-q'), 'list'); $('s-q').addEventListener('click', openQueue);
+
+buildNav(); paintToggles();
+history.replaceState({ v: 'home' }, '');
+if (window.AlyaApp && typeof AlyaApp.changeServer === 'function') { $('srv').hidden = false; $('srv').onclick = () => AlyaApp.changeServer(); }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+render();
+if (window.AlyaApp) setTimeout(() => checkUpdate(false), 800);
+if (tok()) setTimeout(() => syncNow(true), 1500);
+if (G.u) setTimeout(() => { gSync(); gLoad(); }, 1200);
+})();
+</script>
+</body>
+</html>
