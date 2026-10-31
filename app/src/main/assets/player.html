@@ -1114,6 +1114,19 @@
     $('tags').innerHTML = '';
     var imgs = document.querySelectorAll('.bg, .disc img');
     for (var q2 = 0; q2 < imgs.length; q2++) imgs[q2].src = m.imageSrc || BLANK;
+    try {
+      var lk = 'alya_ly_' + m.id;
+      if (m.lyrics && m.lyrics.length) {
+        localStorage.setItem(lk, JSON.stringify({ k: m.lyricsKind || 'synced', l: m.lyrics.map(function(x) { return [x.time, x.text]; }) }));
+        var ix = JSON.parse(localStorage.getItem('alya_ly_idx') || '[]').filter(function(z) { return z !== m.id; });
+        ix.push(m.id);
+        while (ix.length > 200) localStorage.removeItem('alya_ly_' + ix.shift());
+        localStorage.setItem('alya_ly_idx', JSON.stringify(ix));
+      } else {
+        var cl = JSON.parse(localStorage.getItem(lk) || 'null');
+        if (cl && cl.l && cl.l.length) { m.lyrics = cl.l.map(function(x) { return { time: x[0], text: x[1] }; }); m.lyricsKind = cl.k; m.lyricsDbg = ''; }
+      }
+    } catch (e) {}
     setLyrics(m.lyrics);
     if (!LY.length && m.lyricsDbg) $('i-ly').textContent = 'Tidak tersedia (' + m.lyricsDbg + ')';
     if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';

@@ -23,6 +23,7 @@ import android.widget.Toast;
 public class MainActivity extends androidx.activity.ComponentActivity {
     private static WebView sWeb;
     private WebView web;
+    private java.io.File pendingApk;
 
     // Dipakai notifikasi/layar kunci untuk mengirim perintah (play, pause, next, prev, seek) ke pemutar di dalam WebView.
     static void send(final String cmd) {
@@ -80,6 +81,34 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         else web.loadUrl("http://127.0.0.1:" + port + "/");
     }
 
+    private void upd(String json) {
+        final String js = "window.alyaUpd&&window.alyaUpd(" + json + ")";
+        runOnUiThread(() -> web.evaluateJavascript(js, null));
+    }
+
+    private void launchInstall() {
+        if (pendingApk == null) return;
+        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            upd("{\"perm\":true}");
+            startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName())));
+            return;
+        }
+        try {
+            Uri u = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".fp", pendingApk);
+            Intent i = new Intent(Intent.ACTION_VIEW).setDataAndType(u, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            pendingApk = null;
+            startActivity(i);
+            upd("{\"done\":true}");
+        } catch (Exception e) { upd("{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}"); }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pendingApk != null && (Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls())) launchInstall();
+    }
+
     class Bridge {
         // Dipanggil pemutar: info lagu + status untuk notifikasi dan layar kunci
         @JavascriptInterface
@@ -114,6 +143,40 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 i.putExtra("rep", rep);
                 startService(i);
             } catch (Exception e) { }
+        }
+
+        @JavascriptInterface
+        public void installUpdate(final String url) {
+            if (url == null || !url.startsWith("https://github.com/" + BuildConfig.REPO + "/releases/download/")) { upd("{\"err\":\"Alamat update tidak dikenali\"}"); return; }
+            new Thread(() -> {
+                try {
+                    java.io.File d = new java.io.File(getCacheDir(), "updates");
+                    d.mkdirs();
+                    java.io.File[] old = d.listFiles();
+                    if (old != null) for (java.io.File o : old) o.delete();
+                    java.io.File f = new java.io.File(d, "AlyaMusic.apk");
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                    c.setConnectTimeout(15000);
+                    c.setReadTimeout(20000);
+                    c.setRequestProperty("User-Agent", "AlyaMusicApp");
+                    if (c.getResponseCode() != 200) throw new Exception("Server menjawab " + c.getResponseCode());
+                    long total = c.getContentLengthLong(), got = 0;
+                    int last = -1;
+                    try (java.io.InputStream in = c.getInputStream(); java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
+                        byte[] buf = new byte[65536];
+                        int n;
+                        while ((n = in.read(buf)) > 0) {
+                            out.write(buf, 0, n);
+                            got += n;
+                            int p = total > 0 ? (int) (got * 100 / total) : 0;
+                            if (p != last) { last = p; upd("{\"p\":" + p + "}"); }
+                        }
+                    }
+                    if (f.length() < 100000) throw new Exception("File update tidak lengkap");
+                    pendingApk = f;
+                    runOnUiThread(() -> launchInstall());
+                } catch (Exception e) { upd("{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}"); }
+            }).start();
         }
 
         @JavascriptInterface

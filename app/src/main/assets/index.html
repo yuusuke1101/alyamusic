@@ -196,6 +196,13 @@ h1.gr{font-size:22px;margin:0 0 12px}
 .rcv{width:100%;max-width:340px;display:block;margin:8px auto 14px;border-radius:18px;border:1px solid var(--line);aspect-ratio:9/16;background:var(--surf)}
 .rst{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
 .rst div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center}.rst b{display:block;font-size:20px}.rst span{font-size:11px;color:var(--mut)}
+
+.pgb{height:10px;border-radius:99px;background:var(--card2);overflow:hidden;margin:14px 0 8px}
+.pgb i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--a),var(--b));transition:width .2s}
+.rsm{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:8px 14px 8px 8px;margin:0 0 14px;border-radius:14px;border:1px solid var(--line);background:var(--card2)}
+.rsm img{width:52px;height:52px;border-radius:8px;object-fit:cover;flex:none}
+.rsm b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rsm span{font-size:12px;color:var(--mut)}
+.rsm .ic{color:var(--b);flex:none}
 /* layar lebar */
 @media(min-width:900px){
  .app{grid-template-columns:220px minmax(0,1fr) 410px}
@@ -384,7 +391,24 @@ function go(i) {
   if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-load', id: t.id, auto: true }, location.origin);
   else { fstate = 1; ph.className = 'ph'; ph.innerHTML = SPIN; frame.hidden = true; frame.src = '/player/' + encodeURIComponent(t.id) + '?auto=1'; }
 }
-function next() { if (upNext >= 0) go(upNext); else toast('Antrean selesai'); }
+const radioOn = () => DB.prefs.radio !== false;
+let radioBusy = false;
+async function radioMore() {
+  if (radioBusy || !queue.length) return 0; radioBusy = true;
+  try {
+    const s0 = queue[qi] || queue[queue.length - 1], have = {};
+    queue.forEach(t => { have[t.id] = 1; }); DB.log.slice(-40).forEach(t => { have[t.id] = 1; });
+    const rs = await Promise.all([(s0.author ? s0.author + ' ' : '') + s0.title + ' mix', s0.author ? 'lagu seperti ' + s0.title : s0.title + ' playlist'].map(q => cached(q).catch(() => []))), out = [];
+    for (let i = 0; i < 12; i++) rs.forEach(r2 => { const t = r2[i], d = t ? durS(t.duration) : 0; if (t && !have[t.id] && out.length < 10 && d < 600) { have[t.id] = 1; out.push(slim(t)); } });
+    if (out.length) { queue = queue.concat(out); upNext = pickNext(); }
+    return out.length;
+  } catch (e) { return 0; } finally { radioBusy = false; }
+}
+function next() {
+  if (upNext >= 0) go(upNext);
+  else if (DB.prefs.auto && radioOn()) { toast('Mencari lagu serupa...'); radioMore().then(n => { if (n) go(qi + 1); else toast('Antrean selesai'); }); }
+  else toast('Antrean selesai');
+}
 function prev() { if (media.pos > 3) { cmdPlayer({ cmd: 'seek', ms: 0 }); return; } if (qi > 0) go(qi - 1); }
 frame.addEventListener('load', () => { ph.className = 'ph hide'; frame.hidden = false; });
 window.addEventListener('message', e => {
@@ -393,10 +417,10 @@ window.addEventListener('message', e => {
   if (d.type === 'alya-hello') { fstate = 2; sendAccent(); }
   else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
   else if (d.type === 'alya-pos') {
-    if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + 2500, d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
+    if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + (pendingSeek.exact ? 0 : 2500), d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; saveResume(media.pos, media.dur); media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
   else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
   else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
-  else if (d.type === 'alya-near') { const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
+  else if (d.type === 'alya-near') { if (upNext < 0 && DB.prefs.auto && radioOn()) radioMore(); const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
   else if (d.type === 'alya-blocked') openSheet();
   else if (d.type === 'alya-error') { errStreak++; if (DB.prefs.auto && errStreak < 3) setTimeout(next, 1500); }
 });
@@ -574,6 +598,13 @@ function rHome(m) {
   DB.lists.slice(0, 2).forEach(l => { const b = h('button'); b.type = 'button'; b.append(mosaic(l.tracks, 'cv'), h('span', '', l.name)); b.onclick = () => setView('list', l.id); qp.appendChild(b); });
   DB.recent.slice(0, 6 - qp.children.length).forEach((t, i) => { const b = h('button'); b.type = 'button'; b.dataset.id = t.id; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('span', '', t.title)); b.onclick = () => playFrom(DB.recent, i); qp.appendChild(b); });
   m.appendChild(qp);
+  const rs0 = !queue.length ? getResume() : null;
+  if (rs0) {
+    const c = h('button', 'rsm'); c.type = 'button'; const im = h('img'); im.src = thumb(rs0.q[0].id); im.alt = ''; const tx = h('div', 'rb');
+    const sec0 = Math.floor(rs0.ms / 1000); tx.append(h('b', '', rs0.q[0].title), h('span', '', 'Lanjutkan dari ' + Math.floor(sec0 / 60) + ':' + String(sec0 % 60).padStart(2, '0')));
+    const pi = h('span', 'ic'); setIc(pi, 'play', 20); c.append(im, tx, pi);
+    c.onclick = () => { playFrom(rs0.q, 0); pendingSeek = { id: rs0.q[0].id, ms: rs0.ms, exact: true }; }; m.appendChild(c);
+  }
   const tp = topArtists(3);
   if (tp.length) { const mx = h('button', 'mix'); mx.type = 'button'; mx.append(h('b', '', 'Mix Harian'), h('span', '', tp.join(', ') + ' dan lainnya')); mx.onclick = () => { toast('Menyiapkan mix...'); buildMix(tp).then(l => l.length ? playFrom(l, 0) : toast('Mix kosong')).catch(() => toast('Gagal menyiapkan mix')); }; m.appendChild(mx); }
 
@@ -684,6 +715,23 @@ window.alyaCmd = c => {
 // ---------- update aplikasi ----------
 let updInfo = null;
 const openExt = url => { if (window.AlyaApp && AlyaApp.openUrl) AlyaApp.openUrl(url); else window.open(url, '_blank'); };
+let UPD = null;
+window.alyaUpd = d => {
+  if (!UPD) return;
+  if (d.p != null) { UPD.bar.style.width = d.p + '%'; UPD.msg.textContent = 'Mengunduh ' + d.p + '%'; }
+  if (d.perm) UPD.msg.textContent = 'Izinkan "Alya Music" memasang aplikasi di layar berikutnya, lalu kembali ke sini.';
+  if (d.done) UPD.msg.textContent = 'Selesai diunduh. Ikuti layar pemasangan Android, lalu pilih Perbarui.';
+  if (d.err) { UPD.msg.textContent = 'Gagal: ' + d.err; UPD.msg.style.color = '#ff7a8a'; }
+};
+function updStart() {
+  if (!(window.AlyaApp && AlyaApp.installUpdate)) { openExt(updInfo.url); return; }
+  modal('Memperbarui ke ' + updInfo.latestName, b => {
+    line(b, 'Aplikasi mengunduh pembaruan, lalu Android meminta konfirmasi pemasangan.');
+    const bar = h('div', 'pgb'), fill = h('i'); bar.appendChild(fill); b.appendChild(bar);
+    const msg = h('div', 'mut', 'Memulai...'); b.appendChild(msg); UPD = { bar: fill, msg };
+  });
+  AlyaApp.installUpdate(updInfo.url);
+}
 function checkUpdate(force) {
   return fetch('/api/update' + (force ? '?force=1' : '')).then(r => (r.ok ? r.json() : null)).then(d => { updInfo = d; if (V.v === 'home' || V.v === 'me') render(); return d; }).catch(() => null);
 }
@@ -691,8 +739,8 @@ function banner(m) {
   let no = ''; try { no = localStorage.getItem('alya_upd_no') || ''; } catch (e) {}
   if (!updInfo || !updInfo.available || no === String(updInfo.latest)) return;
   const c = h('div', 'upd'), t = h('div');
-  t.append(h('b', '', 'Update ' + updInfo.latestName + ' tersedia'), h('div', 'mut', 'Kamu memakai ' + updInfo.currentName + '. Ketuk Unduh, lalu pasang.'));
-  const go2 = h('button', 'pbtn', 'Unduh'); go2.type = 'button'; go2.style.margin = '0'; go2.onclick = () => openExt(updInfo.url);
+  t.append(h('b', '', 'Update ' + updInfo.latestName + ' tersedia'), h('div', 'mut', 'Kamu memakai ' + updInfo.currentName + '. Ketuk Perbarui untuk memasang langsung dari aplikasi.'));
+  const go2 = h('button', 'pbtn', 'Perbarui'); go2.type = 'button'; go2.style.margin = '0'; go2.onclick = updStart;
   const x = h('button', 'ib', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Nanti');
   x.onclick = () => { try { localStorage.setItem('alya_upd_no', String(updInfo.latest)); } catch (e) {} render(); };
   c.append(t, go2, x); m.appendChild(c);
@@ -808,6 +856,8 @@ function rMe(m) {
   const g2 = sgrp(m, 'Aktivitas');
   srow(g2, 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
   srow(g2, 'Antrean', queue.length ? queue.length + ' lagu' : 'Kosong', () => openQueue());
+  const g2b = sgrp(m, 'Pemutaran');
+  srow(g2b, 'Autoplay lagu serupa', 'Saat antrean habis, musik lanjut dengan lagu yang mirip', () => { DB.prefs.radio = !radioOn(); save(true); render(); }, h('span', 'tgl' + (radioOn() ? ' on' : '')));
 
   if (G.u) {
     const g3 = sgrp(m, 'Akun & sosial');
@@ -827,8 +877,8 @@ function rMe(m) {
   srow(g4, 'Pulihkan dari kode', '', importModal);
 
   const g5 = sgrp(m, 'Aplikasi');
-  const up = !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub' : updInfo.error ? 'Tidak bisa memeriksa update' : updInfo.available ? 'Update ' + updInfo.latestName + ' tersedia, ketuk untuk mengunduh' : 'Sudah versi terbaru';
-  srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) openExt(updInfo.url); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
+  const up = !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub' : updInfo.error ? 'Tidak bisa memeriksa update' : updInfo.available ? 'Update ' + updInfo.latestName + ' tersedia, ketuk untuk memperbarui' : 'Sudah versi terbaru';
+  srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) updStart(); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
   srow(g5, 'Alya Music', updInfo && updInfo.currentName ? 'Versi ' + updInfo.currentName : '');
   m.appendChild(h('div', 'mut', ' ')).style.height = '12px';
 }
@@ -1025,7 +1075,14 @@ function rColist(m) {
 }
 
 // ---------- dengar bareng, reaksi, profil, rekap, mix ----------
-let pendingSeek = null;
+let pendingSeek = null, lastRes = 0;
+function saveResume(pos, dur) {
+  const now = Date.now(); if (now - lastRes < 5000 || !queue[qi] || pos < 5 || dur <= 0 || pos > dur - 8) return; lastRes = now;
+  try { localStorage.setItem('alya_resume', JSON.stringify({ q: queue.slice(qi, qi + 30).map(slim), ms: Math.round(pos * 1000), ts: now })); } catch (e) {}
+}
+function getResume() {
+  try { const r2 = JSON.parse(localStorage.getItem('alya_resume') || 'null'); if (!r2 || Date.now() - r2.ts > 7 * 864e5) return null; r2.q = (r2.q || []).map(vt).filter(Boolean); return r2.q.length ? r2 : null; } catch (e) { return null; }
+}
 function joinFriend(n) {
   const el = Date.now() - n.ts; pendingSeek = el < 6e5 ? { id: n.id, ms: el } : null;
   playFrom([{ id: n.id, title: n.title, author: n.author }], 0); if (pendingSeek) toast('Menyamakan posisi dengan temanmu');

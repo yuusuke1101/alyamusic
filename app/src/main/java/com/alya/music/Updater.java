@@ -76,12 +76,12 @@ final class Updater {
             if (Build.VERSION.SDK_INT >= 26) {
                 nm.createNotificationChannel(new NotificationChannel("alya_update", "Pembaruan aplikasi", NotificationManager.IMPORTANCE_DEFAULT));
             }
-            Intent view = new Intent(Intent.ACTION_VIEW, Uri.parse(o.getString("url")));
+            Intent view = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
             PendingIntent pi = PendingIntent.getActivity(c, 7, view, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, "alya_update") : new Notification.Builder(c);
             nm.notify(2, b.setSmallIcon(android.R.drawable.stat_sys_download_done)
                     .setContentTitle("Update Alya Music tersedia")
-                    .setContentText("Versi " + o.optString("latestName") + " siap diunduh. Ketuk untuk mengunduh.")
+                    .setContentText("Versi " + o.optString("latestName") + " siap dipasang. Ketuk untuk membuka dan memperbarui.")
                     .setContentIntent(pi)
                     .setAutoCancel(true)
                     .build());
