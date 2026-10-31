@@ -171,6 +171,7 @@
           </div>
           <div class="lyrics" id="lyrics"><div class="lyrics-text" id="lyrics-text"></div></div>
           <button class="btn" id="ly-copy">Salin lirik</button>
+          <button class="btn" id="ly-refresh" style="margin-top:8px">Segarkan lirik</button>
         </div>
 
         <!-- EFEK -->
@@ -1143,11 +1144,35 @@
     setMedia(m);
     coverTheme();
   }
+  var curTrackId = '';
+  try { localStorage.removeItem('alya_ly_undefined'); } catch (e) {}
+  $('ly-refresh').addEventListener('click', function() {
+    if (!curTrackId) return;
+    var id = curTrackId, b = this;
+    b.disabled = true;
+    st.textContent = 'Memuat ulang lirik...';
+    try { localStorage.removeItem('alya_ly_' + id); } catch (e) {}
+    fetch('/api/track/' + id + '?refresh=1')
+      .then(function(r) { return r.json(); })
+      .then(function(m) {
+        if (id !== curTrackId) return;
+        setLyrics(m.lyrics);
+        if (LY.length) {
+          if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
+          else if (m.lyricsKind === 'caption') $('i-ly').textContent = LY.length + ' baris dari subtitle YouTube';
+          try { localStorage.setItem('alya_ly_' + id, JSON.stringify({ k: m.lyricsKind || 'synced', l: m.lyrics.map(function(x) { return [x.time, x.text]; }) })); } catch (e) {}
+          updLyrics(pos(), true);
+          st.textContent = 'Lirik diperbarui';
+        } else st.textContent = 'Lirik tidak ditemukan';
+      })
+      .catch(function() { st.textContent = 'Gagal memuat ulang lirik'; })
+      .then(function() { b.disabled = false; });
+  });
   function fetchTrack(id, auto) {
     st.textContent = 'Memuat info lagu...';
     fetch('/api/track/' + id)
       .then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Gagal'); return j; }); })
-      .then(function(m) { loadTrack(m, auto); })
+      .then(function(m) { m.id = id; curTrackId = id; loadTrack(m, auto); })
       .catch(function(e) { st.textContent = 'Gagal memuat: ' + (e && e.message ? e.message : e); post({ type: 'alya-error' }); });
   }
   window.addEventListener('message', function(e) {

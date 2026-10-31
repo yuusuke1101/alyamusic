@@ -254,16 +254,67 @@ final class Backend {
         o.put("previewNote", "");
         o.put("audioUrl", "/audio/" + id);
         o.put("imageSrc", "/thumb/" + id);
-        Object[] ly = lyrics(t);
+        Object[] ly = lyrics(id, t);
         o.put("lyrics", ly[0]);
         o.put("lyricsKind", ly[1]);
         o.put("lyricsDbg", ly[2]);
         return o;
     }
 
+    // ---------- cache lirik di disk ----------
+    private static java.io.File lyDir;
+    private static final int LY_MAX = 400, LY_KEEP = 300;
+
+    static void initDirs(android.content.Context c) {
+        java.io.File d = new java.io.File(c.getFilesDir(), "lyrics");
+        d.mkdirs();
+        lyDir = d;
+    }
+
+    // Hapus lirik tersimpan (memori + disk) supaya diambil ulang dari lrclib / subtitle
+    static void lyricsReset(String id) {
+        Track t = cache.get(id);
+        if (t != null) { t.lyr = null; t.kind = null; }
+        try { if (lyDir != null && validId(id)) new java.io.File(lyDir, id + ".json").delete(); } catch (Throwable e) { }
+    }
+
+    private static Object[] lyLoad(String id) {
+        try {
+            if (lyDir == null || !validId(id)) return null;
+            java.io.File f = new java.io.File(lyDir, id + ".json");
+            if (!f.isFile()) return null;
+            byte[] raw;
+            try (java.io.FileInputStream in = new java.io.FileInputStream(f)) { raw = readAll(in); }
+            JSONObject o = new JSONObject(new String(raw, StandardCharsets.UTF_8));
+            JSONArray a = o.getJSONArray("l");
+            if (a.length() == 0) return null;
+            f.setLastModified(System.currentTimeMillis()); // penanda "terakhir dipakai" untuk pembersihan
+            return new Object[]{a, o.optString("k", "synced")};
+        } catch (Throwable e) { return null; }
+    }
+
+    private static void lySave(String id, JSONArray l, String kind) {
+        try {
+            if (lyDir == null || !validId(id)) return;
+            JSONObject o = new JSONObject().put("k", kind).put("l", l);
+            java.io.File tmp = new java.io.File(lyDir, id + ".tmp");
+            try (java.io.FileOutputStream w = new java.io.FileOutputStream(tmp)) { w.write(o.toString().getBytes(StandardCharsets.UTF_8)); }
+            if (!tmp.renameTo(new java.io.File(lyDir, id + ".json"))) tmp.delete();
+            java.io.File[] fs = lyDir.listFiles();
+            if (fs != null && fs.length > LY_MAX) {
+                Arrays.sort(fs, (x, y) -> Long.compare(x.lastModified(), y.lastModified()));
+                for (int i = 0; i < fs.length - LY_KEEP; i++) fs[i].delete();
+            }
+        } catch (Throwable e) { /* cache opsional */ }
+    }
+
     // ---------- lirik ----------
     // Urutan: lrclib (tersinkron) -> lrclib (teks biasa, waktu diperkirakan) -> subtitle YouTube
-    static Object[] lyrics(Track t) {
+    static Object[] lyrics(String id, Track t) {
+        if (t.lyr == null) {
+            Object[] c = lyLoad(id);
+            if (c != null) { t.lyr = (JSONArray) c[0]; t.kind = (String) c[1]; }
+        }
         if (t.lyr != null) return new Object[]{t.lyr, t.kind, ""};
         JSONArray out = new JSONArray();
         String kind = "synced";
@@ -321,7 +372,7 @@ final class Backend {
                 if (b != null) { out = parseVtt(new String(b, StandardCharsets.UTF_8), t.subAuto); kind = "caption"; }
             }
         } catch (Throwable e) { /* lirik opsional */ }
-        if (out.length() > 0) { t.lyr = out; t.kind = kind; }
+        if (out.length() > 0) { t.lyr = out; t.kind = kind; lySave(id, out, kind); }
         String d = "get " + g + "x, cari " + sr + "x, subtitle " + (t.subUrl != null ? "ada" : "tidak ada") + ", hasil " + out.length() + " baris";
         return new Object[]{out, kind, d};
     }

@@ -460,7 +460,7 @@ window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
   const d = e.data; if (!d || typeof d !== 'object') return;
   if (d.type === 'alya-hello') { fstate = 2; sendAccent(); }
-  else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
+  else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; else saveResume(media.pos, media.dur, true); setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
   else if (d.type === 'alya-pos') {
     if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + (pendingSeek.exact ? 0 : 2500), d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; saveResume(media.pos, media.dur); media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
   else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
@@ -648,7 +648,7 @@ function rHome(m) {
     const c = h('button', 'rsm'); c.type = 'button'; const im = h('img'); im.src = thumb(rs0.q[0].id); im.alt = ''; const tx = h('div', 'rb');
     const sec0 = Math.floor(rs0.ms / 1000); tx.append(h('b', '', rs0.q[0].title), h('span', '', 'Lanjutkan dari ' + Math.floor(sec0 / 60) + ':' + String(sec0 % 60).padStart(2, '0')));
     const pi = h('span', 'ic'); setIc(pi, 'play', 20); c.append(im, tx, pi);
-    c.onclick = () => { playFrom(rs0.q, 0); pendingSeek = { id: rs0.q[0].id, ms: rs0.ms, exact: true }; }; m.appendChild(c);
+    c.onclick = () => { playFrom((rs0.b || []).concat(rs0.q), (rs0.b || []).length); pendingSeek = { id: rs0.q[0].id, ms: rs0.ms, exact: true }; }; m.appendChild(c);
   }
   const tp = topArtists(3);
   if (tp.length) { const mx = h('button', 'mix'); mx.type = 'button'; mx.append(h('b', '', 'Mix Harian'), h('span', '', tp.join(', ') + ' dan lainnya')); mx.onclick = () => { toast('Menyiapkan mix...'); buildMix(tp).then(l => l.length ? playFrom(l, 0) : toast('Mix kosong')).catch(() => toast('Gagal menyiapkan mix')); }; m.appendChild(mx); }
@@ -1156,12 +1156,17 @@ function rColist(m) {
 
 // ---------- dengar bareng, reaksi, profil, rekap, mix ----------
 let pendingSeek = null, lastRes = 0;
-function saveResume(pos, dur) {
-  const now = Date.now(); if (now - lastRes < 5000 || !queue[qi] || pos < 5 || dur <= 0 || pos > dur - 8) return; lastRes = now;
-  try { localStorage.setItem('alya_resume', JSON.stringify({ q: queue.slice(qi, qi + 30).map(slim), ms: Math.round(pos * 1000), ts: now })); } catch (e) {}
+function saveResume(pos, dur, force) {
+  const now = Date.now(); if (!queue[qi]) return;
+  if (force) { if (dur > 0 && pos > dur - 8) return; }
+  else if (now - lastRes < 5000 || pos < 5 || dur <= 0 || pos > dur - 8) return;
+  lastRes = now;
+  try { localStorage.setItem('alya_resume', JSON.stringify({ b: queue.slice(Math.max(0, qi - 10), qi).map(slim), q: queue.slice(qi, qi + 50).map(slim), ms: Math.round((pos || 0) * 1000), ts: now })); } catch (e) {}
 }
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveResume(media.pos, media.dur, true); });
+window.addEventListener('pagehide', () => saveResume(media.pos, media.dur, true));
 function getResume() {
-  try { const r2 = JSON.parse(localStorage.getItem('alya_resume') || 'null'); if (!r2 || Date.now() - r2.ts > 7 * 864e5) return null; r2.q = (r2.q || []).map(vt).filter(Boolean); return r2.q.length ? r2 : null; } catch (e) { return null; }
+  try { const r2 = JSON.parse(localStorage.getItem('alya_resume') || 'null'); if (!r2 || Date.now() - r2.ts > 7 * 864e5) return null; r2.q = (r2.q || []).map(vt).filter(Boolean); r2.b = (r2.b || []).map(vt).filter(Boolean); return r2.q.length ? r2 : null; } catch (e) { return null; }
 }
 function joinFriend(n) {
   const el = Date.now() - n.ts; pendingSeek = el < 6e5 ? { id: n.id, ms: el } : null;
@@ -1293,7 +1298,7 @@ function rRecap(m) {
 }
 
 // ---------- antrean ----------
-function qmove(i, d) { const j = i + d; if (j < 0 || j >= queue.length) return; const t = queue[i]; queue[i] = queue[j]; queue[j] = t; if (qi === i) qi = j; else if (qi === j) qi = i; upNext = pickNext(); openQueue(); }
+function qmove(i, d) { const j = i + d; if (j < 0 || j >= queue.length) return; const t = queue[i]; queue[i] = queue[j]; queue[j] = t; if (qi === i) qi = j; else if (qi === j) qi = i; upNext = pickNext(); saveResume(media.pos, media.dur, true); openQueue(); }
 function openQueue() {
   if (!queue.length) { toast('Antrean kosong'); return; }
   modal('Antrean (' + queue.length + ')', bx => {
@@ -1305,7 +1310,7 @@ function openQueue() {
       const b = h('button', 'act', (i === qi ? '▶ ' : (i + 1) + '. ') + t.title); b.type = 'button';
       b.onclick = () => { closeModal(); go(i); };
       r.append(b, ib('up', 'Naik', () => qmove(i, -1)), ib('down', 'Turun', () => qmove(i, 1)));
-      if (i !== qi) r.appendChild(ib('trash', 'Hapus dari antrean', () => { queue.splice(i, 1); if (i < qi) qi--; upNext = pickNext(); openQueue(); }));
+      if (i !== qi) r.appendChild(ib('trash', 'Hapus dari antrean', () => { queue.splice(i, 1); if (i < qi) qi--; upNext = pickNext(); saveResume(media.pos, media.dur, true); openQueue(); }));
       bx.appendChild(r);
     });
   });

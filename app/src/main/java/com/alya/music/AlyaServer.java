@@ -20,6 +20,7 @@ public class AlyaServer extends NanoHTTPD {
     private final Context context;
 
     static synchronized int ensure(Context c) {
+        Backend.initDirs(c.getApplicationContext());
         if (inst != null && inst.isAlive()) return port;
         for (int p = 38517; p < 38527; p++) {
             try {
@@ -66,7 +67,10 @@ public class AlyaServer extends NanoHTTPD {
                 String q = s.getParms().get("q");
                 return json(Backend.search(q == null ? "" : q.trim()).toString());
             }
-            if (uri.startsWith("/api/track/") && Backend.validId(last)) return json(Backend.trackJson(last).toString());
+            if (uri.startsWith("/api/track/") && Backend.validId(last)) {
+                if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);
+                return json(Backend.trackJson(last).toString());
+            }
             if (uri.startsWith("/api/prefetch/") && Backend.validId(last)) {
                 new Thread(() -> { try { Backend.track(last); } catch (Exception e) { } }).start();
                 return json("{\"ok\":true}");
