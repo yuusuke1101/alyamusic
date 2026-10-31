@@ -23,7 +23,7 @@ android {
         versionCode autoVersionCode
         versionName autoVersionName
         
-        buildConfigField "String", "REPO", "\"yuusuke1101/alya-musik-apk\""
+        buildConfigField "String", "REPO", "\"yuusuke1101/alyamusic\""
         buildConfigField "String", "WEB_CLIENT_ID", "\"${cfg('ALYA_WEB_CLIENT_ID')}\""
         buildConfigField "String", "FB_KEY", "\"${cfg('ALYA_FB_KEY')}\""
         buildConfigField "String", "FB_PROJECT", "\"${cfg('ALYA_FB_PROJECT')}\""
