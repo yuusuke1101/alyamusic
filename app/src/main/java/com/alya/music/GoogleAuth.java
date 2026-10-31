@@ -23,7 +23,7 @@ final class GoogleAuth {
         try {
             if (BuildConfig.WEB_CLIENT_ID.isEmpty()) { reply(a, web, null, "WEB_CLIENT_ID belum diisi"); return; }
             GetCredentialRequest req = new GetCredentialRequest.Builder()
-        .addCredentialOption(new GetSignInWithGoogleOption.Builder(BuildConfig.WEB_CLIENT_ID).setFilterByAuthorizedAccounts(false).build()).build();
+        .addCredentialOption(new GetSignInWithGoogleOption.Builder(BuildConfig.WEB_CLIENT_ID).build()).build();
             java.util.concurrent.Executor ex = a::runOnUiThread; // getMainExecutor() baru ada di Android 9+, ini aman untuk semua versi
             CredentialManager.create(a).getCredentialAsync(a, req, new CancellationSignal(), ex,
                     new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
