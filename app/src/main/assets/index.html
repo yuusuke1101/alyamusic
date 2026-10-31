@@ -11,10 +11,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Alya Music</title>
 <style>
-:root{--bg:#0a0a12;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.1);--line:rgba(255,255,255,.1);--ink:#f5f5fb;--mut:rgba(245,245,251,.62);--a:#8b5cf6;--b:#22d3ee;--sb:env(safe-area-inset-bottom,0px)}
+:root{--surf:#14141f;--surf2:#1a1a26;--nav:rgba(12,12,22,.96);--modal:#181826;--inp:#101019;--toastbg:#262638;--minibg:rgba(26,26,42,.95);--bg:#0a0a12;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.1);--line:rgba(255,255,255,.1);--ink:#f5f5fb;--mut:rgba(245,245,251,.62);--a:#8b5cf6;--b:#22d3ee;--sb:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
-body{background:radial-gradient(800px 420px at 0% -10%,rgba(139,92,246,.22),transparent),radial-gradient(700px 420px at 100% 0%,rgba(34,211,238,.12),transparent),var(--bg);background-attachment:fixed;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+body{background:var(--bg);background:radial-gradient(800px 420px at 0% -10%,color-mix(in srgb,var(--a) 22%,transparent),transparent),radial-gradient(700px 420px at 100% 0%,color-mix(in srgb,var(--b) 13%,transparent),transparent),var(--bg);background-attachment:fixed;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
 button{font:inherit;color:inherit;cursor:pointer}
 img{display:block}
 .ic{display:inline-flex}
@@ -25,9 +25,9 @@ h1{font-size:24px;letter-spacing:-.02em}
 h2{font-size:17px;letter-spacing:-.01em}
 .mut{color:var(--mut);font-size:13px}
 /* navigasi */
-.bnav{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;padding-bottom:var(--sb);background:rgba(12,12,22,.96);border-top:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;padding-bottom:var(--sb);background:var(--nav);border-top:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .nb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 8px;background:none;border:none;color:var(--mut);font-size:11px;font-weight:600}
-.nb.on{color:#fff}.nb.on .ic{color:var(--b)}
+.nb.on{color:var(--ink)}.nb.on .ic{color:var(--b)}
 .side .nb{flex:none;flex-direction:row;gap:12px;padding:12px 14px;border-radius:14px;font-size:14px;justify-content:flex-start}
 .side .nb.on{background:var(--card2)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;padding:4px 6px 18px}
@@ -35,7 +35,7 @@ h2{font-size:17px;letter-spacing:-.01em}
 /* beranda */
 .hhead{display:flex;align-items:center;gap:14px;margin:6px 0 14px}
 .hhead img{width:58px;height:58px;border-radius:18px;border:2px solid var(--card2);flex:none}
-.sbar{display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;border-radius:16px;background:#14141f;border:1px solid var(--line);color:var(--mut);font-size:15px;text-align:left;margin-bottom:16px}
+.sbar{display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;border-radius:16px;background:var(--surf);border:1px solid var(--line);color:var(--mut);font-size:15px;text-align:left;margin-bottom:16px}
 .hero{position:relative;overflow:hidden;border-radius:22px;padding:18px;min-height:168px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;border:1px solid var(--line);background:linear-gradient(135deg,#2a1f55,#0f3b52);margin-bottom:16px}
 .hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.4;filter:blur(2px)}
 .hero:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 10%,rgba(10,10,18,.85))}
@@ -51,17 +51,17 @@ h2{font-size:17px;letter-spacing:-.01em}
 .sec button{background:none;border:none;color:var(--b);font-size:13px;font-weight:600}
 .rail{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity;scrollbar-width:none}
 .card{flex:none;width:142px;text-align:left;background:none;border:none;scroll-snap-align:start}
-.card img,.card .sk,.pl .cv{width:142px;height:142px;border-radius:16px;object-fit:cover;background:#1a1a26}
+.card img,.card .sk,.pl .cv{width:142px;height:142px;border-radius:16px;object-fit:cover;background:var(--surf2)}
 .ct{font-size:13px;font-weight:600;margin-top:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ca{font-size:12px;color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .now .ct,.now .rt{color:var(--b)}
-.sk{background:linear-gradient(90deg,#161622,#232335,#161622);background-size:200% 100%;animation:sh 1.2s infinite}
+.sk{background:linear-gradient(90deg,var(--surf),var(--surf2),var(--surf));background-size:200% 100%;animation:sh 1.2s infinite}
 @keyframes sh{to{background-position:-200% 0}}
 /* daftar lagu */
 .list{display:flex;flex-direction:column;gap:6px}
 .row{display:flex;align-items:center;gap:12px;padding:7px;border-radius:14px;background:var(--card);border:1px solid transparent;cursor:pointer}
 .row:hover,.row.now{border-color:var(--line)}
-.row img{width:84px;height:48px;border-radius:9px;object-fit:cover;flex:none;background:#1a1a26}
+.row img{width:84px;height:48px;border-radius:9px;object-fit:cover;flex:none;background:var(--surf2)}
 .rb{flex:1;min-width:0}
 .rt{font-size:14px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .rs{font-size:12px;color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -71,7 +71,7 @@ h2{font-size:17px;letter-spacing:-.01em}
 .msg{color:var(--mut);font-size:13px;padding:26px 6px;text-align:center;line-height:1.6}
 /* cari */
 .sform{display:flex;gap:8px;position:sticky;top:0;z-index:5;padding:10px 0 12px;background:linear-gradient(var(--bg) 80%,transparent)}
-.sform input{flex:1;min-width:0;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#14141f;color:var(--ink);font-size:16px}
+.sform input{flex:1;min-width:0;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--surf);color:var(--ink);font-size:16px}
 .sform input:focus{outline:2px solid var(--b);outline-offset:1px}
 .sform button{padding:0 20px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;font-weight:700}
 /* playlist */
@@ -100,10 +100,10 @@ body.sheet .stage{transform:none;visibility:visible;transition:transform .3s eas
 .ph.hide{display:none}
 .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--b);animation:r 1s linear infinite;margin:0 auto 12px}
 @keyframes r{to{transform:rotate(360deg)}}
-.mini{position:fixed;left:8px;right:8px;bottom:calc(66px + var(--sb));z-index:24;display:flex;align-items:center;gap:2px;padding:7px;border-radius:18px;background:rgba(26,26,42,.95);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.mini{position:fixed;left:8px;right:8px;bottom:calc(66px + var(--sb));z-index:24;display:flex;align-items:center;gap:2px;padding:7px;border-radius:18px;background:var(--minibg);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .mini[hidden]{display:none}
 .mo{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:none;text-align:left}
-.mo img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;background:#1a1a26}
+.mo img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;background:var(--surf2)}
 .mt{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ma{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mini .ib{color:var(--ink);width:42px;height:42px}
@@ -111,16 +111,16 @@ body.sheet .stage{transform:none;visibility:visible;transition:transform .3s eas
 /* modal + toast */
 .modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
 .modal[hidden]{display:none}
-.mbox{width:100%;max-width:480px;max-height:80vh;overflow-y:auto;background:#181826;border:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 16px calc(16px + var(--sb))}
+.mbox{width:100%;max-width:480px;max-height:80vh;overflow-y:auto;background:var(--modal);border:1px solid var(--line);border-radius:22px 22px 0 0;padding:16px 16px calc(16px + var(--sb))}
 .mh{font-weight:700;font-size:15px;margin:2px 4px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .act{display:flex;align-items:center;gap:12px;width:100%;padding:14px 10px;background:none;border:none;border-radius:12px;text-align:left;font-size:15px}
 .act:active{background:var(--card2)}
 .act.danger{color:#ff7a8a}
-.minput{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#101019;color:var(--ink);font-size:16px;margin-bottom:12px}
+.minput{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:var(--inp);color:var(--ink);font-size:16px;margin-bottom:12px}
 .brow{display:flex;gap:8px;justify-content:flex-end}
 .brow button{padding:11px 20px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-weight:600}
 .brow .go{background:linear-gradient(135deg,var(--a),var(--b));border-color:transparent;color:#fff}
-.toast{position:fixed;left:50%;bottom:calc(140px + var(--sb));transform:translate(-50%,20px);background:#262638;border:1px solid var(--line);padding:10px 18px;border-radius:99px;font-size:13px;z-index:70;opacity:0;pointer-events:none;transition:.25s;max-width:90vw}
+.toast{position:fixed;left:50%;bottom:calc(140px + var(--sb));transform:translate(-50%,20px);background:var(--toastbg);border:1px solid var(--line);padding:10px 18px;border-radius:99px;font-size:13px;z-index:70;opacity:0;pointer-events:none;transition:.25s;max-width:90vw}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .upd{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;background:linear-gradient(135deg,rgba(139,92,246,.28),rgba(34,211,238,.18));border:1px solid var(--line);margin-bottom:14px}
 .upd>div{flex:1;min-width:0}
@@ -144,7 +144,7 @@ textarea.minput{resize:vertical}
 .gens{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .gen{padding:18px 14px;border-radius:16px;text-align:left;font-weight:800;font-size:15px;color:#fff;min-height:72px;border:none}
 .arts{display:flex;gap:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:6px}.arts::-webkit-scrollbar{display:none}
-.art{flex:none;width:84px;background:none;border:none;text-align:center}.art img{width:84px;height:84px;border-radius:50%;object-fit:cover;background:#1a1a26}
+.art{flex:none;width:84px;background:none;border:none;text-align:center}.art img{width:84px;height:84px;border-radius:50%;object-fit:cover;background:var(--surf2)}
 .art div{font-size:12px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .av{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:none;display:grid;place-items:center;font-weight:800;background:linear-gradient(135deg,var(--a),var(--b));color:#fff}
 .fr{display:flex;align-items:center;gap:12px;padding:10px;border-radius:16px;background:var(--card);border:1px solid var(--line);margin-bottom:8px}
@@ -156,25 +156,53 @@ textarea.minput{resize:vertical}
 .htop{display:flex;align-items:center;gap:10px;margin:2px 0 16px}
 .abtn{flex:none;background:none;border:none;padding:0;display:grid;place-items:center}
 .ph0{width:34px;height:34px;background:var(--card2)!important;color:var(--ink)!important}
-.chip.on{background:#fff;color:#111;border-color:#fff}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 h1.gr{font-size:22px;margin:0 0 12px}
-.qp button{padding:0 8px 0 0;border-radius:6px;background:rgba(255,255,255,.08);gap:10px}
+.qp button{padding:0 8px 0 0;border-radius:6px;background:var(--card2);gap:10px}
 .qp img{width:56px;height:56px}
 .qp .cv,.qp .fv{width:56px;height:56px;flex:none;border-radius:0}
-.qp .cv{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;background:#1a1a26}
+.qp .cv{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;background:var(--surf2)}
 .qp .fv{display:grid;place-items:center;background:linear-gradient(135deg,#6d28d9,#22d3ee);color:#fff}
 .qp span:not(.fv){font-size:13px;font-weight:700}
 .sec{margin:26px 0 12px}.sec h2{font-size:20px;font-weight:800}
 
 .mix{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;padding:16px;margin:14px 0 4px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--a),var(--b));color:#fff}
 .mix b{font-size:18px}.mix span{font-size:12.5px;opacity:.9}
+
+.stage{--bg:#0a0a12;--ink:#f5f5fb;--mut:rgba(245,245,251,.62);--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.1);--line:rgba(255,255,255,.1);background:#0a0a12}
+.toast{color:#fff}
+.nb .ic{padding:3px 18px;border-radius:99px;transition:background .2s}
+.nb.on .ic{background:color-mix(in srgb,var(--a) 28%,transparent)}
+.side .nb .ic{padding:0}
+.pcard{position:relative;border-radius:22px;padding:20px 16px 14px;margin:4px 0 8px;background:var(--card);background:linear-gradient(135deg,color-mix(in srgb,var(--a) 38%,var(--surf)),color-mix(in srgb,var(--b) 24%,var(--surf)));border:1px solid var(--line)}
+.ptop{display:flex;align-items:center;gap:14px}.ptop h1{font-size:22px}
+.ptop>img{width:72px;height:72px;border-radius:50%;object-fit:cover;flex:none;border:2px solid var(--card2)}
+.pst{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.pst div{text-align:center}.pst b{display:block;font-size:19px}.pst span{font-size:11px;color:var(--mut)}
+.sgt{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:22px 6px 8px}
+.sgrp{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.srow{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;background:none;border:none;border-bottom:1px solid var(--line);text-align:left}
+.srow:last-child{border-bottom:none}.srow:active{background:var(--card2)}
+.st{flex:1;min-width:0}.st b{display:block;font-size:14.5px;font-weight:600}.st span{display:block;font-size:12px;color:var(--mut);margin-top:2px}
+.sr{color:var(--mut);font-size:13px;flex:none;font-weight:600}
+.srow.danger b{color:#ff7a8a}
+.tgl{width:46px;height:28px;border-radius:99px;background:var(--card2);position:relative;flex:none;transition:.2s}
+.tgl:after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.tgl.on{background:linear-gradient(135deg,var(--a),var(--b))}.tgl.on:after{left:21px}
+.swg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px}
+.swt{background:none;border:2px solid transparent;border-radius:14px;padding:5px 3px;text-align:center;font-size:11px;color:var(--ink)}
+.swt i{display:block;height:46px;border-radius:10px;margin-bottom:6px;border:1px solid var(--line)}
+.swt.on{border-color:var(--b)}
+.rcv{width:100%;max-width:340px;display:block;margin:8px auto 14px;border-radius:18px;border:1px solid var(--line);aspect-ratio:9/16;background:var(--surf)}
+.rst{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
+.rst div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center}.rst b{display:block;font-size:20px}.rst span{font-size:11px;color:var(--mut)}
 /* layar lebar */
 @media(min-width:900px){
  .app{grid-template-columns:220px minmax(0,1fr) 410px}
  .side{display:flex;flex-direction:column;position:sticky;top:0;height:100vh;padding:20px 12px;border-right:1px solid var(--line)}
  .bnav,.mini{display:none!important}
  .main{padding:24px 26px 40px;max-width:none;margin:0}
- .stage{position:sticky;inset:auto;top:16px;transform:none;visibility:visible;transition:none;height:calc(100vh - 32px);margin:16px 16px 16px 0;border-radius:28px;border:1px solid var(--line);overflow:hidden;background:rgba(0,0,0,.25);z-index:auto}
+ .stage{position:sticky;inset:auto;top:16px;transform:none;visibility:visible;transition:none;height:calc(100vh - 32px);margin:16px 16px 16px 0;border-radius:28px;border:1px solid var(--line);overflow:hidden;background:#0a0a12;z-index:auto}
  #close{display:none}
  .toast{bottom:30px}
  .modal{align-items:center}.mbox{border-radius:22px;max-height:70vh}
@@ -246,6 +274,7 @@ const P = {
   friends: '<circle cx="9" cy="8" r="3.5"/><path d="M2 21c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c3 0 5 2 5 4.5"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   up: '<path d="M18 15l-6-6-6 6"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
   ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>'
 };
 const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
@@ -348,7 +377,7 @@ function go(i) {
   if (i < 0 || i >= queue.length) return;
   qi = i; const t = queue[i];
   addRecent(t); upNext = pickNext(); pubNow(t);
-  DB.log.push({ id: t.id, title: t.title, author: t.author || '', ts: Date.now() }); if (DB.log.length > 600) DB.log = DB.log.slice(-600); save(true);
+  DB.log.push({ id: t.id, title: t.title, author: t.author || '', dur: t.duration || '', ts: Date.now() }); if (DB.log.length > 600) DB.log = DB.log.slice(-600); save(true);
   updMini(); paintLikes(); markNow();
   media.pos = 0; media.dur = 0; pushMedia();
   document.title = t.title + ' - Alya Music';
@@ -361,7 +390,7 @@ frame.addEventListener('load', () => { ph.className = 'ph hide'; frame.hidden = 
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
   const d = e.data; if (!d || typeof d !== 'object') return;
-  if (d.type === 'alya-hello') fstate = 2;
+  if (d.type === 'alya-hello') { fstate = 2; sendAccent(); }
   else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
   else if (d.type === 'alya-pos') {
     if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + 2500, d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
@@ -405,7 +434,7 @@ function buildNav() {
     b.onclick = () => setView(v); box.appendChild(b);
   }));
 }
-function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' || V.v === 'colist' ? 'lib' : V.v === 'profile' ? 'friends' : V.v))); }
+function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' || V.v === 'colist' ? 'lib' : V.v === 'profile' ? 'friends' : V.v === 'recap' ? 'me' : V.v))); }
 const stateObj = () => ({ v: V.v, id: V.id, sheet: document.body.classList.contains('sheet') ? 1 : 0 });
 function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); if (G.u && (v === 'friends' || v === 'lib')) gLoad(); }
 function openSheet() { if (!document.body.classList.contains('sheet')) { document.body.classList.add('sheet'); history.pushState({ v: V.v, id: V.id, sheet: 1 }, ''); } }
@@ -627,7 +656,7 @@ function rList(m) {
 }
 function render() {
   const m = $('main'); m.innerHTML = '';
-  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, me: rMe, friends: rFriends }[V.v] || rHome)(m);
+  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, recap: rRecap, me: rMe, friends: rFriends }[V.v] || rHome)(m);
   updNav(); markNow(); paintLikes();
 }
 
@@ -744,41 +773,64 @@ function importModal() {
 function box(m, title) { const c = h('div', 'set'); c.appendChild(h('h3', '', title)); m.appendChild(c); return c; }
 function line(c, text) { c.appendChild(h('div', 'mut', text)); }
 function btn(c, text, fn, cls) { const b = h('button', cls || 'sbtn', text); b.type = 'button'; b.onclick = fn; c.appendChild(b); return b; }
+function sgrp(m, title) { m.appendChild(h('div', 'sgt', title)); const c = h('div', 'sgrp'); m.appendChild(c); return c; }
+function srow(c, title, sub, fn, right) {
+  const r = h('button', 'srow'); r.type = 'button'; const t = h('div', 'st'); t.appendChild(h('b', '', title)); if (sub) t.appendChild(h('span', '', sub)); r.appendChild(t);
+  if (right) r.appendChild(typeof right === 'string' ? h('span', 'sr', right) : right); else if (fn) { const ch = h('span', 'ic sr'); setIc(ch, 'chev', 18); r.appendChild(ch); }
+  if (fn) r.onclick = fn; else r.style.cursor = 'default'; c.appendChild(r); return r;
+}
+function githubModal() {
+  modal('Sinkronisasi GitHub', b => {
+    line(b, 'Alternatif tanpa Google: simpan playlist dan favorit di Gist pribadi GitHub-mu.');
+    btn(b, 'Buat token GitHub', () => openExt('https://github.com/settings/tokens/new?scopes=gist&description=Alya%20Music'));
+    line(b, 'Centang hanya "gist", buat token, salin, lalu tempel di bawah.');
+    const i = h('input', 'minput'); i.type = 'password'; i.placeholder = 'Tempel token'; b.appendChild(i);
+    btn(b, 'Masuk', () => { closeModal(); login(i.value.trim()); }, 'pbtn');
+  });
+}
 function rMe(m) {
-  m.appendChild(h('h1', '', 'Saya'));
-  gBox(m);
-  themeBox(m);
-  recapBox(m);
-  pubBox(m);
-  const u = box(m, 'Pembaruan');
-  line(u, !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub.' : updInfo.error ? 'Tidak bisa memeriksa update.' : updInfo.available ? 'Update baru (' + updInfo.latestName + ') tersedia!' : 'Aplikasi sudah up-to-date.');
-  const ua = h('div', 'acts'); u.appendChild(ua);
-  btn(ua, 'Periksa sekarang', () => { checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
-  if (updInfo && updInfo.available) btn(ua, 'Unduh ' + updInfo.latestName, () => openExt(updInfo.url), 'pbtn');
+  const w = recapStats(7);
+  const pc = h('div', 'pcard'), tp = h('div', 'ptop');
+  if (G.u) tp.appendChild(av(G.u.name, G.u.photo, 72)); else { const im = h('img'); im.src = '/mascot.png'; im.alt = ''; tp.appendChild(im); }
+  const tx = h('div'); tx.append(h('h1', '', G.u ? G.u.name : 'Halo!'), h('div', 'mut', G.u ? 'Masuk dengan Google' : 'Masuk untuk sinkron dan berteman')); tp.appendChild(tx); pc.appendChild(tp);
+  if (!G.u) { const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.style.marginTop = '14px'; gb.onclick = gStart; pc.appendChild(gb); }
+  const st = h('div', 'pst');
+  [[DB.lists.length, 'Playlist'], [DB.likes.length, 'Favorit'], [G.friends.length, 'Teman'], [w.total, 'Diputar 7 hari']].forEach(([n, l]) => { const d = h('div'); d.append(h('b', '', String(n)), h('span', '', l)); st.appendChild(d); });
+  pc.appendChild(st); m.appendChild(pc);
 
-  const a = box(m, 'Akun & sinkronisasi');
-  if (tok()) {
-    line(a, 'Masuk sebagai @' + (localStorage.getItem('alya_user') || 'GitHub'));
-    line(a, syncing ? 'Menyinkronkan...' : (syncMsg || 'Terakhir: ' + ago()));
-    const ac = h('div', 'acts'); a.appendChild(ac);
-    btn(ac, 'Sinkronkan sekarang', () => syncNow(false));
-    btn(ac, 'Keluar', () => confirmBox('Keluar dari akun? Data di HP ini tetap ada.', 'Keluar', () => { localStorage.removeItem(TOK); localStorage.removeItem(GID); localStorage.removeItem('alya_user'); render(); }));
-  } else {
-    line(a, 'Simpan playlist dan favorit di akun GitHub-mu (Gist pribadi) supaya tidak perlu mengatur ulang di HP lain. Gratis, tanpa server tambahan.');
-    btn(a, 'Buat token GitHub', () => openExt('https://github.com/settings/tokens/new?scopes=gist&description=Alya%20Music'));
-    line(a, 'Di halaman itu, centang hanya "gist", buat token, salin, lalu tempel di bawah.');
-    const i = h('input', 'minput'); i.type = 'password'; i.placeholder = 'Tempel token'; a.appendChild(i);
-    btn(a, 'Masuk', () => login(i.value.trim()), 'pbtn');
+  const g1 = sgrp(m, 'Tampilan'), sw = h('div', 'swg');
+  THEMES.forEach((t, i) => {
+    const b = h('button', 'swt' + (themeIdx() === i ? ' on' : '')); b.type = 'button'; const pv = h('i'); pv.style.background = 'linear-gradient(135deg,' + t.bg + ' 50%,' + t.a + ' 50% 75%,' + t.b + ' 75%)';
+    b.append(pv, h('span', '', t.n)); b.onclick = () => { try { localStorage.setItem('alya_theme', String(i)); } catch (e) {} applyTheme(i); render(); }; sw.appendChild(b);
+  });
+  g1.appendChild(sw);
+
+  const g2 = sgrp(m, 'Aktivitas');
+  srow(g2, 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
+  srow(g2, 'Antrean', queue.length ? queue.length + ' lagu' : 'Kosong', () => openQueue());
+
+  if (G.u) {
+    const g3 = sgrp(m, 'Akun & sosial');
+    srow(g3, 'Kode teman', 'Ketuk untuk membagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); }, gCode());
+    const tg = h('span', 'tgl' + (pubOn() ? ' on' : ''));
+    srow(g3, 'Profil publik', pubOn() ? 'Teman bisa melihat favorit dan playlist pilihan' : 'Teman hanya melihat namamu dan lagu yang sedang diputar', () => { try { localStorage.setItem('alya_pub', pubOn() ? '0' : '1'); } catch (e) {} pubPush().catch(() => {}); render(); }, tg);
+    srow(g3, 'Sinkronkan sekarang', 'Playlist dan favorit ke akun Google', () => gSync().then(() => toast('Tersinkron')));
+    srow(g3, 'Keluar', 'Data di HP ini tetap ada', () => confirmBox('Keluar dari akun Google? Data di HP ini tetap ada.', 'Keluar', gOut)).classList.add('danger');
   }
 
-  const b = box(m, 'Cadangan manual');
-  line(b, 'Salin kode cadangan untuk dipindahkan ke HP lain, atau pulihkan dari kode.');
-  const bc = h('div', 'acts'); b.appendChild(bc);
-  btn(bc, 'Salin kode cadangan', () => { const code = exportCode(); if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(code); else if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => toast('Kode disalin'), () => toast('Gagal menyalin')); });
-  btn(bc, 'Pulihkan dari kode', importModal);
+  const g4 = sgrp(m, 'Data & cadangan');
+  if (tok()) {
+    srow(g4, 'GitHub tersambung', '@' + (localStorage.getItem('alya_user') || 'GitHub') + ' - ' + (syncing ? 'menyinkronkan...' : (syncMsg || 'terakhir ' + ago())), () => syncNow(false));
+    srow(g4, 'Keluar dari GitHub', '', () => confirmBox('Keluar dari GitHub? Data di HP ini tetap ada.', 'Keluar', () => { localStorage.removeItem(TOK); localStorage.removeItem(GID); localStorage.removeItem('alya_user'); render(); })).classList.add('danger');
+  } else srow(g4, 'Sinkronisasi GitHub', 'Alternatif tanpa Google', githubModal);
+  srow(g4, 'Salin kode cadangan', 'Untuk dipindahkan ke HP lain', () => { const code = exportCode(); if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(code); else if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => toast('Kode disalin'), () => toast('Gagal menyalin')); });
+  srow(g4, 'Pulihkan dari kode', '', importModal);
 
-  const ab = box(m, 'Tentang');
-  line(ab, 'Alya Music. Playlist: ' + DB.lists.length + ', favorit: ' + DB.likes.length + ', riwayat: ' + DB.recent.length + '.');
+  const g5 = sgrp(m, 'Aplikasi');
+  const up = !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub' : updInfo.error ? 'Tidak bisa memeriksa update' : updInfo.available ? 'Update ' + updInfo.latestName + ' tersedia, ketuk untuk mengunduh' : 'Sudah versi terbaru';
+  srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) openExt(updInfo.url); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
+  srow(g5, 'Alya Music', updInfo && updInfo.currentName ? 'Versi ' + updInfo.currentName : '');
+  m.appendChild(h('div', 'mut', ' ')).style.height = '12px';
 }
 
 // ---------- login Google, sinkronisasi cloud & teman (Firebase lewat REST) ----------
@@ -868,7 +920,7 @@ function rFriends(m) {
     const pr = h('div', 'promo'); pr.append(h('b', '', 'Masuk dulu untuk berteman'), h('div', 'mut', 'Dengan akun Google kamu punya kode teman, bisa menambah teman, dan melihat lagu yang sedang mereka dengar.'));
     const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; pr.appendChild(gb); m.appendChild(pr); return;
   }
-  const me = box(m, 'Kode temanmu'); me.appendChild(h('div', 'code', gCode())); line(me, 'Bagikan kode ini supaya temanmu bisa menambahkanmu.');
+  const me = h('div', 'pcard'); m.appendChild(me); me.appendChild(h('div', 'mut', 'Kode temanmu')); me.appendChild(h('div', 'code', gCode())); line(me, 'Bagikan kode ini supaya temanmu bisa menambahkanmu.');
   const mb = h('div', 'acts'); me.appendChild(mb);
   btn(mb, 'Bagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); });
   btn(mb, 'Segarkan', () => gLoad().then(() => toast('Diperbarui')));
@@ -1033,6 +1085,76 @@ function recapBox(m) {
   });
 }
 
+// ---------- rekap dengan kartu gambar (canvas) ----------
+let RR = 7;
+const durS = x => { const p = String(x || '').split(':').map(Number); return !p.length || p.some(isNaN) ? 0 : p.reduce((a, v) => a * 60 + v, 0); };
+function recapStats(days) {
+  const L = DB.log.filter(t => !days || t.ts > Date.now() - days * 864e5), tc = {}, ac = {};
+  L.forEach(t => { tc[t.id] = tc[t.id] || { t, n: 0 }; tc[t.id].n++; if (t.author) ac[t.author] = (ac[t.author] || 0) + 1; });
+  return { total: L.length, nArt: Object.keys(ac).length, mins: Math.round(L.reduce((a, t) => a + durS(t.dur), 0) / 60),
+    tracks: Object.keys(tc).map(k => tc[k]).sort((a, b) => b.n - a.n).slice(0, 5), artists: Object.keys(ac).sort((a, b) => ac[b] - ac[a]).slice(0, 5).map(k => [k, ac[k]]) };
+}
+const loadImg = src => new Promise(res => { const im = new Image(), to = setTimeout(() => res(null), 2500); im.onload = () => { clearTimeout(to); res(im); }; im.onerror = () => { clearTimeout(to); res(null); }; im.src = src; });
+async function paintRecap(cv, d, days) {
+  const [masc, cover] = await Promise.all([loadImg('/mascot.png'), loadImg('/thumb/' + d.tracks[0].t.id)]);
+  const x = cv.getContext('2d'), W = 1080, H = 1920, A = ACC.a, B = ACC.b;
+  const fit = (t, w) => { let q = String(t); while (x.measureText(q).width > w && q.length > 1) q = q.slice(0, -1); return q === String(t) ? q : q.trimEnd() + '…'; };
+  const rr = (px, py, w, h2, r2) => { x.beginPath(); x.moveTo(px + r2, py); x.arcTo(px + w, py, px + w, py + h2, r2); x.arcTo(px + w, py + h2, px, py + h2, r2); x.arcTo(px, py + h2, px, py, r2); x.arcTo(px, py, px + w, py, r2); x.closePath(); };
+  x.fillStyle = '#0a0a12'; x.fillRect(0, 0, W, H);
+  let g = x.createRadialGradient(100, 60, 40, 100, 60, 1000); g.addColorStop(0, A); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = .6; x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createRadialGradient(1020, 1860, 40, 1020, 1860, 1100); g.addColorStop(0, B); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = .5; x.fillStyle = g; x.fillRect(0, 0, W, H); x.globalAlpha = 1;
+  x.fillStyle = '#fff'; x.font = '700 38px sans-serif'; x.globalAlpha = .75; x.fillText('ALYA MUSIC', 80, 120); x.globalAlpha = 1;
+  if (masc) { const k = Math.min(130 / masc.width, 130 / masc.height), w2 = masc.width * k, h2 = masc.height * k; x.drawImage(masc, W - 80 - w2, 60, w2, h2); }
+  x.font = '800 100px sans-serif'; x.fillText('Rekap musikmu', 80, 270);
+  x.font = '500 40px sans-serif'; x.globalAlpha = .75; x.fillText(days ? days + ' hari terakhir' : 'Sepanjang waktu', 80, 335); x.globalAlpha = 1;
+  x.save(); rr(80, 400, 400, 400, 40); x.clip();
+  if (cover) { const sz = Math.min(cover.width, cover.height); x.drawImage(cover, (cover.width - sz) / 2, (cover.height - sz) / 2, sz, sz, 80, 400, 400, 400); } else { x.fillStyle = A; x.fillRect(80, 400, 400, 400); }
+  x.restore();
+  x.fillStyle = '#fff'; x.font = '800 190px sans-serif'; x.fillText(String(d.total), 520, 600);
+  x.font = '600 46px sans-serif'; x.fillText('lagu diputar', 524, 670);
+  if (d.mins) { x.globalAlpha = .75; x.font = '500 40px sans-serif'; x.fillText('sekitar ' + d.mins + ' menit', 524, 735); x.globalAlpha = 1; }
+  x.font = '500 38px sans-serif'; x.globalAlpha = .75; x.fillText(d.nArt + ' artis berbeda', 524, d.mins ? 790 : 735); x.globalAlpha = 1;
+  x.font = '800 58px sans-serif'; x.fillText('Lagu teratas', 80, 905);
+  const mx = d.tracks[0].n;
+  d.tracks.forEach((o, i) => {
+    const y = 950 + i * 120;
+    g = x.createLinearGradient(80, 0, 160, 0); g.addColorStop(0, A); g.addColorStop(1, B); x.fillStyle = g; x.beginPath(); x.arc(114, y + 40, 34, 0, 7); x.fill();
+    x.fillStyle = '#fff'; x.font = '800 40px sans-serif'; x.textAlign = 'center'; x.fillText(String(i + 1), 114, y + 54); x.textAlign = 'left';
+    x.font = '700 42px sans-serif'; x.fillText(fit(o.t.title, 690), 176, y + 34);
+    x.textAlign = 'right'; x.font = '700 38px sans-serif'; x.fillText(o.n + 'x', 1000, y + 34); x.textAlign = 'left';
+    x.fillStyle = 'rgba(255,255,255,.16)'; rr(176, y + 54, 824, 14, 7); x.fill();
+    g = x.createLinearGradient(176, 0, 1000, 0); g.addColorStop(0, A); g.addColorStop(1, B); x.fillStyle = g; rr(176, y + 54, Math.max(24, 824 * o.n / mx), 14, 7); x.fill();
+  });
+  x.fillStyle = '#fff'; x.font = '800 58px sans-serif'; x.fillText('Artis teratas', 80, 1625);
+  let px = 80, py = 1665; x.font = '600 36px sans-serif';
+  d.artists.forEach(([n]) => {
+    const t = fit(n, 520), w2 = x.measureText(t).width + 56; if (px + w2 > 1000) { px = 80; py += 92; }
+    x.fillStyle = 'rgba(255,255,255,.14)'; rr(px, py, w2, 70, 35); x.fill(); x.fillStyle = '#fff'; x.fillText(t, px + 28, py + 47); px += w2 + 16;
+  });
+  x.font = '500 32px sans-serif'; x.globalAlpha = .6; x.fillText((G.u ? G.u.name + '  •  ' : '') + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), 80, 1880); x.globalAlpha = 1;
+}
+function rRecap(m) {
+  const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Saya')); bk.onclick = () => history.back(); m.appendChild(bk);
+  m.appendChild(h('h1', '', 'Rekap musik'));
+  const ch = h('div', 'chips'); ch.style.marginTop = '10px';
+  [[7, '7 hari'], [30, '30 hari'], [0, 'Semua']].forEach(([n, l]) => { const b = h('button', 'chip' + (RR === n ? ' on' : ''), l); b.type = 'button'; b.onclick = () => { RR = n; render(); }; ch.appendChild(b); }); m.appendChild(ch);
+  const d = recapStats(RR);
+  if (!d.total) { m.appendChild(h('div', 'msg', 'Belum ada data untuk periode ini. Putar beberapa lagu dulu.')); return; }
+  const st = h('div', 'rst'); [[d.total, 'Lagu diputar'], [d.nArt, 'Artis'], [d.mins ? d.mins + ' mnt' : '-', 'Perkiraan durasi']].forEach(([n, l]) => { const c = h('div'); c.append(h('b', '', String(n)), h('span', '', l)); st.appendChild(c); }); m.appendChild(st);
+  const cv = h('canvas', 'rcv'); cv.width = 1080; cv.height = 1920; m.appendChild(cv); paintRecap(cv, d, RR);
+  const a = h('div', 'acts'); a.style.justifyContent = 'center'; m.appendChild(a);
+  const txt = 'Rekap Alya Music: ' + d.total + ' lagu diputar. Teratas: ' + d.tracks.slice(0, 3).map(o => o.t.title).join(', ') + '.';
+  btn(a, 'Bagikan gambar', () => {
+    try {
+      const url = cv.toDataURL('image/png');
+      if (window.AlyaApp && AlyaApp.shareImage) AlyaApp.shareImage(url.split(',')[1], txt);
+      else { const l = document.createElement('a'); l.href = url; l.download = 'alya-rekap.png'; l.click(); }
+    } catch (e) { toast('Gagal membuat gambar'); }
+  }, 'pbtn');
+  btn(a, 'Bagikan teks', () => { if (window.AlyaApp && AlyaApp.share) AlyaApp.share(txt); else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Disalin')); });
+  sec(m, 'Lagu teratas'); const items = d.tracks.map(o => slim(o.t)), ls = h('div', 'list'); items.forEach((t, i) => ls.appendChild(row(t, items, i))); m.appendChild(ls);
+}
+
 // ---------- antrean ----------
 function qmove(i, d) { const j = i + d; if (j < 0 || j >= queue.length) return; const t = queue[i]; queue[i] = queue[j]; queue[j] = t; if (qi === i) qi = j; else if (qi === j) qi = i; upNext = pickNext(); openQueue(); }
 function openQueue() {
@@ -1059,13 +1181,30 @@ function setSleep(min) {
 }
 setIc($('s-sl'), 'moon');
 $('s-sl').addEventListener('click', () => modal('Timer tidur' + (sleepEnd ? ' (sisa ' + Math.ceil((sleepEnd - Date.now()) / 6e4) + ' mnt)' : ''), b => { [15, 30, 45, 60].forEach(n => act(b, n + ' menit', () => setSleep(n), '', 'moon')); if (sleepEnd) act(b, 'Matikan timer', () => setSleep(0), 'danger', 'trash'); }));
-const THEMES = [['Ungu', '#8b5cf6', '#22d3ee'], ['Pink', '#ec4899', '#f59e0b'], ['Hijau', '#10b981', '#22d3ee'], ['Biru', '#3b82f6', '#8b5cf6'], ['Oranye', '#f97316', '#ef4444']];
-function applyTheme(i) { const t = THEMES[i] || THEMES[0], st = document.documentElement.style; st.setProperty('--a', t[1]); st.setProperty('--b', t[2]); }
-try { applyTheme(Number(localStorage.getItem('alya_theme') || 0)); } catch (e) {}
-function themeBox(m) {
-  const t = box(m, 'Warna tema'), a = h('div', 'acts'); t.appendChild(a);
-  THEMES.forEach((x, i) => { const b = btn(a, x[0], () => { try { localStorage.setItem('alya_theme', String(i)); } catch (e) {} applyTheme(i); render(); }); b.style.background = 'linear-gradient(135deg,' + x[1] + ',' + x[2] + ')'; b.style.color = '#fff'; });
+const THEMES = [
+  { n: 'Malam', a: '#8b5cf6', b: '#22d3ee', bg: '#0a0a12' }, { n: 'AMOLED', a: '#a78bfa', b: '#38bdf8', bg: '#000000' },
+  { n: 'Samudra', a: '#3b82f6', b: '#06b6d4', bg: '#06101c' }, { n: 'Hutan', a: '#10b981', b: '#84cc16', bg: '#07120e' },
+  { n: 'Senja', a: '#f97316', b: '#ec4899', bg: '#150b0b' }, { n: 'Mawar', a: '#ec4899', b: '#f59e0b', bg: '#14090f' },
+  { n: 'Terang', a: '#7c3aed', b: '#0891b2', bg: '#f6f6fb', light: 1 }];
+const hx = c => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
+const mixc = (c1, c2, t, al) => { const x = hx(c1), y = hx(c2), v = x.map((n, i) => Math.round(n + (y[i] - n) * t)).join(','); return al ? 'rgba(' + v + ',' + al + ')' : 'rgb(' + v + ')'; };
+let ACC = { a: '#8b5cf6', b: '#22d3ee' };
+const themeIdx = () => { let n = 0; try { n = Number(localStorage.getItem('alya_theme') || 0); } catch (e) {} return THEMES[n] ? n : 0; };
+function sendAccent() { try { if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-accent', a: ACC.a, b: ACC.b }, location.origin); } catch (e) {} }
+function applyTheme(i) {
+  const t = THEMES[i] || THEMES[0], L = !!t.light, st = document.documentElement.style, up = L ? '#000000' : '#ffffff', set = (k, v) => st.setProperty(k, v);
+  set('--a', t.a); set('--b', t.b); set('--bg', t.bg);
+  set('--ink', L ? '#14141f' : '#f5f5fb'); set('--mut', L ? 'rgba(20,20,31,.62)' : 'rgba(245,245,251,.62)');
+  set('--card', L ? 'rgba(0,0,0,.05)' : 'rgba(255,255,255,.06)'); set('--card2', L ? 'rgba(0,0,0,.09)' : 'rgba(255,255,255,.1)'); set('--line', L ? 'rgba(0,0,0,.1)' : 'rgba(255,255,255,.1)');
+  set('--surf', L ? '#ffffff' : mixc(t.bg, up, .07)); set('--surf2', L ? '#e9e9f1' : mixc(t.bg, up, .11));
+  set('--nav', L ? 'rgba(255,255,255,.96)' : mixc(t.bg, up, .04, .96)); set('--modal', L ? '#ffffff' : mixc(t.bg, up, .08)); set('--inp', L ? '#f0f0f6' : mixc(t.bg, up, .05));
+  set('--toastbg', L ? '#14141f' : mixc(t.bg, up, .14)); set('--minibg', L ? 'rgba(255,255,255,.97)' : mixc(t.bg, up, .09, .95));
+  ACC = { a: t.a, b: t.b };
+  try { document.querySelector('meta[name=theme-color]').setAttribute('content', t.bg); } catch (e) {}
+  try { if (window.AlyaApp && AlyaApp.setBars) AlyaApp.setBars(t.bg, L); } catch (e) {}
+  sendAccent();
 }
+applyTheme(themeIdx());
 setInterval(() => {
   if (!G.u || document.hidden) return; const ae = document.activeElement; if (ae && ae.tagName === 'INPUT') return;
   if (V.v === 'colist' && G.cur && !G.cur.bad && G.cur.id === V.id) { const prev = G.cur, bf = JSON.stringify(prev); colLoad(V.id).then(() => { if (G.cur.bad) { G.cur = prev; return; } if (V.v === 'colist' && JSON.stringify(G.cur) !== bf) render(); }); }

@@ -1138,6 +1138,7 @@
     var d = e.data;
     if (!d || typeof d !== 'object') return;
     if (d.type === 'alya-load' && typeof d.id === 'string' && d.id.length === 11 && /^[A-Za-z0-9_-]+$/.test(d.id)) fetchTrack(d.id, !!d.auto);
+    else if (d.type === 'alya-accent' && /^#[0-9a-f]{6}$/i.test(d.a) && /^#[0-9a-f]{6}$/i.test(d.b)) { THEMES[0].a = d.a; THEMES[0].b = d.b; if (SW[0]) SW[0].style.background = 'linear-gradient(135deg,' + d.a + ',' + d.b + ')'; if (curTheme === 0) setTheme(0); }
     else if (d.type === 'alya-cmd') {
       if (d.cmd === 'toggle') { if (playing) pause(); else startAt(null, true); }
       else if (d.cmd === 'play') { if (!playing) startAt(null, true); }

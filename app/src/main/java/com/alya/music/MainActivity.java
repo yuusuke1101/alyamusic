@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -113,6 +114,41 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 i.putExtra("rep", rep);
                 startService(i);
             } catch (Exception e) { }
+        }
+
+        @JavascriptInterface
+        public void setBars(final String bg, final boolean light) {
+            runOnUiThread(() -> {
+                try {
+                    int c = Color.parseColor(bg);
+                    getWindow().setStatusBarColor(c);
+                    getWindow().setNavigationBarColor(c);
+                    web.setBackgroundColor(c);
+                    int f = 0;
+                    if (light && Build.VERSION.SDK_INT >= 23) f |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                    if (light && Build.VERSION.SDK_INT >= 26) f |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                    getWindow().getDecorView().setSystemUiVisibility(f);
+                } catch (Exception e) { }
+            });
+        }
+
+        @JavascriptInterface
+        public void shareImage(final String b64, final String text) {
+            new Thread(() -> {
+                try {
+                    byte[] b = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                    java.io.File d = new java.io.File(getCacheDir(), "share");
+                    d.mkdirs();
+                    java.io.File f = new java.io.File(d, "alya-rekap.png");
+                    try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(b); }
+                    final Uri u = androidx.core.content.FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fp", f);
+                    runOnUiThread(() -> {
+                        Intent i = new Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, u)
+                                .putExtra(Intent.EXTRA_TEXT, text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(Intent.createChooser(i, "Bagikan rekap"));
+                    });
+                } catch (Exception e) { }
+            }).start();
         }
 
         @JavascriptInterface
