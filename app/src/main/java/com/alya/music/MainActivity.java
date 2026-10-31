@@ -106,6 +106,16 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         public void googleSignIn() { runOnUiThread(() -> GoogleAuth.signIn(MainActivity.this, web)); }
 
         @JavascriptInterface
+        public void setMode(boolean shuffle, int rep) {
+            try {
+                Intent i = new Intent(MainActivity.this, PlaybackService.class).setAction(PlaybackService.A_MODE);
+                i.putExtra("shuffle", shuffle);
+                i.putExtra("rep", rep);
+                startService(i);
+            } catch (Exception e) { }
+        }
+
+        @JavascriptInterface
         public void share(final String text) {
             runOnUiThread(() -> {
                 Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);

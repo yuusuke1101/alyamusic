@@ -195,6 +195,7 @@ h1.gr{font-size:22px;margin:0 0 12px}
       <button class="tg" id="t-shuf">Acak</button>
       <button class="tg" id="t-rep">Ulangi</button>
       <button class="ib" id="s-like" aria-label="Favorit"></button>
+      <button class="ib" id="s-sl" aria-label="Timer tidur"></button>
       <button class="ib" id="s-q" aria-label="Antrean"></button>
     </div>
     <div class="fw">
@@ -240,6 +241,7 @@ const P = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
   friends: '<circle cx="9" cy="8" r="3.5"/><path d="M2 21c0-3.5 3-6 7-6s7 2.5 7 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c3 0 5 2 5 4.5"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>'
 };
 const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
@@ -256,6 +258,7 @@ const load = () => {
 function norm(d) { d.gone = d.gone || {}; d.favTs = d.favTs || 0; d.lists.forEach(l => { l.ts = l.ts || 0; }); d.prefs = d.prefs || { auto: true, shuffle: false, repeat: false }; return d; }
 function slim(t) { return { id: t.id, title: t.title, author: t.author || '', duration: t.duration || '' }; }
 let DB = load();
+if (DB.prefs.rep == null) DB.prefs.rep = DB.prefs.repeat ? 1 : 0;
 const save = n => { try { localStorage.setItem('alya_v2', JSON.stringify(DB)); } catch (e) {} if (!n) queueSync(); };
 const thumb = id => 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
 const isLiked = id => DB.likes.some(t => t.id === id);
@@ -355,7 +358,7 @@ window.addEventListener('message', e => {
   if (d.type === 'alya-hello') fstate = 2;
   else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
   else if (d.type === 'alya-pos') { media.pos = d.pos || 0; media.dur = d.dur || 0; media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
-  else if (d.type === 'alya-ended') { if (DB.prefs.auto) next(); }
+  else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
   else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
   else if (d.type === 'alya-near') { const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
   else if (d.type === 'alya-blocked') openSheet();
@@ -373,11 +376,15 @@ function paintLikes() {
   document.querySelectorAll('.like').forEach(b => b.classList.toggle('on', isLiked(b.dataset.lk)));
   const t = queue[qi], s = $('s-like'); s.classList.toggle('on', !!t && isLiked(t.id));
 }
+function cycleRep() { DB.prefs.rep = ((DB.prefs.rep || 0) + 1) % 3; DB.prefs.repeat = DB.prefs.rep > 0; toast(['Ulangi: mati', 'Ulangi semua lagu', 'Ulangi 1 lagu'][DB.prefs.rep]); }
+function pushMode() { try { if (window.AlyaApp && AlyaApp.setMode) AlyaApp.setMode(!!DB.prefs.shuffle, DB.prefs.rep || 0); } catch (e) {} }
 function paintToggles() {
-  $('t-auto').classList.toggle('on', DB.prefs.auto); $('t-shuf').classList.toggle('on', DB.prefs.shuffle); $('t-rep').classList.toggle('on', DB.prefs.repeat);
+  const rp = DB.prefs.rep || 0;
+  $('t-auto').classList.toggle('on', DB.prefs.auto); $('t-shuf').classList.toggle('on', DB.prefs.shuffle);
+  const tr = $('t-rep'); tr.classList.toggle('on', rp > 0); tr.textContent = rp === 2 ? 'Ulangi 1' : 'Ulangi'; pushMode();
 }
 ['auto', 'shuf', 'rep'].forEach(k => $('t-' + k).addEventListener('click', () => {
-  const key = { auto: 'auto', shuf: 'shuffle', rep: 'repeat' }[k]; DB.prefs[key] = !DB.prefs[key]; save(); paintToggles(); upNext = pickNext();
+  if (k === 'rep') cycleRep(); else { const key = { auto: 'auto', shuf: 'shuffle' }[k]; DB.prefs[key] = !DB.prefs[key]; } save(); paintToggles(); upNext = pickNext();
 }));
 $('s-like').addEventListener('click', () => { if (queue[qi]) toggleLike(queue[qi]); });
 
@@ -620,6 +627,8 @@ function pushMedia() {
 function cmdPlayer(o) { if (fstate === 2) frame.contentWindow.postMessage(Object.assign({ type: 'alya-cmd' }, o), location.origin); }
 window.alyaCmd = c => {
   if (c === 'play' || c === 'pause' || c === 'toggle') cmdPlayer({ cmd: c });
+  else if (c === 'shuffle') { DB.prefs.shuffle = !DB.prefs.shuffle; save(); paintToggles(); upNext = pickNext(); toast(DB.prefs.shuffle ? 'Acak: nyala' : 'Acak: mati'); }
+  else if (c === 'repeat') { cycleRep(); save(); paintToggles(); upNext = pickNext(); }
   else if (c === 'next') next();
   else if (c === 'prev') prev();
   else if (c.indexOf('seek:') === 0) cmdPlayer({ cmd: 'seek', ms: Number(c.slice(5)) });
@@ -720,6 +729,7 @@ function btn(c, text, fn, cls) { const b = h('button', cls || 'sbtn', text); b.t
 function rMe(m) {
   m.appendChild(h('h1', '', 'Saya'));
   gBox(m);
+  themeBox(m);
   const u = box(m, 'Pembaruan');
   line(u, !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub.' : updInfo.error ? 'Tidak bisa memeriksa update.' : updInfo.available ? 'Update baru (' + updInfo.latestName + ') tersedia!' : 'Aplikasi sudah up-to-date.');
   const ua = h('div', 'acts'); u.appendChild(ua);
@@ -955,6 +965,26 @@ function openQueue() {
     });
   });
 }
+let sleepT = null, sleepEnd = 0;
+function setSleep(min) {
+  clearTimeout(sleepT); sleepT = null; sleepEnd = 0;
+  if (min) { sleepEnd = Date.now() + min * 6e4; sleepT = setTimeout(() => { cmdPlayer({ cmd: 'pause' }); sleepT = null; sleepEnd = 0; $('s-sl').classList.remove('on'); toast('Timer tidur selesai, musik dijeda'); }, min * 6e4); toast('Musik berhenti dalam ' + min + ' menit'); }
+  $('s-sl').classList.toggle('on', !!min);
+}
+setIc($('s-sl'), 'moon');
+$('s-sl').addEventListener('click', () => modal('Timer tidur' + (sleepEnd ? ' (sisa ' + Math.ceil((sleepEnd - Date.now()) / 6e4) + ' mnt)' : ''), b => { [15, 30, 45, 60].forEach(n => act(b, n + ' menit', () => setSleep(n), '', 'moon')); if (sleepEnd) act(b, 'Matikan timer', () => setSleep(0), 'danger', 'trash'); }));
+const THEMES = [['Ungu', '#8b5cf6', '#22d3ee'], ['Pink', '#ec4899', '#f59e0b'], ['Hijau', '#10b981', '#22d3ee'], ['Biru', '#3b82f6', '#8b5cf6'], ['Oranye', '#f97316', '#ef4444']];
+function applyTheme(i) { const t = THEMES[i] || THEMES[0], st = document.documentElement.style; st.setProperty('--a', t[1]); st.setProperty('--b', t[2]); }
+try { applyTheme(Number(localStorage.getItem('alya_theme') || 0)); } catch (e) {}
+function themeBox(m) {
+  const t = box(m, 'Warna tema'), a = h('div', 'acts'); t.appendChild(a);
+  THEMES.forEach((x, i) => { const b = btn(a, x[0], () => { try { localStorage.setItem('alya_theme', String(i)); } catch (e) {} applyTheme(i); render(); }); b.style.background = 'linear-gradient(135deg,' + x[1] + ',' + x[2] + ')'; b.style.color = '#fff'; });
+}
+setInterval(() => {
+  if (!G.u || document.hidden) return; const ae = document.activeElement; if (ae && ae.tagName === 'INPUT') return;
+  if (V.v === 'colist' && G.cur && !G.cur.bad && G.cur.id === V.id) { const prev = G.cur, bf = JSON.stringify(prev); colLoad(V.id).then(() => { if (G.cur.bad) { G.cur = prev; return; } if (V.v === 'colist' && JSON.stringify(G.cur) !== bf) render(); }); }
+  else if (['home', 'friends', 'lib'].indexOf(V.v) >= 0) gLoad();
+}, 20000);
 setIc($('s-q'), 'list'); $('s-q').addEventListener('click', openQueue);
 
 buildNav(); paintToggles();

@@ -25,7 +25,7 @@ import android.os.PowerManager;
 
 // Menjaga aplikasi tetap hidup + notifikasi/layar kunci dengan tombol putar, jeda, berikutnya, sebelumnya, dan seek.
 public class PlaybackService extends Service {
-    static final String A_META = "alya.META", A_PLAY = "alya.PLAY", A_PAUSE = "alya.PAUSE", A_NEXT = "alya.NEXT", A_PREV = "alya.PREV";
+    static final String A_META = "alya.META", A_PLAY = "alya.PLAY", A_PAUSE = "alya.PAUSE", A_NEXT = "alya.NEXT", A_PREV = "alya.PREV", A_MODE = "alya.MODE", A_SHUF = "alya.SHUF", A_REP = "alya.REP";
     private static final String CH = "alya_play";
 
     private PowerManager.WakeLock wl;
@@ -33,7 +33,8 @@ public class PlaybackService extends Service {
     private BroadcastReceiver noisy;
     private Thread updater;
     private String title = "Alya Music", artist = "Siap memutar", artId = "";
-    private boolean playing;
+    private boolean playing, shuffle;
+    private int rep;
     private long dur, pos;
     private float rate = 1f;
     private Bitmap art;
@@ -80,6 +81,9 @@ public class PlaybackService extends Service {
         else if (A_PAUSE.equals(a)) MainActivity.send("pause");
         else if (A_NEXT.equals(a)) MainActivity.send("next");
         else if (A_PREV.equals(a)) MainActivity.send("prev");
+        else if (A_SHUF.equals(a)) MainActivity.send("shuffle");
+        else if (A_REP.equals(a)) MainActivity.send("repeat");
+        else if (A_MODE.equals(a)) { shuffle = in.getBooleanExtra("shuffle", false); rep = in.getIntExtra("rep", 0); }
         else if (A_META.equals(a)) {
             title = nz(in.getStringExtra("title"), "Alya Music");
             artist = nz(in.getStringExtra("artist"), "");
@@ -145,12 +149,15 @@ public class PlaybackService extends Service {
                 .setOngoing(true)
                 .setShowWhen(false)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .addAction(new Notification.Action.Builder(Icon.createWithResource(this, shuffle ? R.drawable.ic_shuffle_on : R.drawable.ic_shuffle), shuffle ? "Acak: nyala" : "Acak", act(A_SHUF, 5)).build())
                 .addAction(new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_previous), "Sebelumnya", act(A_PREV, 1)).build())
                 .addAction(playing
                         ? new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_pause), "Jeda", act(A_PAUSE, 2)).build()
                         : new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_play), "Putar", act(A_PLAY, 3)).build())
                 .addAction(new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_next), "Berikutnya", act(A_NEXT, 4)).build())
-                .setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
+                .addAction(new Notification.Action.Builder(Icon.createWithResource(this, rep == 2 ? R.drawable.ic_repeat_one : rep == 1 ? R.drawable.ic_repeat_on : R.drawable.ic_repeat),
+                        rep == 2 ? "Ulangi 1 lagu" : rep == 1 ? "Ulangi semua" : "Ulangi", act(A_REP, 6)).build())
+                .setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(1, 2, 3));
         if (art != null) nb.setLargeIcon(art);
         Notification n = nb.build();
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
