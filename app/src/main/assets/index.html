@@ -152,6 +152,19 @@ textarea.minput{resize:vertical}
 .promo{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:16px;border-radius:18px;background:linear-gradient(135deg,rgba(139,92,246,.28),rgba(34,211,238,.16));border:1px solid var(--line);margin:18px 0 4px}
 .gbtn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:99px;border:none;background:#fff;color:#222;font-weight:700;font-size:14px}
 .code{font-size:26px;font-weight:800;letter-spacing:.18em;color:var(--b);margin:4px 0}
+
+.htop{display:flex;align-items:center;gap:10px;margin:2px 0 16px}
+.abtn{flex:none;background:none;border:none;padding:0;display:grid;place-items:center}
+.ph0{width:34px;height:34px;background:var(--card2)!important;color:var(--ink)!important}
+.chip.on{background:#fff;color:#111;border-color:#fff}
+h1.gr{font-size:22px;margin:0 0 12px}
+.qp button{padding:0 8px 0 0;border-radius:6px;background:rgba(255,255,255,.08);gap:10px}
+.qp img{width:56px;height:56px}
+.qp .cv,.qp .fv{width:56px;height:56px;flex:none;border-radius:0}
+.qp .cv{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;background:#1a1a26}
+.qp .fv{display:grid;place-items:center;background:linear-gradient(135deg,#6d28d9,#22d3ee);color:#fff}
+.qp span:not(.fv){font-size:13px;font-weight:700}
+.sec{margin:26px 0 12px}.sec h2{font-size:20px;font-weight:800}
 /* layar lebar */
 @media(min-width:900px){
  .app{grid-template-columns:220px minmax(0,1fr) 410px}
@@ -445,7 +458,7 @@ function cached(q) {
   return api(q).then(d => { try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), d: d.map(slim) })); } catch (e) {} return d; });
 }
 let lastQ = '', results = null, searching = false;
-const MOODS = [['🌙 Santai', 'lagu santai'], ['⚡ Semangat', 'lagu semangat'], ['🎯 Fokus', 'focus music instrumental'], ['💔 Galau', 'lagu galau'], ['🎌 Anime', 'anime songs'], ['🇮🇩 Indonesia', 'lagu indonesia populer']];
+const MOODS = [['Santai', 'lagu santai'], ['Semangat', 'lagu semangat'], ['Fokus', 'focus music instrumental'], ['Galau', 'lagu galau'], ['Anime', 'anime songs'], ['Indonesia', 'lagu indonesia populer']];
 const RAILS = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai']];
 function runSearch(q) {
   lastQ = q; results = null; searching = true; setView('search'); 
@@ -482,53 +495,51 @@ function friendRow(f, withPlay) {
   const r = h('div', 'fr'); r.appendChild(av(f.name, f.photo));
   const b = h('div', 'rb'); b.appendChild(h('div', 'rt', f.name || 'Teman'));
   const n = f.now && okId(f.now.id) ? f.now : null;
-  if (n) { const mn = Math.round((Date.now() - n.ts) / 60000); b.appendChild(h('div', 'rs', (mn < 5 ? '🎧 Sedang mendengarkan: ' : 'Terakhir (' + (mn < 60 ? mn + ' mnt' : Math.round(mn / 60) + ' jam') + ' lalu): ') + n.title)); } else b.appendChild(h('div', 'rs', 'Belum ada aktivitas'));
+  if (n) { const mn = Math.round((Date.now() - n.ts) / 60000); b.appendChild(h('div', 'rs', (mn < 5 ? 'Sedang mendengarkan: ' : 'Terakhir (' + (mn < 60 ? mn + ' mnt' : Math.round(mn / 60) + ' jam') + ' lalu): ') + n.title)); } else b.appendChild(h('div', 'rs', 'Belum ada aktivitas'));
   r.appendChild(b);
   if (n && withPlay) r.appendChild(ib('play', 'Dengarkan juga', () => playFrom([{ id: n.id, title: n.title, author: n.author }], 0)));
   return r;
 }
+function genreGrid(m) {
+  sec(m, 'Jelajahi semua'); const gg = h('div', 'gens');
+  GENRES.forEach(([n, c, q]) => { const b = h('button', 'gen', n); b.type = 'button'; b.style.background = 'linear-gradient(135deg,' + c + ')'; b.onclick = () => runSearch(q); gg.appendChild(b); }); m.appendChild(gg);
+}
+let HF = '';
 function rHome(m) {
   const hr = new Date().getHours();
-  const g = hr < 4 ? 'Selamat malam' : hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
-  const top = h('div', 'hhead'); let mi;
-  if (G.u) { mi = av(G.u.name, G.u.photo, 58); mi.onclick = () => setView('me'); } else { mi = h('img'); mi.src = '/mascot.png'; mi.alt = ''; }
-  const tx = h('div'); tx.append(h('h1', '', G.u ? g + ', ' + G.u.name.split(' ')[0] : g), h('div', 'mut', 'Mau dengar apa hari ini?')); top.append(mi, tx); m.appendChild(top);
-  const sb = h('button', 'sbar'); sb.type = 'button'; const si = h('span', 'ic'); setIc(si, 'search', 20); sb.append(si, h('span', '', 'Cari lagu atau artis')); sb.onclick = () => setView('search'); m.appendChild(sb);
+  const top = h('div', 'htop');
+  const ab = h('button', 'abtn'); ab.type = 'button'; ab.setAttribute('aria-label', 'Akun');
+  if (G.u) ab.appendChild(av(G.u.name, G.u.photo, 34)); else { const d = h('span', 'av ph0'); setIc(d, 'user', 18); ab.appendChild(d); }
+  ab.onclick = () => setView('me'); top.appendChild(ab);
+  const c = h('div', 'chips'); c.style.cssText = 'margin:0;padding:0;flex:1';
+  MOODS.forEach(([l, q]) => { const b = h('button', 'chip' + (HF === q ? ' on' : ''), l); b.type = 'button'; b.onclick = () => { HF = HF === q ? '' : q; render(); }; c.appendChild(b); });
+  top.appendChild(c); m.appendChild(top);
   banner(m);
-  const qg = h('div', 'qgrid'); QUICK.forEach(([e, l, fn]) => { const t = h('button', 'tile'); t.type = 'button'; t.append(h('b', '', e), h('span', '', l)); t.onclick = fn; qg.appendChild(t); }); m.appendChild(qg);
 
-  const last = DB.recent[0];
-  const hero = h('div', 'hero');
-  if (last) {
-    const bg = h('img', 'bg'); bg.src = thumb(last.id); bg.alt = ''; hero.appendChild(bg);
-    hero.append(h('div', 'k', 'Lanjutkan'), h('div', 't', last.title), h('div', 'mut', last.author));
-    const pb = h('button', 'pbtn'); pb.type = 'button'; const pi = h('span', 'ic'); setIc(pi, 'play', 18); pb.append(pi, h('span', '', 'Putar'));
-    pb.onclick = () => playFrom(DB.recent, 0); hero.appendChild(pb);
-  } else {
-    hero.append(h('div', 'k', 'Selamat datang'), h('div', 't', 'Mulai dengan mencari lagu favoritmu'), h('div', 'mut', 'Buat playlist, simpan favorit, dan berteman.'));
-    const pb = h('button', 'pbtn', 'Cari lagu'); pb.type = 'button'; pb.onclick = () => setView('search'); hero.appendChild(pb);
+  if (HF) {
+    const mo = MOODS.find(x => x[1] === HF);
+    railSlot(m, mo[0], HF); railSlot(m, mo[0] + ' terbaru', HF + ' terbaru'); railSlot(m, mo[0] + ' populer', HF + ' populer');
+    return;
   }
-  m.appendChild(hero);
-  if (DB.recent.length > 1) { sec(m, 'Pilihan cepat'); const q = h('div', 'qp'); DB.recent.slice(0, 6).forEach((t, i) => { const b = h('button'); b.type = 'button'; b.dataset.id = t.id; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('span', '', t.title)); b.onclick = () => playFrom(DB.recent, i); q.appendChild(b); }); m.appendChild(q); }
+  const g = hr < 4 ? 'Selamat malam' : hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
+  m.appendChild(h('h1', 'gr', g));
+  const qp = h('div', 'qp');
+  const fb = h('button'); fb.type = 'button'; const fi = h('span', 'fv'); setIc(fi, 'heart', 22); fb.append(fi, h('span', '', 'Lagu Favorit')); fb.onclick = () => setView('list', 'fav'); qp.appendChild(fb);
+  DB.lists.slice(0, 2).forEach(l => { const b = h('button'); b.type = 'button'; b.append(mosaic(l.tracks, 'cv'), h('span', '', l.name)); b.onclick = () => setView('list', l.id); qp.appendChild(b); });
+  DB.recent.slice(0, 6 - qp.children.length).forEach((t, i) => { const b = h('button'); b.type = 'button'; b.dataset.id = t.id; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('span', '', t.title)); b.onclick = () => playFrom(DB.recent, i); qp.appendChild(b); });
+  m.appendChild(qp);
 
-  if (G.u) {
-    const act = G.friends.filter(f => f.now); sec(m, 'Teman sedang mendengarkan', 'Semua', () => setView('friends'));
-    if (act.length) act.sort((a, b) => b.now.ts - a.now.ts).slice(0, 3).forEach(f => m.appendChild(friendRow(f, true))); else m.appendChild(h('div', 'mut', G.friends.length ? 'Belum ada aktivitas teman.' : 'Belum ada teman. Tambahkan lewat kode teman.'));
-  } else {
-    const pr = h('div', 'promo'); pr.append(h('b', '', 'Masuk & berteman'), h('div', 'mut', 'Login dengan Google untuk menyimpan playlist di cloud dan melihat apa yang didengar temanmu.'));
-    const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; pr.appendChild(gb); m.appendChild(pr);
+  if (G.u && G.friends.some(f => f.now)) {
+    sec(m, 'Teman sedang mendengarkan', 'Semua', () => setView('friends'));
+    G.friends.filter(f => f.now).sort((a, b) => b.now.ts - a.now.ts).slice(0, 3).forEach(f => m.appendChild(friendRow(f, true)));
   }
-  chipsRow(m);
-  const au = []; DB.recent.forEach(t => { if (t.author && !au.some(x => x.author === t.author)) au.push(t); });
-  if (au.length > 2) { sec(m, 'Artis untukmu'); const ar = h('div', 'arts'); au.slice(0, 10).forEach(t => { const b = h('button', 'art'); b.type = 'button'; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('div', '', t.author)); b.onclick = () => runSearch(t.author + ' lagu terbaik'); ar.appendChild(b); }); m.appendChild(ar); }
   if (DB.recent.length) { sec(m, 'Terakhir diputar'); m.appendChild(rail(DB.recent.slice(0, 14))); }
+  const last = DB.recent[0];
+  if (last && last.author) railSlot(m, 'Mirip ' + last.author, last.author + ' lagu terbaik');
   if (DB.likes.length) { sec(m, 'Favoritmu', 'Lihat semua', () => setView('list', 'fav')); m.appendChild(rail(DB.likes.slice(0, 14))); }
   if (DB.lists.length) { sec(m, 'Playlist kamu', 'Lihat semua', () => setView('lib')); const r = h('div', 'rail'); DB.lists.slice(0, 10).forEach(l => { r.appendChild(plCard(l, true)); }); m.appendChild(r); }
   railSlot(m, hr < 11 ? 'Awali pagimu' : hr < 18 ? 'Teman santai sore' : 'Temani malammu', hr < 11 ? 'lagu pagi semangat' : hr < 18 ? 'lagu santai sore' : 'lagu malam tenang');
-  if (last && last.author) railSlot(m, 'Karena kamu mendengar ' + last.author, last.author + ' lagu terbaik');
-  sec(m, 'Jelajahi genre'); const gg = h('div', 'gens');
-  GENRES.forEach(([n, c, q]) => { const b = h('button', 'gen', n); b.type = 'button'; b.style.background = 'linear-gradient(135deg,' + c + ')'; b.onclick = () => runSearch(q); gg.appendChild(b); }); m.appendChild(gg);
-  daily(POOL, 5).forEach(([t, q]) => railSlot(m, t, q));
+  daily(POOL, 4).forEach(([t, q]) => railSlot(m, t, q));
   if (window.AlyaApp && typeof AlyaApp.changeServer === 'function') $('srv').hidden = false;
 }
 let loadQ = Promise.resolve();
@@ -543,7 +554,7 @@ function rSearch(m) {
   const b = h('button', '', 'Cari'); b.type = 'submit'; f.append(i, b);
   f.onsubmit = e => { e.preventDefault(); const q = i.value.trim(); if (q) { i.blur(); runSearch(q); } };
   m.appendChild(f);
-  if (!lastQ) { sec(m, 'Coba cari'); chipsRow(m); const r = DB.recent; if (r.length) { sec(m, 'Terakhir diputar'); const l = h('div', 'list'); r.slice(0, 8).forEach((t, k) => l.appendChild(row(t, r, k))); m.appendChild(l); } return; }
+  if (!lastQ) { sec(m, 'Coba cari'); chipsRow(m); genreGrid(m); const r = DB.recent; if (r.length) { sec(m, 'Terakhir diputar'); const l = h('div', 'list'); r.slice(0, 8).forEach((t, k) => l.appendChild(row(t, r, k))); m.appendChild(l); } return; }
   if (searching) { m.appendChild(h('div', 'msg', 'Mencari...')); return; }
   if (!results || !results.length) { m.appendChild(h('div', 'msg', 'Lagu tidak ditemukan. Coba kata kunci lain.')); return; }
   sec(m, 'Hasil untuk "' + lastQ + '"');
