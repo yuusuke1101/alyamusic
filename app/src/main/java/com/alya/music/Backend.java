@@ -137,15 +137,18 @@ final class Backend {
         Object[] ly = lyrics(t);
         o.put("lyrics", ly[0]);
         o.put("lyricsKind", ly[1]);
+        o.put("lyricsDbg", ly[2]);
         return o;
     }
 
     // ---------- lirik ----------
     // Urutan: lrclib (tersinkron) -> lrclib (teks biasa, waktu diperkirakan) -> subtitle YouTube
     static Object[] lyrics(Track t) {
-        if (t.lyr != null) return new Object[]{t.lyr, t.kind};
+        if (t.lyr != null) return new Object[]{t.lyr, t.kind, ""};
         JSONArray out = new JSONArray();
         String kind = "synced";
+        long dl = System.currentTimeMillis() + 12000;
+        int g = 0, sr = 0;
         try {
             String ti = cleanTitle(t.title), ch = cleanArtist(t.artist);
             List<String[]> cands = new ArrayList<>();
@@ -159,6 +162,8 @@ final class Backend {
             String synced = "", plain = "";
             for (String[] c : cands) {
                 if (c[0].isEmpty() || c[1].isEmpty()) continue;
+                if (System.currentTimeMillis() > dl) break;
+                g++;
                 Object o = lrc("get?track_name=" + enc(c[1]) + "&artist_name=" + enc(c[0]));
                 if (o instanceof JSONObject) {
                     JSONObject j = (JSONObject) o;
@@ -171,6 +176,8 @@ final class Backend {
                 JSONObject bestS = null, bestP = null;
                 double dS = 1e9, dP = 1e9;
                 for (String q : new LinkedHashSet<>(Arrays.asList(qs))) {
+                    if (System.currentTimeMillis() > dl) break;
+                    sr++;
                     Object o = lrc("search?q=" + enc(q));
                     if (!(o instanceof JSONArray)) continue;
                     JSONArray arr = (JSONArray) o;
@@ -195,7 +202,8 @@ final class Backend {
             }
         } catch (Throwable e) { /* lirik opsional */ }
         if (out.length() > 0) { t.lyr = out; t.kind = kind; }
-        return new Object[]{out, kind};
+        String d = "get " + g + "x, cari " + sr + "x, subtitle " + (t.subUrl != null ? "ada" : "tidak ada") + ", hasil " + out.length() + " baris";
+        return new Object[]{out, kind, d};
     }
 
     private static String plainOf(JSONObject o) { return o.isNull("plainLyrics") ? "" : o.optString("plainLyrics", "").trim(); }
@@ -260,17 +268,19 @@ final class Backend {
 
     private static Object lrc(String path) {
         try {
-            byte[] b = bytes("https://lrclib.net/api/" + path, "AlyaMusicApp/1.0");
+            byte[] b = bytes("https://lrclib.net/api/" + path, "AlyaMusicApp/1.0", 5000);
             return b == null ? null : new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
         } catch (Exception e) { return null; }
     }
 
     // ---------- util ----------
-    static byte[] bytes(String url, String ua) {
+    static byte[] bytes(String url, String ua) { return bytes(url, ua, 8000); }
+
+    static byte[] bytes(String url, String ua, int ms) {
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-            c.setConnectTimeout(8000);
-            c.setReadTimeout(8000);
+            c.setConnectTimeout(ms);
+            c.setReadTimeout(ms);
             c.setRequestProperty("User-Agent", ua);
             c.setRequestProperty("Accept", "*/*");
             if (c.getResponseCode() != 200) return null;

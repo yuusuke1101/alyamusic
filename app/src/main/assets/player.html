@@ -1115,6 +1115,7 @@
     var imgs = document.querySelectorAll('.bg, .disc img');
     for (var q2 = 0; q2 < imgs.length; q2++) imgs[q2].src = m.imageSrc || BLANK;
     setLyrics(m.lyrics);
+    if (!LY.length && m.lyricsDbg) $('i-ly').textContent = 'Tidak tersedia (' + m.lyricsDbg + ')';
     if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
     else if (m.lyricsKind === 'caption') $('i-ly').textContent = LY.length + ' baris dari subtitle YouTube';
     fill.style.width = '0%'; dot.style.left = '0%'; cur.textContent = '0:00'; dur.textContent = '0:00';
