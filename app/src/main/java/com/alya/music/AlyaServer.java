@@ -110,17 +110,83 @@ public class AlyaServer extends NanoHTTPD {
         return r;
     }
 
-    // Teruskan audio dari YouTube ke pemutar sambil mengalir (mendukung Range / seek)
+    // Teruskan audio dari YouTube ke pemutar sambil mengalir (mendukung Range / seek).
+    // Ke YouTube, permintaan dipecah per CHUNK supaya tidak terlihat seperti "unduhan penuh" yang dibatasi kecepatannya.
+    // Matikan dengan CHUNKING = false kalau perlu kembali ke perilaku lama.
+    private static final boolean CHUNKING = true;
+    private static final long CHUNK = 4L << 20;
+
+    private static HttpURLConnection open(String url, String ua, String rq) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("User-Agent", ua);
+        c.setRequestProperty("Range", rq);
+        return c;
+    }
+
+    // Membaca rentang [pos..end] dari YouTube dalam potongan CHUNK, potongan pertama sudah terbuka.
+    private static final class Chunked extends java.io.InputStream {
+        private final String url, ua;
+        private final long end;
+        private long pos, curEnd;
+        private java.io.InputStream cur;
+        private HttpURLConnection conn;
+
+        Chunked(String url, String ua, long start, long end, HttpURLConnection first, long firstEnd) throws IOException {
+            this.url = url; this.ua = ua; this.pos = start; this.end = end;
+            this.conn = first; this.cur = first.getInputStream(); this.curEnd = Math.min(firstEnd, end);
+        }
+
+        private void openNext() throws IOException {
+            long ce = Math.min(pos + CHUNK - 1, end);
+            HttpURLConnection c = open(url, ua, "bytes=" + pos + "-" + ce);
+            int code = c.getResponseCode();
+            if (code != 206) { c.disconnect(); throw new IOException("Potongan ditolak (HTTP " + code + ")"); }
+            conn = c; cur = c.getInputStream(); curEnd = ce;
+        }
+
+        @Override public int read(byte[] buf, int off, int len) throws IOException {
+            if (pos > end) return -1;
+            if (cur == null) openNext();
+            int n = cur.read(buf, off, (int) Math.min(len, curEnd - pos + 1));
+            if (n < 0) throw new IOException("Aliran terputus");
+            pos += n;
+            if (pos > curEnd) { try { cur.close(); } catch (IOException e) { } cur = null; }
+            return n;
+        }
+
+        @Override public int read() throws IOException {
+            byte[] one = new byte[1];
+            int n = read(one, 0, 1);
+            return n < 0 ? -1 : one[0] & 0xff;
+        }
+
+        @Override public void close() {
+            try { if (cur != null) cur.close(); } catch (IOException e) { }
+            if (conn != null) conn.disconnect();
+        }
+    }
+
     private Response audio(String id, String range) throws Exception {
+        long a = 0, b = -1;
+        boolean chunkable = CHUNKING;
+        if (range != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("bytes=(\\d*)-(\\d*)").matcher(range);
+            if (m.find() && !m.group(1).isEmpty()) {
+                a = Long.parseLong(m.group(1));
+                if (!m.group(2).isEmpty()) b = Long.parseLong(m.group(2));
+            } else chunkable = false;
+        }
         for (int attempt = 0; attempt < 2; attempt++) {
             // percobaan kedua (alamat pertama ditolak) langsung memakai sumber cadangan
             Backend.Track t = Backend.track(id, attempt > 0);
+            String ua = Backend.streamUa(t.url);
             long t0 = System.currentTimeMillis();
-            HttpURLConnection c = (HttpURLConnection) new URL(t.url).openConnection();
-            c.setConnectTimeout(15000);
-            c.setReadTimeout(30000);
-            c.setRequestProperty("User-Agent", Backend.streamUa(t.url));
-            c.setRequestProperty("Range", range != null ? range : "bytes=0-");
+            String rq = chunkable
+                    ? "bytes=" + a + "-" + (b >= 0 ? Math.min(b, a + CHUNK - 1) : a + CHUNK - 1)
+                    : (range != null ? range : "bytes=0-");
+            HttpURLConnection c = open(t.url, ua, rq);
             int code = c.getResponseCode();
             Backend.diagBegin(id, t, System.currentTimeMillis() - t0, code);
             if (code != 200 && code != 206) {
@@ -130,16 +196,31 @@ public class AlyaServer extends NanoHTTPD {
             }
             String cr = c.getHeaderField("Content-Range");
             long len = c.getContentLengthLong();
-            boolean partial = code == 206;
+            boolean partial = code == 206, chunked = false;
+            java.io.InputStream body = c.getInputStream();
+            if (chunkable && partial && cr != null && cr.lastIndexOf('/') > 0) {
+                try {
+                    long total = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim());
+                    String span = cr.substring(cr.indexOf(' ') + 1, cr.lastIndexOf('/'));
+                    long firstEnd = Long.parseLong(span.substring(span.indexOf('-') + 1).trim());
+                    long end = b >= 0 ? Math.min(b, total - 1) : total - 1;
+                    if (a <= end) {
+                        body = new Chunked(t.url, ua, a, end, c, firstEnd);
+                        len = end - a + 1;
+                        cr = "bytes " + a + "-" + end + "/" + total;
+                        chunked = true;
+                    }
+                } catch (Exception e) { /* pakai aliran apa adanya */ }
+            }
             if (range == null && partial) {
                 partial = false;
-                if (cr != null && cr.lastIndexOf('/') > 0) len = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim());
+                if (!chunked && cr != null && cr.lastIndexOf('/') > 0) len = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim());
                 cr = null;
             }
             Response.IStatus st = partial ? Response.Status.PARTIAL_CONTENT : Response.Status.OK;
             Response r = len >= 0
-                    ? newFixedLengthResponse(st, t.mime, new Backend.Meter(c.getInputStream(), id), len)
-                    : newChunkedResponse(st, t.mime, new Backend.Meter(c.getInputStream(), id));
+                    ? newFixedLengthResponse(st, t.mime, new Backend.Meter(body, id), len)
+                    : newChunkedResponse(st, t.mime, new Backend.Meter(body, id));
             r.addHeader("Accept-Ranges", "bytes");
             r.addHeader("Cache-Control", "no-store");
             if (partial && cr != null) r.addHeader("Content-Range", cr);
