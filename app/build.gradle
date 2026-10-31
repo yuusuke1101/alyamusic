@@ -38,7 +38,7 @@ android {
         }
     }
     buildTypes {
-        debug { if (cfg('ALYA_STORE_PASS')) signingConfig signingConfigs.alya }
+        debug { signingConfig signingConfigs.alya }
     }
 
     compileOptions {
