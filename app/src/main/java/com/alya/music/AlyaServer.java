@@ -55,6 +55,11 @@ public class AlyaServer extends NanoHTTPD {
                 return json(res.toString());
             }
             
+            if (uri.equals("/api/suggest")) {
+                String q = s.getParms().get("q");
+                byte[] b = q == null || q.trim().isEmpty() ? null : Backend.bytes("https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=" + java.net.URLEncoder.encode(q.trim(), "UTF-8"), Backend.FF);
+                return json(b == null ? "[\"\",[]]" : new String(b, java.nio.charset.StandardCharsets.UTF_8));
+            }
             if (uri.equals("/api/search")) {
                 String q = s.getParms().get("q");
                 return json(Backend.search(q == null ? "" : q.trim()).toString());

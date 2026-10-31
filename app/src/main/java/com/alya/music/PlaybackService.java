@@ -163,6 +163,8 @@ public class PlaybackService extends Service {
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         else startForeground(1, n);
 
+        AlyaWidget.update(this, title, artist, playing, art);
+
         // CPU hanya ditahan saat lagu sedang diputar
         if (wl == null) {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
