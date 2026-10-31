@@ -63,7 +63,6 @@ final class Backend {
         return FF;
     }
 
-    // ---------- pencarian ----------
     static JSONArray search(String q) throws Exception {
         init();
         StreamingService yt = ServiceList.YouTube;
@@ -89,11 +88,25 @@ final class Backend {
         }
         return out;
     }
+    static Track track(String id) throws Exception { return track(id, false); }
 
-    // ---------- info + alamat audio ----------
-    static Track track(String id) throws Exception {
+    static Track track(String id, boolean preferFallback) throws Exception {
         Track t = cache.get(id);
-        if (t != null && t.exp > System.currentTimeMillis()) return t;
+        if (!preferFallback && t != null && t.exp > System.currentTimeMillis()) return t;
+        if (preferFallback) {
+            try { t = fromPiped(id); cache.put(id, t); return t; } catch (Exception e) { /* coba sumber utama */ }
+        }
+        try {
+            t = fromNewPipe(id);
+        } catch (Exception primary) {
+            try { t = fromPiped(id); } catch (Exception backup) { throw primary; }
+        }
+        cache.put(id, t);
+        return t;
+    }
+
+    private static Track fromNewPipe(String id) throws Exception {
+        Track t;
         init();
         StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=" + id);
         AudioStream best = null;
@@ -120,8 +133,50 @@ final class Backend {
         t.mime = best.getFormat() != null ? best.getFormat().getMimeType() : "audio/mp4";
         Matcher m = Pattern.compile("[?&]expire=(\\d+)").matcher(t.url);
         t.exp = m.find() ? Long.parseLong(m.group(1)) * 1000 - 600000 : System.currentTimeMillis() + 3600000;
-        cache.put(id, t);
         return t;
+    }
+
+    static final String[] PIPED = {"https://pipedapi.kavin.rocks"};
+    private static final Map<String, Long> pipedBad = new ConcurrentHashMap<>();
+
+    static Track fromPiped(String id) throws Exception {
+        long now = System.currentTimeMillis();
+        Exception last = null;
+        for (String base : PIPED) {
+            Long until = pipedBad.get(base);
+            if (until != null && until > now) continue;
+            try {
+                byte[] b = bytes(base + "/streams/" + id, "AlyaMusicApp/1.0", 6000);
+                if (b == null) throw new Exception("Server cadangan tidak menjawab");
+                JSONObject j = new JSONObject(new String(b, StandardCharsets.UTF_8));
+                JSONArray as = j.optJSONArray("audioStreams");
+                JSONObject best = null;
+                if (as != null) {
+                    for (int i = 0; i < as.length(); i++) {
+                        JSONObject x = as.optJSONObject(i);
+                        if (x == null || x.optString("url", "").isEmpty()) continue;
+                        String mime = x.optString("mimeType", "");
+                        if (!mime.startsWith("audio/")) continue;
+                        boolean m4a = mime.contains("mp4");
+                        boolean bestM4a = best != null && best.optString("mimeType", "").contains("mp4");
+                        if (best == null || (m4a && !bestM4a) || (m4a == bestM4a && x.optInt("bitrate", 0) > best.optInt("bitrate", 0))) best = x;
+                    }
+                }
+                if (best == null) throw new Exception("Server cadangan tidak punya aliran audio");
+                Track t = new Track();
+                t.title = j.optString("title", "");
+                t.artist = j.optString("uploader", "");
+                t.seconds = j.optLong("duration", 0);
+                t.url = best.getString("url");
+                t.mime = best.optString("mimeType", "audio/mp4");
+                t.exp = now + 30 * 60000L;
+                return t;
+            } catch (Exception e) {
+                pipedBad.put(base, now + 5 * 60000L);
+                last = e;
+            }
+        }
+        throw last != null ? last : new Exception("Sumber cadangan tidak tersedia");
     }
 
     static JSONObject trackJson(String id) throws Exception {
@@ -140,9 +195,6 @@ final class Backend {
         o.put("lyricsDbg", ly[2]);
         return o;
     }
-
-    // ---------- lirik ----------
-    // Urutan: lrclib (tersinkron) -> lrclib (teks biasa, waktu diperkirakan) -> subtitle YouTube
     static Object[] lyrics(Track t) {
         if (t.lyr != null) return new Object[]{t.lyr, t.kind, ""};
         JSONArray out = new JSONArray();
@@ -273,7 +325,6 @@ final class Backend {
         } catch (Exception e) { return null; }
     }
 
-    // ---------- util ----------
     static byte[] bytes(String url, String ua) { return bytes(url, ua, 8000); }
 
     static byte[] bytes(String url, String ua, int ms) {
@@ -320,7 +371,6 @@ final class Backend {
                 .trim();
     }
 
-    // ---------- pengunduh untuk NewPipeExtractor ----------
     static final class Dl extends Downloader {
         @Override
         public Response execute(Request req) throws IOException, ReCaptchaException {
