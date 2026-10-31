@@ -925,7 +925,42 @@ function rMe(m) {
   const up = !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub' : updInfo.error ? 'Tidak bisa memeriksa update' : updInfo.available ? 'Update ' + updInfo.latestName + ' tersedia, ketuk untuk memperbarui' : 'Sudah versi terbaru';
   srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) updStart(); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
   srow(g5, 'Alya Music', updInfo && updInfo.currentName ? 'Versi ' + updInfo.currentName : '');
+  diagBox(m);
   m.appendChild(h('div', 'mut', ' ')).style.height = '12px';
+}
+
+// ---------- diagnostik pemutaran ----------
+function diagBox(m) {
+  const g = sgrp(m, 'Diagnostik pemutaran');
+  const fill = () => {
+    g.textContent = '';
+    srow(g, 'Mengukur...', 'Memuat data pemutaran');
+    fetch('/api/diag').then(r => r.json()).then(d => {
+      g.textContent = '';
+      const rep = [];
+      const add = (t, sub) => { srow(g, t, sub); rep.push(t + ': ' + sub); };
+      add('Ekstraktor', 'NewPipeExtractor ' + (d.extractor || '?') + (d.npFail ? ' · gagal ' + d.npFail + 'x, cadangan dipakai ' + d.pipedUsed + 'x' : ''));
+      if (d.lastErr) add('Galat terakhir', String(d.lastErr).slice(0, 140));
+      if (!d.id) { srow(g, 'Belum ada lagu', 'Putar satu lagu, lalu buka halaman ini lagi'); }
+      else {
+        const kb = d.kbps > 0 ? d.kbps + ' kbps' : 'bitrate tidak diketahui';
+        add('Lagu', d.title || d.id);
+        add('Sumber audio', d.src === 'Piped' ? 'Piped (cadangan)' : 'NewPipe (utama)');
+        add('Format', (d.mime || '?') + ' · ' + kb);
+        add('Respons server', d.ttfb + ' ms' + (d.ttfb > 3000 ? ' · lambat' : ''));
+        let v = 'Belum terukur (tunggu lagu terisi buffer)';
+        if (d.initKbps > 0) {
+          const need = d.kbps > 0 ? d.kbps : 96;
+          v = d.initKbps + ' kbps · ' + (d.initKbps < need * 1.5 ? 'LAMBAT, kemungkinan dibatasi' : d.initKbps < need * 4 ? 'cukup' : 'lancar');
+        }
+        add('Kecepatan unduh awal', v);
+        add('Permintaan', d.reqs + ' kali' + (d.errs ? ' · ' + d.errs + ' ditolak' : '') + ' · alamat berlaku ±' + d.ageMin + ' mnt');
+      }
+      srow(g, 'Muat ulang', 'Perbarui angka di atas', fill);
+      srow(g, 'Salin laporan', 'Tempel ke chat untuk dianalisis', () => { const t = rep.join('\n'); if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(t); else if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Disalin')); });
+    }).catch(() => { g.textContent = ''; srow(g, 'Tidak bisa memuat', 'Server internal tidak menjawab', fill); });
+  };
+  fill();
 }
 
 // ---------- login Google, sinkronisasi cloud & teman (Firebase lewat REST) ----------

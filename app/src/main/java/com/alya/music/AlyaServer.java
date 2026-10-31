@@ -12,6 +12,7 @@ import java.net.URL;
 
 import fi.iki.elonen.NanoHTTPD;
 
+// Server mini di dalam aplikasi (pengganti server.js). Hanya bisa diakses dari HP ini (127.0.0.1).
 public class AlyaServer extends NanoHTTPD {
     private static AlyaServer inst;
     private static int port = -1;
@@ -47,12 +48,15 @@ public class AlyaServer extends NanoHTTPD {
             if (uri.startsWith("/player/")) return asset("player.html", "text/html; charset=utf-8");
             if (uri.equals("/icon-192.png") || uri.equals("/mascot.png")) return asset(uri.substring(1), "image/png");
             
+            // Rute API Update baru
             if ("/api/update".equals(uri)) {
                 boolean force = "1".equals(s.getParms().get("force"));
                 JSONObject res = Updater.check(context, force);
                 return json(res.toString());
             }
             
+            if (uri.equals("/api/diag")) return json(Backend.diagJson(BuildConfig.EXTRACTOR).toString());
+
             if (uri.equals("/api/suggest")) {
                 String q = s.getParms().get("q");
                 byte[] b = q == null || q.trim().isEmpty() ? null : Backend.bytes("https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=" + java.net.URLEncoder.encode(q.trim(), "UTF-8"), Backend.FF);
@@ -102,15 +106,19 @@ public class AlyaServer extends NanoHTTPD {
         return r;
     }
 
+    // Teruskan audio dari YouTube ke pemutar sambil mengalir (mendukung Range / seek)
     private Response audio(String id, String range) throws Exception {
         for (int attempt = 0; attempt < 2; attempt++) {
+            // percobaan kedua (alamat pertama ditolak) langsung memakai sumber cadangan
             Backend.Track t = Backend.track(id, attempt > 0);
+            long t0 = System.currentTimeMillis();
             HttpURLConnection c = (HttpURLConnection) new URL(t.url).openConnection();
             c.setConnectTimeout(15000);
             c.setReadTimeout(30000);
             c.setRequestProperty("User-Agent", Backend.streamUa(t.url));
             c.setRequestProperty("Range", range != null ? range : "bytes=0-");
             int code = c.getResponseCode();
+            Backend.diagBegin(id, t, System.currentTimeMillis() - t0, code);
             if (code != 200 && code != 206) {
                 c.disconnect();
                 Backend.cache.remove(id);
@@ -126,8 +134,8 @@ public class AlyaServer extends NanoHTTPD {
             }
             Response.IStatus st = partial ? Response.Status.PARTIAL_CONTENT : Response.Status.OK;
             Response r = len >= 0
-                    ? newFixedLengthResponse(st, t.mime, c.getInputStream(), len)
-                    : newChunkedResponse(st, t.mime, c.getInputStream());
+                    ? newFixedLengthResponse(st, t.mime, new Backend.Meter(c.getInputStream(), id), len)
+                    : newChunkedResponse(st, t.mime, new Backend.Meter(c.getInputStream(), id));
             r.addHeader("Accept-Ranges", "bytes");
             r.addHeader("Cache-Control", "no-store");
             if (partial && cr != null) r.addHeader("Content-Range", cr);

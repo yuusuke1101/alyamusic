@@ -5,6 +5,7 @@ def githubRunNumber = System.getenv("GITHUB_RUN_NUMBER") ?: "1"
 def autoVersionCode = githubRunNumber.toInteger()
 def autoVersionName = "v" + githubRunNumber
 
+def extractorVer = 'v0.26.5'
 def cfg(k) { System.getenv(k) ?: (project.findProperty(k) ?: '') }
 
 android {
@@ -23,6 +24,7 @@ android {
         versionCode autoVersionCode
         versionName autoVersionName
         
+        buildConfigField "String", "EXTRACTOR", "\"${extractorVer}\""
         buildConfigField "String", "REPO", "\"yuusuke1101/alyamusic\""
         buildConfigField "String", "WEB_CLIENT_ID", "\"${cfg('ALYA_WEB_CLIENT_ID')}\""
         buildConfigField "String", "FB_KEY", "\"${cfg('ALYA_FB_KEY')}\""
@@ -55,7 +57,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+    implementation "com.github.TeamNewPipe:NewPipeExtractor:${extractorVer}"
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.0.4'
     
