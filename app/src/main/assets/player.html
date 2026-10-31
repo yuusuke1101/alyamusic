@@ -100,6 +100,10 @@
   .nav button { min-height:52px; }
   @media (max-height:700px) { .disc { width:128px; height:128px; margin-bottom:8px; } .viz { height:30px; } .kar { height:128px; } }
   button:focus-visible, .chip:focus-visible { outline:2px solid var(--b); outline-offset:2px; }
+
+  /* v11: ringan di GPU, hormati preferensi kurangi gerak */
+  .disc { will-change:transform; }
+  @media (prefers-reduced-motion:reduce) { .disc { animation:none; } }
 </style>
 
 <div class="wrap">
@@ -967,7 +971,7 @@
     navBtns[n].addEventListener('click', function() { showTab(this.getAttribute('data-p')); });
   }
 
-  setInterval(render, 250);
+  setInterval(function() { if (!document.hidden) render(); }, 250);
 
   // ===== Audio (streaming lewat elemen <audio>) =====
   try { au.preservesPitch = false; au.mozPreservesPitch = false; au.webkitPreservesPitch = false; } catch (e) {}
