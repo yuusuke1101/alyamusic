@@ -894,6 +894,8 @@ function pushMedia() {
     try { AlyaApp.setMedia(t.title, t.author || '', t.id, !!media.playing, (media.dur || 0) * 1000, (media.pos || 0) * 1000, media.rate || 1); } catch (e) {}
   }, 60);
 }
+// Kabar progres unduhan dari native; pemutar ada di iframe, jadi diteruskan lewat postMessage.
+window.alyaDl = d => { try { if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-dl', d: d }, location.origin); } catch (e) {} };
 function cmdPlayer(o) { if (fstate === 2) frame.contentWindow.postMessage(Object.assign({ type: 'alya-cmd' }, o), location.origin); }
 window.alyaCmd = c => {
   if (c === 'play' || c === 'pause' || c === 'toggle') cmdPlayer({ cmd: c });

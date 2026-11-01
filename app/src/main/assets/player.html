@@ -1184,6 +1184,7 @@
   window.alyaDl = function(d) {
     if (!d || d.id !== curTrackId) return;
     if (d.err) { dlState.textContent = 'Gagal: ' + d.err; dlBtn.disabled = false; return; }
+    if (d.stage) { dlState.textContent = String(d.stage).slice(0, 80); return; }
     if (d.removed || d.done) { refreshDlUi(); return; }
     if (typeof d.p === 'number') dlState.textContent = d.p >= 0 ? ('Mengunduh ' + d.p + '%') : 'Mengunduh...';
   };
@@ -1225,6 +1226,7 @@
     if (!d || typeof d !== 'object') return;
     if (d.type === 'alya-load' && typeof d.id === 'string' && d.id.length === 11 && /^[A-Za-z0-9_-]+$/.test(d.id)) fetchTrack(d.id, !!d.auto);
     else if (d.type === 'alya-accent' && /^#[0-9a-f]{6}$/i.test(d.a) && /^#[0-9a-f]{6}$/i.test(d.b)) { THEMES[0].a = d.a; THEMES[0].b = d.b; if (SW[0]) SW[0].style.background = 'linear-gradient(135deg,' + d.a + ',' + d.b + ')'; if (curTheme === 0) setTheme(0); }
+    else if (d.type === 'alya-dl' && d.d && typeof d.d === 'object') window.alyaDl(d.d);
     else if (d.type === 'alya-cmd') {
       if (d.cmd === 'toggle') { if (playing) pause(); else startAt(null, true); }
       else if (d.cmd === 'play') { if (!playing) startAt(null, true); }

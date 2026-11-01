@@ -196,17 +196,21 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 boolean viaFallback = false;
                 try {
                     try {
+                        dl(id, "{\"stage\":\"Mencari sumber audio...\"}");
                         t = Backend.track(id);
                         c = Backend.openFull(t.url, Backend.streamUa(t.url));
                         int code = c.getResponseCode();
                         if (code != 200 && code != 206) { c.disconnect(); throw new Exception("HTTP " + code); }
                     } catch (Exception primaryErr) {
+                        android.util.Log.w("AlyaDl", "sumber utama gagal: " + primaryErr);
+                        dl(id, "{\"stage\":\"Sumber utama gagal, mencoba cadangan (bisa sampai 1 menit)...\"}");
                         t = Backend.fromYtmp3(id);
                         viaFallback = true;
                         c = Backend.openFull(t.url, Backend.FF);
                         int code = c.getResponseCode();
                         if (code != 200 && code != 206) { c.disconnect(); throw new Exception("Sumber cadangan menolak (HTTP " + code + ")"); }
                     }
+                    dl(id, "{\"stage\":\"Mengunduh...\"}");
                     String ext = Backend.extFor(t.mime);
                     String nameSrc = (title != null && !title.trim().isEmpty()) ? title : t.title;
                     java.io.File dir = Backend.downloadDir();
@@ -231,6 +235,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                             artist != null ? artist : (t.artist == null ? "" : t.artist), t.mime == null ? "audio/mpeg" : t.mime);
                     dl(id, "{\"done\":true,\"src\":" + org.json.JSONObject.quote(viaFallback ? "cadangan" : "utama") + "}");
                 } catch (Exception e) {
+                    android.util.Log.w("AlyaDl", "unduhan gagal: " + e);
                     dl(id, "{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}");
                 }
             }).start();
