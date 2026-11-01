@@ -283,6 +283,9 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
             <div class="row"><span>Waktu dengar</span><span id="i-listen">0:00</span></div>
             <div class="row"><span>Jumlah putar</span><span id="i-plays">0</span></div>
             <div class="hint">Pintasan keyboard: Spasi putar/jeda, panah kiri/kanan geser 10 detik, L ulangi, M bisukan, K karaoke.</div>
+            <div class="ph" style="margin-top:16px"><span>Offline</span></div>
+            <div class="row"><span>Status unduhan</span><span id="dl-state">-</span></div>
+            <button class="btn" id="dl-btn">Unduh untuk offline</button>
             <div class="ph" style="margin-top:16px"><span>Penanda posisi</span><span id="mk-count"></span></div>
             <div id="marks"><div class="ly-empty">Belum ada. Tekan "+ Tandai" di tab Putar untuk menyimpan bagian favorit.</div></div>
           </div>
@@ -315,6 +318,8 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
   var iconPlay = $('icon-play'), iconPause = $('icon-pause');
   var lyBox = $('lyrics'), lyText = $('lyrics-text');
   var disc = $('disc'), stateEl = $('state'), nowEl = $('now'), viz = $('viz');
+  var dlBtn = $('dl-btn'), dlState = $('dl-state');
+  var curId = (AUDIO_URL.split('/').pop() || '').split('?')[0];
   var NL = String.fromCharCode(10);
 
   // ----- state -----
@@ -1116,6 +1121,8 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
     } catch (e) {}
   }
   function loadTrack(m, auto) {
+    curId = (m.audioUrl || '').split('/').pop().split('?')[0] || curId;
+    refreshDlUi();
     au.pause();
     ready = false; playing = false; setIcons();
     abState = 0; $('btn-ab').textContent = 'A-B: mati'; $('btn-ab').classList.remove('act'); drawAB();
@@ -1139,12 +1146,53 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
     coverTheme();
   }
   function fetchTrack(id, auto) {
+    curId = id;
+    refreshDlUi();
     st.textContent = 'Memuat info lagu...';
     fetch('/api/track/' + id)
       .then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Gagal'); return j; }); })
       .then(function(m) { loadTrack(m, auto); })
       .catch(function(e) { st.textContent = 'Gagal memuat: ' + (e && e.message ? e.message : e); post({ type: 'alya-error' }); });
   }
+
+  // ===== Unduhan offline =====
+  function refreshDlUi() {
+    if (!dlBtn) return;
+    if (!(window.AlyaApp && AlyaApp.downloadState)) { dlBtn.style.display = 'none'; if (dlState) dlState.textContent = 'Tidak didukung'; return; }
+    dlBtn.disabled = false;
+    try {
+      var st2 = JSON.parse(AlyaApp.downloadState(curId) || '{}');
+      if (st2.state === 'done') {
+        dlState.textContent = 'Sudah diunduh';
+        dlBtn.textContent = 'Hapus unduhan';
+        dlBtn.dataset.mode = 'remove';
+      } else {
+        dlState.textContent = 'Belum diunduh';
+        dlBtn.textContent = 'Unduh untuk offline';
+        dlBtn.dataset.mode = 'download';
+      }
+    } catch (e) { dlState.textContent = '-'; }
+  }
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      if (!(window.AlyaApp && AlyaApp.downloadTrack)) return;
+      if (dlBtn.dataset.mode === 'remove') {
+        dlBtn.disabled = true;
+        AlyaApp.removeDownload(curId);
+        return;
+      }
+      dlBtn.disabled = true;
+      dlState.textContent = 'Mengunduh 0%';
+      AlyaApp.downloadTrack(curId, $('i-title').textContent || '', $('i-artist').textContent || '');
+    });
+  }
+  window.alyaDl = function(d) {
+    if (!d || d.id !== curId) return;
+    if (d.err) { dlState.textContent = 'Gagal: ' + d.err; dlBtn.disabled = false; return; }
+    if (d.removed) { refreshDlUi(); return; }
+    if (d.done) { refreshDlUi(); return; }
+    if (typeof d.p === 'number') dlState.textContent = d.p >= 0 ? ('Mengunduh ' + d.p + '%') : 'Mengunduh...';
+  };
   window.addEventListener('message', function(e) {
     if (e.origin !== location.origin) return;
     var d = e.data;
@@ -1168,6 +1216,7 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
   setMedia({ title: $('t-title').textContent, artist: $('i-artist').textContent, imageSrc: document.querySelector('.disc img').src });
   post({ type: 'alya-hello' });
   refreshFxInfo();
+  refreshDlUi();
   setIcons();
   drawViz();
 })();

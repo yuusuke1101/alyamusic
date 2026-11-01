@@ -50,6 +50,25 @@ final class Backend {
     private static final int CACHE_MAX = 120, CACHE_KEEP = 80;
     private static boolean ready;
 
+    // ---------- header untuk scraper cadangan (ytmp3.mobi) ----------
+    private static final Map<String, String> YTMP3_HEADERS = new java.util.LinkedHashMap<>();
+    static {
+        YTMP3_HEADERS.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        YTMP3_HEADERS.put("Accept", "*/*");
+        YTMP3_HEADERS.put("Accept-Language", "en-US,en;q=0.9");
+        YTMP3_HEADERS.put("Origin", "https://id.ytmp3.mobi");
+        YTMP3_HEADERS.put("Referer", "https://id.ytmp3.mobi/");
+        YTMP3_HEADERS.put("Sec-Fetch-Dest", "empty");
+        YTMP3_HEADERS.put("Sec-Fetch-Mode", "cors");
+        YTMP3_HEADERS.put("Sec-Fetch-Site", "cross-site");
+    }
+
+    // ---------- index unduhan offline (disimpan di storage privat app) ----------
+    private static java.io.File dlDir;
+    private static java.io.File dlIndexFile;
+    private static final Map<String, JSONObject> dlIndex = new ConcurrentHashMap<>();
+    private static volatile boolean dlLoaded;
+
     static final class Track {
         String title, artist, url, mime, subUrl, kind, src = "";
         int kbps;
@@ -104,6 +123,19 @@ final class Backend {
         return String.valueOf(n);
     }
 
+    // Pilih gambar yang tingginya paling dekat 240 px (cukup tajam, tidak berat).
+    private static String bestThumb(List<org.schabi.newpipe.extractor.Image> imgs) {
+        String best = null; int bh = -1;
+        if (imgs == null) return "";
+        for (org.schabi.newpipe.extractor.Image im : imgs) {
+            String u = im.getUrl();
+            if (u == null || !u.startsWith("https://")) continue;
+            int hh = im.getHeight();
+            if (best == null || (hh > 0 && (bh <= 0 || Math.abs(hh - 240) < Math.abs(bh - 240)))) { best = u; bh = hh; }
+        }
+        return best == null ? "" : best;
+    }
+
     static JSONArray searchKind(String q, String kind) throws Exception {
         String filter = "artists".equals(kind) ? "music_artists" : "albums".equals(kind) ? "music_albums" : "playlists".equals(kind) ? "playlists" : null;
         if (filter == null) return search(q);
@@ -119,6 +151,7 @@ final class Backend {
                 o.put("name", c.getName());
                 long sc = c.getSubscriberCount();
                 o.put("subs", sc >= 0 ? compact(sc) + " pelanggan" : "");
+                o.put("img", bestThumb(c.getThumbnails()));
             } else if (!"artists".equals(kind) && it instanceof PlaylistInfoItem) {
                 PlaylistInfoItem p = (PlaylistInfoItem) it;
                 Matcher m = Pattern.compile("[?&]list=([A-Za-z0-9_-]{10,64})").matcher(p.getUrl() == null ? "" : p.getUrl());
@@ -127,6 +160,7 @@ final class Backend {
                 o.put("title", p.getName());
                 o.put("author", p.getUploaderName() == null ? "" : p.getUploaderName());
                 o.put("count", p.getStreamCount());
+                o.put("img", bestThumb(p.getThumbnails()));
             } else continue;
             out.put(o);
             if (out.length() >= 15) break;
@@ -338,6 +372,189 @@ final class Backend {
         throw last != null ? last : new Exception("Sumber cadangan tidak tersedia");
     }
 
+    // ---------- sumber cadangan terakhir khusus unduhan (ytmp3.mobi) ----------
+    // Dipakai hanya kalau NewPipeExtractor DAN Piped sama-sama gagal. Prosesnya lambat (polling),
+    // jadi jangan dipakai untuk resolve alamat streaming biasa - hanya untuk unduhan offline.
+    static Track fromYtmp3(String id) throws Exception {
+        String initUrl = "https://a.ymcdn.org/api/v1/init?p=y&23=1llum1n471&_=" + Math.random();
+        JSONObject initJson = httpJson(initUrl);
+        if (initJson.optInt("error", 0) > 0) throw new Exception("Ytmp3 init error: " + initJson.optInt("error"));
+        String convertUrl = initJson.getString("convertURL");
+        String convertRequestUrl = convertUrl + "&v=" + id + "&f=mp3&_=" + Math.random();
+        JSONObject convertJson;
+        int guard = 0;
+        while (true) {
+            if (++guard > 8) throw new Exception("Ytmp3: terlalu banyak redirect");
+            convertJson = httpJson(convertRequestUrl);
+            if (convertJson.optInt("error", 0) > 0) throw new Exception("Ytmp3 convert error: " + convertJson.optInt("error"));
+            if (convertJson.optInt("redirect", 0) > 0 && convertJson.has("redirectURL")) {
+                convertRequestUrl = convertJson.getString("redirectURL") + "&v=" + id + "&f=mp3&_=" + Math.random();
+                continue;
+            }
+            break;
+        }
+        String progressUrl = convertJson.optString("progressURL", "");
+        String downloadUrl = convertJson.optString("downloadURL", "");
+        String title = convertJson.optString("title", "Audio_Download");
+        if (progressUrl.isEmpty()) throw new Exception("Ytmp3: progressURL tidak ditemukan");
+        int progress = 0, poll = 0;
+        while (progress < 3 && poll < 60) {
+            try { Thread.sleep(1000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new Exception("Dibatalkan"); }
+            poll++;
+            JSONObject pj = httpJson(progressUrl);
+            if (pj.optInt("error", 0) > 0) throw new Exception("Ytmp3 progress error: " + pj.optInt("error"));
+            progress = pj.optInt("progress", 0);
+            if (pj.has("title")) title = pj.optString("title", title);
+            if (pj.has("downloadURL")) downloadUrl = pj.optString("downloadURL", downloadUrl);
+        }
+        if (progress < 3) throw new Exception("Ytmp3: proses konversi timeout");
+        if (downloadUrl.isEmpty()) throw new Exception("Ytmp3: downloadURL kosong");
+        Track t = new Track();
+        t.title = title;
+        t.artist = "";
+        t.url = downloadUrl;
+        t.mime = "audio/mpeg";
+        t.src = "Ytmp3";
+        t.exp = System.currentTimeMillis() + 10 * 60000L;
+        return t;
+    }
+
+    private static JSONObject httpJson(String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(10000);
+        c.setReadTimeout(15000);
+        for (Map.Entry<String, String> h : YTMP3_HEADERS.entrySet()) c.setRequestProperty(h.getKey(), h.getValue());
+        int code = c.getResponseCode();
+        InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+        if (in == null) throw new Exception("Ytmp3: tidak ada respons (HTTP " + code + ")");
+        byte[] b = readAll(in);
+        return new JSONObject(new String(b, StandardCharsets.UTF_8));
+    }
+
+    // Koneksi "unduh penuh" generik (dipakai saat menyimpan file ke storage, bukan streaming Range per-potongan).
+    static HttpURLConnection openFull(String url, String ua) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("User-Agent", ua);
+        c.setRequestProperty("Range", "bytes=0-");
+        return c;
+    }
+
+    static String extFor(String mime) {
+        if (mime == null) return "m4a";
+        if (mime.contains("mpeg") || mime.contains("mp3")) return "mp3";
+        if (mime.contains("mp4") || mime.contains("m4a") || mime.contains("aac")) return "m4a";
+        if (mime.contains("webm") || mime.contains("opus")) return "webm";
+        return "audio";
+    }
+
+    static String mimeOf(java.io.File f) {
+        String n = f.getName().toLowerCase(java.util.Locale.US);
+        if (n.endsWith(".mp3")) return "audio/mpeg";
+        if (n.endsWith(".webm")) return "audio/webm";
+        return "audio/mp4";
+    }
+
+    static String safeName(String s) {
+        if (s == null || s.trim().isEmpty()) return "audio";
+        String n = s.trim().replaceAll("[\\\\/:*?\"<>|\\r\\n\\t]+", " ").replaceAll("\\s{2,}", " ").trim();
+        if (n.length() > 80) n = n.substring(0, 80).trim();
+        return n.isEmpty() ? "audio" : n;
+    }
+
+    // ---------- index unduhan offline ----------
+    private static void loadDlIndex() {
+        try {
+            if (dlIndexFile == null || !dlIndexFile.isFile()) return;
+            byte[] b;
+            try (java.io.FileInputStream in = new java.io.FileInputStream(dlIndexFile)) { b = readAll(in); }
+            JSONObject root = new JSONObject(new String(b, StandardCharsets.UTF_8));
+            java.util.Iterator<String> keys = root.keys();
+            while (keys.hasNext()) {
+                String k = keys.next();
+                JSONObject v = root.optJSONObject(k);
+                if (v != null) dlIndex.put(k, v);
+            }
+        } catch (Throwable e) { /* index opsional */ }
+    }
+
+    private static synchronized void saveDlIndex() {
+        try {
+            if (dlIndexFile == null) return;
+            JSONObject root = new JSONObject();
+            for (Map.Entry<String, JSONObject> e : dlIndex.entrySet()) root.put(e.getKey(), e.getValue());
+            java.io.File tmp = new java.io.File(dlIndexFile.getParentFile(), "downloads.tmp");
+            try (java.io.FileOutputStream w = new java.io.FileOutputStream(tmp)) { w.write(root.toString().getBytes(StandardCharsets.UTF_8)); }
+            if (!tmp.renameTo(dlIndexFile)) tmp.delete();
+        } catch (Throwable e) { /* index opsional */ }
+    }
+
+    static void downloadPut(String id, String path, String title, String artist, String mime) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("path", path).put("title", title == null ? "" : title).put("artist", artist == null ? "" : artist)
+                    .put("mime", mime == null ? "audio/mpeg" : mime).put("addedAt", System.currentTimeMillis());
+            dlIndex.put(id, o);
+            saveDlIndex();
+        } catch (Throwable e) { /* opsional */ }
+    }
+
+    static void downloadRemove(String id) {
+        JSONObject o = dlIndex.remove(id);
+        if (o != null) { try { new java.io.File(o.optString("path", "")).delete(); } catch (Throwable e) { } }
+        saveDlIndex();
+    }
+
+    static java.io.File downloadFile(String id) {
+        JSONObject o = dlIndex.get(id);
+        if (o == null) return null;
+        java.io.File f = new java.io.File(o.optString("path", ""));
+        return f.isFile() ? f : null;
+    }
+
+    static JSONObject downloadStateJson(String id) {
+        JSONObject o = new JSONObject();
+        try { o.put("state", downloadFile(id) != null ? "done" : "none"); } catch (Throwable e) { }
+        return o;
+    }
+
+    static JSONArray downloadsList() {
+        JSONArray out = new JSONArray();
+        for (Map.Entry<String, JSONObject> e : dlIndex.entrySet()) {
+            if (downloadFile(e.getKey()) == null) continue;
+            try {
+                JSONObject o = new JSONObject(e.getValue().toString());
+                o.put("id", e.getKey());
+                out.put(o);
+            } catch (Throwable ex) { /* lewati entri rusak */ }
+        }
+        return out;
+    }
+
+    // JSON lagu dari data offline tersimpan saat jaringan/sumber online gagal total.
+    static JSONObject offlineTrackJson(String id) {
+        JSONObject meta = dlIndex.get(id);
+        if (meta == null || downloadFile(id) == null) return null;
+        try {
+            Track stub = new Track();
+            stub.title = meta.optString("title", "");
+            stub.artist = meta.optString("artist", "");
+            JSONObject o = new JSONObject();
+            o.put("title", stub.title.isEmpty() ? id : stub.title);
+            o.put("artist", stub.artist.isEmpty() ? "Offline" : stub.artist);
+            o.put("metaDur", "");
+            o.put("previewNote", "Offline (tersimpan)");
+            o.put("audioUrl", "/audio/" + id);
+            o.put("imageSrc", "/thumb/" + id);
+            Object[] ly = lyrics(id, stub);
+            o.put("lyrics", ly[0]);
+            o.put("lyricsKind", ly[1]);
+            o.put("lyricsDbg", "offline");
+            return o;
+        } catch (Exception e) { return null; }
+    }
+
     static JSONObject trackJson(String id) throws Exception {
         Track t = track(id);
         String artist = cleanArtist(t.artist);
@@ -363,7 +580,21 @@ final class Backend {
         java.io.File d = new java.io.File(c.getFilesDir(), "lyrics");
         d.mkdirs();
         lyDir = d;
+        if (!dlLoaded) {
+            synchronized (Backend.class) {
+                if (!dlLoaded) {
+                    java.io.File ext = c.getExternalFilesDir("offline");
+                    dlDir = ext != null ? ext : new java.io.File(c.getFilesDir(), "offline");
+                    dlDir.mkdirs();
+                    dlIndexFile = new java.io.File(c.getFilesDir(), "downloads.json");
+                    loadDlIndex();
+                    dlLoaded = true;
+                }
+            }
+        }
     }
+
+    static java.io.File downloadDir() { return dlDir; }
 
     // Hapus lirik tersimpan (memori + disk) supaya diambil ulang dari lrclib / subtitle
     static void lyricsReset(String id) {

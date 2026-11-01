@@ -75,14 +75,30 @@ public class AlyaServer extends NanoHTTPD {
             }
             if (uri.startsWith("/api/track/") && Backend.validId(last)) {
                 if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);
-                return json(Backend.trackJson(last).toString());
+                try {
+                    return json(Backend.trackJson(last).toString());
+                } catch (Exception liveErr) {
+                    JSONObject off = Backend.offlineTrackJson(last);
+                    if (off != null) return json(off.toString());
+                    throw liveErr;
+                }
             }
             if (uri.startsWith("/api/prefetch/") && Backend.validId(last)) {
                 new Thread(() -> { try { Backend.track(last); } catch (Exception e) { } }).start();
                 return json("{\"ok\":true}");
             }
+            if (uri.equals("/api/downloads")) return json(Backend.downloadsList().toString());
+            if (uri.startsWith("/api/downloads/") && Backend.validId(last)) {
+                if ("1".equals(s.getParms().get("del"))) { Backend.downloadRemove(last); return json("{\"ok\":true}"); }
+                return json(Backend.downloadStateJson(last).toString());
+            }
             if (uri.startsWith("/thumb/") && Backend.validId(last)) return thumb(last);
-            if (uri.startsWith("/audio/") && Backend.validId(last)) return audio(last, s.getHeaders().get("range"));
+            if (uri.startsWith("/audio/") && Backend.validId(last)) {
+                // File yang sudah diunduh offline dilayani langsung dari penyimpanan, tanpa jaringan.
+                java.io.File off = Backend.downloadFile(last);
+                if (off != null) return localFile(off, Backend.mimeOf(off), s.getHeaders().get("range"));
+                return audio(last, s.getHeaders().get("range"));
+            }
             return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Tidak ditemukan");
         } catch (Exception e) {
             try {
@@ -172,6 +188,50 @@ public class AlyaServer extends NanoHTTPD {
             try { if (cur != null) cur.close(); } catch (IOException e) { }
             if (conn != null) conn.disconnect();
         }
+    }
+
+    // Baca sebagian file (RandomAccessFile) sepanjang `remaining` byte - dipakai untuk melayani
+    // file offline yang sudah diunduh, dengan dukungan Range (biar bisa di-seek seperti streaming).
+    private static final class RafStream extends java.io.InputStream {
+        private final java.io.RandomAccessFile raf;
+        private long remaining;
+        RafStream(java.io.RandomAccessFile raf, long len) { this.raf = raf; this.remaining = len; }
+        @Override public int read() throws IOException {
+            if (remaining <= 0) return -1;
+            int b = raf.read();
+            if (b >= 0) remaining--;
+            return b;
+        }
+        @Override public int read(byte[] buf, int off, int len) throws IOException {
+            if (remaining <= 0) return -1;
+            int n = raf.read(buf, off, (int) Math.min(len, remaining));
+            if (n > 0) remaining -= n;
+            return n;
+        }
+        @Override public void close() { try { raf.close(); } catch (IOException e) { } }
+    }
+
+    private Response localFile(java.io.File f, String mime, String range) throws IOException {
+        long len = f.length();
+        long start = 0, end = len - 1;
+        boolean partial = false;
+        if (range != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("bytes=(\\d*)-(\\d*)").matcher(range);
+            if (m.find() && (!m.group(1).isEmpty() || !m.group(2).isEmpty())) {
+                if (!m.group(1).isEmpty()) start = Long.parseLong(m.group(1));
+                if (!m.group(2).isEmpty()) end = Math.min(len - 1, Long.parseLong(m.group(2)));
+                partial = true;
+            }
+        }
+        if (start < 0 || start > end) { start = 0; end = len - 1; partial = false; }
+        long clen = end - start + 1;
+        java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f, "r");
+        raf.seek(start);
+        Response r = newFixedLengthResponse(partial ? Response.Status.PARTIAL_CONTENT : Response.Status.OK, mime, new RafStream(raf, clen), clen);
+        r.addHeader("Accept-Ranges", "bytes");
+        r.addHeader("Cache-Control", "no-store");
+        if (partial) r.addHeader("Content-Range", "bytes " + start + "-" + end + "/" + len);
+        return r;
     }
 
     private Response audio(String id, String range) throws Exception {

@@ -86,6 +86,11 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         runOnUiThread(() -> web.evaluateJavascript(js, null));
     }
 
+    private void dl(String id, String json) {
+        final String js = "window.alyaDl&&window.alyaDl(Object.assign({id:" + org.json.JSONObject.quote(id) + "}," + json + "))";
+        runOnUiThread(() -> web.evaluateJavascript(js, null));
+    }
+
     private void launchInstall() {
         if (pendingApk == null) return;
         if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
@@ -177,6 +182,69 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                     runOnUiThread(() -> launchInstall());
                 } catch (Exception e) { upd("{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}"); }
             }).start();
+        }
+
+        // Unduh lagu untuk diputar offline. Urutan sumber: NewPipeExtractor/Piped (sama yang dipakai
+        // streaming) -> kalau gagal total, scraper cadangan ytmp3.mobi. Progres dikirim ke JS lewat
+        // window.alyaDl({id, p}) ... window.alyaDl({id, done:true}) / window.alyaDl({id, err:"..."})
+        @JavascriptInterface
+        public void downloadTrack(final String id, final String title, final String artist) {
+            if (!Backend.validId(id)) { dl(String.valueOf(id), "{\"err\":\"ID tidak valid\"}"); return; }
+            new Thread(() -> {
+                java.net.HttpURLConnection c = null;
+                Backend.Track t;
+                boolean viaFallback = false;
+                try {
+                    try {
+                        t = Backend.track(id);
+                        c = Backend.openFull(t.url, Backend.streamUa(t.url));
+                        int code = c.getResponseCode();
+                        if (code != 200 && code != 206) { c.disconnect(); throw new Exception("HTTP " + code); }
+                    } catch (Exception primaryErr) {
+                        t = Backend.fromYtmp3(id);
+                        viaFallback = true;
+                        c = Backend.openFull(t.url, Backend.FF);
+                        int code = c.getResponseCode();
+                        if (code != 200 && code != 206) { c.disconnect(); throw new Exception("Sumber cadangan menolak (HTTP " + code + ")"); }
+                    }
+                    String ext = Backend.extFor(t.mime);
+                    String nameSrc = (title != null && !title.trim().isEmpty()) ? title : t.title;
+                    java.io.File dir = Backend.downloadDir();
+                    dir.mkdirs();
+                    java.io.File tmp = new java.io.File(dir, id + ".part");
+                    long total = c.getContentLengthLong(), got = 0;
+                    int last = -1;
+                    try (java.io.InputStream in = c.getInputStream(); java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                        byte[] buf = new byte[65536];
+                        int n;
+                        while ((n = in.read(buf)) > 0) {
+                            out.write(buf, 0, n);
+                            got += n;
+                            int p = total > 0 ? (int) Math.min(99, got * 100 / total) : -1;
+                            if (p != last) { last = p; dl(id, "{\"p\":" + p + "}"); }
+                        }
+                    } finally { c.disconnect(); }
+                    java.io.File dest = new java.io.File(dir, id + "." + ext);
+                    if (dest.exists()) dest.delete();
+                    if (!tmp.renameTo(dest)) throw new Exception("Gagal menyimpan file");
+                    Backend.downloadPut(id, dest.getAbsolutePath(), Backend.safeName(nameSrc),
+                            artist != null ? artist : (t.artist == null ? "" : t.artist), t.mime == null ? "audio/mpeg" : t.mime);
+                    dl(id, "{\"done\":true,\"src\":" + org.json.JSONObject.quote(viaFallback ? "cadangan" : "utama") + "}");
+                } catch (Exception e) {
+                    dl(id, "{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                }
+            }).start();
+        }
+
+        @JavascriptInterface
+        public void removeDownload(final String id) {
+            if (!Backend.validId(id)) return;
+            new Thread(() -> { Backend.downloadRemove(id); dl(id, "{\"removed\":true}"); }).start();
+        }
+
+        @JavascriptInterface
+        public String downloadState(String id) {
+            return Backend.validId(id) ? Backend.downloadStateJson(id).toString() : "{\"state\":\"none\"}";
         }
 
         @JavascriptInterface

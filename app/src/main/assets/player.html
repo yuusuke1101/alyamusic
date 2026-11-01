@@ -273,6 +273,9 @@
             <div class="row"><span>Waktu dengar</span><span id="i-listen">0:00</span></div>
             <div class="row"><span>Jumlah putar</span><span id="i-plays">0</span></div>
             <div class="hint">Pintasan keyboard: Spasi putar/jeda, panah kiri/kanan geser 10 detik, L ulangi, M bisukan, K karaoke.</div>
+            <div class="ph" style="margin-top:16px"><span>Offline</span></div>
+            <div class="row"><span>Status unduhan</span><span id="dl-state">-</span></div>
+            <button class="btn" id="dl-btn">Unduh untuk offline</button>
             <div class="ph" style="margin-top:16px"><span>Penanda posisi</span><span id="mk-count"></span></div>
             <div id="marks"><div class="ly-empty">Belum ada. Tekan "+ Tandai" di tab Putar untuk menyimpan bagian favorit.</div></div>
           </div>
@@ -305,6 +308,7 @@
   var iconPlay = $('icon-play'), iconPause = $('icon-pause');
   var lyBox = $('lyrics'), lyText = $('lyrics-text');
   var disc = $('disc'), stateEl = $('state'), nowEl = $('now'), viz = $('viz');
+  var dlBtn = $('dl-btn'), dlState = $('dl-state');
   var NL = String.fromCharCode(10);
 
   // ----- state -----
@@ -1145,6 +1149,44 @@
     coverTheme();
   }
   var curTrackId = '';
+  // ===== Unduhan offline =====
+  function refreshDlUi() {
+    if (!dlBtn) return;
+    if (!(window.AlyaApp && AlyaApp.downloadState)) { dlBtn.style.display = 'none'; return; }
+    dlBtn.style.display = '';
+    dlBtn.disabled = false;
+    try {
+      var s2 = JSON.parse(AlyaApp.downloadState(curTrackId) || '{}');
+      if (s2.state === 'done') {
+        dlState.textContent = 'Sudah diunduh';
+        dlBtn.textContent = 'Hapus unduhan';
+        dlBtn.dataset.mode = 'remove';
+      } else {
+        dlState.textContent = 'Belum diunduh';
+        dlBtn.textContent = 'Unduh untuk offline';
+        dlBtn.dataset.mode = 'download';
+      }
+    } catch (e) { dlState.textContent = '-'; }
+  }
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      if (!curTrackId || !(window.AlyaApp && AlyaApp.downloadTrack)) return;
+      if (dlBtn.dataset.mode === 'remove') {
+        dlBtn.disabled = true;
+        AlyaApp.removeDownload(curTrackId);
+        return;
+      }
+      dlBtn.disabled = true;
+      dlState.textContent = 'Mengunduh 0%';
+      AlyaApp.downloadTrack(curTrackId, $('i-title').textContent || '', $('i-artist').textContent || '');
+    });
+  }
+  window.alyaDl = function(d) {
+    if (!d || d.id !== curTrackId) return;
+    if (d.err) { dlState.textContent = 'Gagal: ' + d.err; dlBtn.disabled = false; return; }
+    if (d.removed || d.done) { refreshDlUi(); return; }
+    if (typeof d.p === 'number') dlState.textContent = d.p >= 0 ? ('Mengunduh ' + d.p + '%') : 'Mengunduh...';
+  };
   try { localStorage.removeItem('alya_ly_undefined'); } catch (e) {}
   $('ly-refresh').addEventListener('click', function() {
     if (!curTrackId) return;
@@ -1169,6 +1211,8 @@
       .then(function() { b.disabled = false; });
   });
   function fetchTrack(id, auto) {
+    curTrackId = id;
+    refreshDlUi();
     st.textContent = 'Memuat info lagu...';
     fetch('/api/track/' + id)
       .then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Gagal'); return j; }); })
@@ -1206,6 +1250,7 @@
   ['loadedmetadata', 'play', 'pause', 'seeked', 'ratechange'].forEach(function(ev) { au.addEventListener(ev, reportPos); });
   post({ type: 'alya-hello' });
   refreshFxInfo();
+  refreshDlUi();
   setIcons();
   drawViz();
 })();

@@ -600,32 +600,44 @@ function renderKind(m) {
   const l = h('div', 'list');
   xres.forEach(x => {
     const art = stype === 'artists', r = h('div', 'row'); r.tabIndex = 0;
-    const cv = h('div'); cv.style.cssText = 'width:56px;height:56px;flex:none;display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--a),var(--b));border-radius:' + (art ? '50%' : '14px');
-    cv.textContent = art ? (x.name || '?').trim().charAt(0).toUpperCase() : (stype === 'albums' ? '💿' : '🎶');
+    const cv = xcv(x.img, art ? (x.name || '?').trim().charAt(0).toUpperCase() : (stype === 'albums' ? '💿' : '🎶'), '56px', art ? '50%' : '14px');
     const bx = h('div', 'rb');
     bx.append(h('div', 'rt', art ? x.name : x.title), h('div', 'rs', art ? (x.subs || 'Artis') : ((x.author || '') + (x.count > 0 ? ' • ' + x.count + ' lagu' : ''))));
     r.append(cv, bx);
-    const go = () => { if (art) openArtist(x.name, x.subs); else openRemote(x.id, x.title); };
+    const go = () => { if (art) openArtist(x.name, x.subs, x.img); else openRemote(x.id, x.title); };
     r.onclick = go; r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
     l.appendChild(r);
   });
   m.appendChild(l);
 }
+// Sampul bergambar untuk artis / album / playlist; kalau gambar tidak ada atau gagal dimuat, pakai huruf atau ikon.
+const IMG_OK = u => typeof u === 'string' && /^https:\/\/(yt3\.ggpht\.com|yt3\.googleusercontent\.com|lh3\.googleusercontent\.com|i\.ytimg\.com)\//.test(u);
+function xcv(url, text, w, rad, big) {
+  const fb = h('div'); fb.style.cssText = 'width:' + w + ';height:' + w + ';flex:none;display:grid;place-items:center;font-size:' + (big ? '44px' : '22px') + ';font-weight:800;color:#fff;border-radius:' + rad + ';background:linear-gradient(135deg,var(--a),var(--b))';
+  fb.textContent = text;
+  if (!IMG_OK(url)) return fb;
+  const im = h('img'); im.src = url; im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer';
+  im.style.cssText = 'width:' + w + ';height:' + w + ';flex:none;object-fit:cover;border-radius:' + rad;
+  im.onerror = () => { if (im.parentNode) im.parentNode.replaceChild(fb, im); };
+  return im;
+}
 // ---------- halaman artis ----------
 const ART = {};
-function openArtist(name, subs) { ART[name] = ART[name] || { subs: '', songs: null, albums: null }; if (subs) ART[name].subs = subs; setView('artist', name); if (!ART[name].songs) loadArtist(name); }
+function openArtist(name, subs, img) { ART[name] = ART[name] || { subs: '', img: '', songs: null, albums: null }; if (subs) ART[name].subs = subs; if (img) ART[name].img = img; setView('artist', name); if (!ART[name].songs) loadArtist(name); }
 function loadArtist(name) {
-  const a = ART[name];
-  Promise.all([api(name).catch(() => []), fetch('/api/search?type=albums&q=' + encodeURIComponent(name)).then(r => r.ok ? r.json() : []).catch(() => [])])
-    .then(([s, al]) => { a.songs = (Array.isArray(s) ? s : []).map(slim); a.albums = Array.isArray(al) ? al.filter(x => x && x.id) : []; })
+  const a = ART[name], need = !a.img, enc = encodeURIComponent(name);
+  const get = u => fetch(u).then(r => r.ok ? r.json() : []).catch(() => []);
+  Promise.all([api(name).catch(() => []), get('/api/search?type=albums&q=' + enc), need ? get('/api/search?type=artists&q=' + enc) : Promise.resolve([])])
+    .then(([sg, al, ar]) => {
+      a.songs = (Array.isArray(sg) ? sg : []).map(slim); a.albums = Array.isArray(al) ? al.filter(x => x && x.id) : [];
+      if (need && Array.isArray(ar)) { const k = name.trim().toLowerCase(), hit = ar.find(z => z && String(z.name || '').trim().toLowerCase() === k); if (hit) { a.img = hit.img || ''; if (!a.subs) a.subs = hit.subs || ''; } }
+    })
     .then(() => { if (V.v === 'artist' && V.id === name) render(); });
 }
 function rArtist(m) {
   const a = ART[V.id]; if (!a) { setView('search'); return; }
   const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Kembali')); bk.onclick = () => history.back(); m.appendChild(bk);
-  const hd = h('div', 'dhead'), cv = h('div', 'dcv');
-  cv.style.cssText = 'display:grid;place-items:center;font-size:44px;font-weight:800;color:#fff;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--b))';
-  cv.textContent = V.id.trim().charAt(0).toUpperCase();
+  const hd = h('div', 'dhead'), cv = xcv(a.img, V.id.trim().charAt(0).toUpperCase(), '104px', '50%', true);
   const tx = h('div'); tx.append(h('h1', '', V.id), h('div', 'mut', a.subs || 'Artis')); hd.append(cv, tx); m.appendChild(hd);
   if (!a.songs) { m.appendChild(h('div', 'msg', 'Memuat...')); return; }
   if (!a.songs.length) { m.appendChild(h('div', 'msg', 'Lagu artis ini tidak ditemukan.')); return; }
@@ -641,7 +653,7 @@ function rArtist(m) {
     const rl = h('div', 'rail');
     a.albums.forEach(x => {
       const c = h('button', 'pl'); c.type = 'button'; c.style.cssText = 'flex:none;width:' + 'var(--cw)';
-      const k = h('div', 'cv'); k.style.cssText = 'display:grid;place-items:center;font-size:34px;background:linear-gradient(135deg,var(--a),var(--b))'; k.textContent = '💿';
+      const k = xcv(x.img, '💿', 'var(--cw)', 'var(--cvr)', true);
       c.append(k, h('div', 'ct', x.title), h('div', 'ca', x.author || '')); c.onclick = () => openRemote(x.id, x.title); rl.appendChild(c);
     });
     m.appendChild(rl);
@@ -662,10 +674,11 @@ function loadRemote(id) {
 function rRemote(m) {
   const p = PLV[V.id]; if (!p) { setView('search'); return; }
   const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Hasil pencarian')); bk.onclick = () => history.back(); m.appendChild(bk);
-  m.appendChild(h('h1', '', p.name));
+  const hd = h('div', 'dhead');
+  if (p.tracks) hd.appendChild(mosaic(p.tracks.slice(0, 4), 'dcv'));
+  const tx = h('div'); tx.append(h('h1', '', p.name), h('div', 'mut', p.tracks ? p.tracks.length + ' lagu' : '')); hd.appendChild(tx); m.appendChild(hd);
   if (p.err) { m.appendChild(h('div', 'msg', 'Gagal: ' + p.err)); btn(m, 'Coba lagi', () => { p.err = ''; render(); loadRemote(V.id); }, 'pbtn'); return; }
   if (!p.tracks) { m.appendChild(h('div', 'msg', 'Memuat daftar lagu...')); return; }
-  m.appendChild(h('div', 'mut', p.tracks.length + ' lagu'));
   const a = h('div', 'acts');
   const pl = h('button', 'pbtn'); pl.type = 'button'; const p1 = h('span', 'ic'); setIc(p1, 'play', 18); pl.append(p1, h('span', '', 'Putar')); pl.onclick = () => playFrom(p.tracks, 0);
   const sh = h('button', 'sbtn'); sh.type = 'button'; const p2 = h('span', 'ic'); setIc(p2, 'shuffle', 16); sh.append(p2, h('span', '', 'Acak'));
