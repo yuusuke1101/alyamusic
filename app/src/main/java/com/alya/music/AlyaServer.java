@@ -69,7 +69,9 @@ public class AlyaServer extends NanoHTTPD {
             }
             if (uri.equals("/api/search")) {
                 String q = s.getParms().get("q");
-                return json(Backend.search(q == null ? "" : q.trim()).toString());
+                String type = s.getParms().get("type");
+                String qq = q == null ? "" : q.trim();
+                return json((type == null || type.isEmpty() ? Backend.search(qq) : Backend.searchKind(qq, type)).toString());
             }
             if (uri.startsWith("/api/track/") && Backend.validId(last)) {
                 if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);

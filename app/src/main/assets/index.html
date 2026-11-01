@@ -259,6 +259,13 @@ button:active{transform:scale(.96)}
 .modal,.sheet{border-radius:26px 26px 0 0}
 :focus-visible{outline:2px solid var(--b);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* ===== Pengaturan tampilan (v12): variabel diatur dari Saya > Tampilan ===== */
+:root{--cw:150px;--cvr:16px;--rpad:8px;--riw:88px;--rih:50px}
+.card{width:var(--cw)}
+.card img,.card .sk,.pl .cv{width:var(--cw);height:var(--cw);border-radius:var(--cvr)}
+.row{padding:var(--rpad)}
+.row img{width:var(--riw);height:var(--rih);border-radius:calc(var(--cvr)*.7)}
 </style>
 </head>
 <body>
@@ -525,6 +532,7 @@ function trackMenu(t, ctx) {
     act(b, 'Putar berikutnya', () => { if (qi < 0) playFrom([t], 0); else { queue.splice(qi + 1, 0, slim(t)); upNext = pickNext(); toast('Akan diputar berikutnya'); } }, '', 'next2');
     act(b, isLiked(t.id) ? 'Hapus dari Favorit' : 'Tambah ke Favorit', () => toggleLike(t), '', 'heart');
     act(b, 'Tambah ke playlist', () => pickList(t), '', 'plus');
+    if (t.author) act(b, 'Lihat artis', () => openArtist(t.author), '', 'user');
     if (G.u) { act(b, 'Kirim ke teman', () => pickFriend(t), '', 'share'); act(b, 'Tambah ke playlist bersama', () => pickCol(t), '', 'list'); }
     act(b, 'Bagikan', () => { const txt = t.title + ' - ' + (t.author || '') + ' https://youtu.be/' + t.id; if (window.AlyaApp && AlyaApp.share) AlyaApp.share(txt); else if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else toast('Berbagi tidak didukung'); }, '', 'share');
     act(b, 'Buka di YouTube', () => openExt('https://youtu.be/' + t.id), '', 'ext');
@@ -570,13 +578,102 @@ function cached(q) {
   try { const c = JSON.parse(localStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < 216e5) return Promise.resolve(c.d); } catch (e) {}
   return api(q).then(d => { try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), d: d.map(slim) })); } catch (e) {} return d; });
 }
-let lastQ = '', results = null, searching = false;
+let lastQ = '', results = null, searching = false, stype = 'songs', xres = null;
 const MOODS = [['Santai', 'lagu santai'], ['Semangat', 'lagu semangat'], ['Fokus', 'focus music instrumental'], ['Galau', 'lagu galau'], ['Anime', 'anime songs'], ['Indonesia', 'lagu indonesia populer']];
 const RAILS = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai']];
 function addHist(q) { DB.hist = [q].concat(DB.hist.filter(x => x !== q)).slice(0, 12); save(true); }
 function runSearch(q) {
-  addHist(q); lastQ = q; results = null; searching = true; setView('search'); 
+  addHist(q); lastQ = q; results = null; stype = 'songs'; xres = null; searching = true; setView('search'); 
   api(q).then(d => { results = d; }).catch(() => { results = []; }).then(() => { searching = false; if (V.v === 'search') render(); });
+}
+function runKind(kind) {
+  stype = kind; xres = null;
+  if (kind === 'songs') { render(); return; }
+  searching = true; render();
+  fetch('/api/search?type=' + kind + '&q=' + encodeURIComponent(lastQ)).then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(d => { if (stype === kind) xres = Array.isArray(d) ? d : []; }).catch(() => { if (stype === kind) xres = []; })
+    .then(() => { if (stype === kind) { searching = false; if (V.v === 'search') render(); } });
+}
+function renderKind(m) {
+  if (searching) { m.appendChild(h('div', 'msg', 'Mencari...')); return; }
+  if (!xres || !xres.length) { m.appendChild(h('div', 'msg', 'Tidak ada hasil. Coba kata kunci lain.')); return; }
+  const l = h('div', 'list');
+  xres.forEach(x => {
+    const art = stype === 'artists', r = h('div', 'row'); r.tabIndex = 0;
+    const cv = h('div'); cv.style.cssText = 'width:56px;height:56px;flex:none;display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--a),var(--b));border-radius:' + (art ? '50%' : '14px');
+    cv.textContent = art ? (x.name || '?').trim().charAt(0).toUpperCase() : (stype === 'albums' ? '💿' : '🎶');
+    const bx = h('div', 'rb');
+    bx.append(h('div', 'rt', art ? x.name : x.title), h('div', 'rs', art ? (x.subs || 'Artis') : ((x.author || '') + (x.count > 0 ? ' • ' + x.count + ' lagu' : ''))));
+    r.append(cv, bx);
+    const go = () => { if (art) openArtist(x.name, x.subs); else openRemote(x.id, x.title); };
+    r.onclick = go; r.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    l.appendChild(r);
+  });
+  m.appendChild(l);
+}
+// ---------- halaman artis ----------
+const ART = {};
+function openArtist(name, subs) { ART[name] = ART[name] || { subs: '', songs: null, albums: null }; if (subs) ART[name].subs = subs; setView('artist', name); if (!ART[name].songs) loadArtist(name); }
+function loadArtist(name) {
+  const a = ART[name];
+  Promise.all([api(name).catch(() => []), fetch('/api/search?type=albums&q=' + encodeURIComponent(name)).then(r => r.ok ? r.json() : []).catch(() => [])])
+    .then(([s, al]) => { a.songs = (Array.isArray(s) ? s : []).map(slim); a.albums = Array.isArray(al) ? al.filter(x => x && x.id) : []; })
+    .then(() => { if (V.v === 'artist' && V.id === name) render(); });
+}
+function rArtist(m) {
+  const a = ART[V.id]; if (!a) { setView('search'); return; }
+  const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Kembali')); bk.onclick = () => history.back(); m.appendChild(bk);
+  const hd = h('div', 'dhead'), cv = h('div', 'dcv');
+  cv.style.cssText = 'display:grid;place-items:center;font-size:44px;font-weight:800;color:#fff;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--b))';
+  cv.textContent = V.id.trim().charAt(0).toUpperCase();
+  const tx = h('div'); tx.append(h('h1', '', V.id), h('div', 'mut', a.subs || 'Artis')); hd.append(cv, tx); m.appendChild(hd);
+  if (!a.songs) { m.appendChild(h('div', 'msg', 'Memuat...')); return; }
+  if (!a.songs.length) { m.appendChild(h('div', 'msg', 'Lagu artis ini tidak ditemukan.')); return; }
+  const ac = h('div', 'acts');
+  const pl = h('button', 'pbtn'); pl.type = 'button'; const p1 = h('span', 'ic'); setIc(p1, 'play', 18); pl.append(p1, h('span', '', 'Putar')); pl.onclick = () => playFrom(a.songs, 0);
+  const sh = h('button', 'sbtn'); sh.type = 'button'; const p2 = h('span', 'ic'); setIc(p2, 'shuffle', 16); sh.append(p2, h('span', '', 'Acak'));
+  sh.onclick = () => { DB.prefs.shuffle = true; save(); paintToggles(); playFrom(a.songs, Math.floor(Math.random() * a.songs.length)); };
+  ac.append(pl, sh); m.appendChild(ac);
+  sec(m, 'Lagu populer');
+  const ls = h('div', 'list'); a.songs.forEach((t, i) => ls.appendChild(row(t, a.songs, i))); m.appendChild(ls);
+  if (a.albums.length) {
+    sec(m, 'Album & playlist');
+    const rl = h('div', 'rail');
+    a.albums.forEach(x => {
+      const c = h('button', 'pl'); c.type = 'button'; c.style.cssText = 'flex:none;width:' + 'var(--cw)';
+      const k = h('div', 'cv'); k.style.cssText = 'display:grid;place-items:center;font-size:34px;background:linear-gradient(135deg,var(--a),var(--b))'; k.textContent = '💿';
+      c.append(k, h('div', 'ct', x.title), h('div', 'ca', x.author || '')); c.onclick = () => openRemote(x.id, x.title); rl.appendChild(c);
+    });
+    m.appendChild(rl);
+  }
+}
+// ---------- halaman daftar lagu dari album / playlist hasil pencarian ----------
+const PLV = {};
+function openRemote(id, name) { PLV[id] = PLV[id] || { name: name || 'Playlist', tracks: null, err: '' }; if (name) PLV[id].name = name; setView('plv', id); if (!PLV[id].tracks) loadRemote(id); }
+function loadRemote(id) {
+  const p = PLV[id]; p.err = '';
+  fetch('/api/playlist?url=' + encodeURIComponent('https://www.youtube.com/playlist?list=' + id)).then(r => r.json()).then(d => {
+    if (d.error) throw new Error(d.error);
+    p.tracks = (d.items || []).filter(t => okId(t.id)).map(slim);
+    if (d.name) p.name = d.name;
+    if (!p.tracks.length) { p.tracks = null; throw new Error('Tidak ada lagu yang bisa dimuat'); }
+  }).catch(e => { p.err = e && e.message && e.message !== '0' ? e.message : 'Gagal memuat daftar lagu'; }).then(() => { if (V.v === 'plv' && V.id === id) render(); });
+}
+function rRemote(m) {
+  const p = PLV[V.id]; if (!p) { setView('search'); return; }
+  const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Hasil pencarian')); bk.onclick = () => history.back(); m.appendChild(bk);
+  m.appendChild(h('h1', '', p.name));
+  if (p.err) { m.appendChild(h('div', 'msg', 'Gagal: ' + p.err)); btn(m, 'Coba lagi', () => { p.err = ''; render(); loadRemote(V.id); }, 'pbtn'); return; }
+  if (!p.tracks) { m.appendChild(h('div', 'msg', 'Memuat daftar lagu...')); return; }
+  m.appendChild(h('div', 'mut', p.tracks.length + ' lagu'));
+  const a = h('div', 'acts');
+  const pl = h('button', 'pbtn'); pl.type = 'button'; const p1 = h('span', 'ic'); setIc(p1, 'play', 18); pl.append(p1, h('span', '', 'Putar')); pl.onclick = () => playFrom(p.tracks, 0);
+  const sh = h('button', 'sbtn'); sh.type = 'button'; const p2 = h('span', 'ic'); setIc(p2, 'shuffle', 16); sh.append(p2, h('span', '', 'Acak'));
+  sh.onclick = () => { DB.prefs.shuffle = true; save(); paintToggles(); playFrom(p.tracks, Math.floor(Math.random() * p.tracks.length)); };
+  const sv = h('button', 'sbtn', 'Simpan'); sv.type = 'button';
+  sv.onclick = () => { DB.lists.push({ id: uid(), name: p.name.slice(0, 60), tracks: p.tracks.slice(0, 300), ts: Date.now() }); save(); toast('Disimpan ke Playlist'); };
+  a.append(pl, sh, sv); m.appendChild(a);
+  const ls = h('div', 'list'); p.tracks.forEach((t, i) => ls.appendChild(row(t, p.tracks, i))); m.appendChild(ls);
 }
 function chipsRow(m) {
   const c = h('div', 'chips');
@@ -641,7 +738,7 @@ function rHome(m) {
   const fb = h('button'); fb.type = 'button'; const fi = h('span', 'fv'); setIc(fi, 'heart', 22); fb.append(fi, h('span', '', 'Lagu Favorit')); fb.onclick = () => setView('list', 'fav'); qp.appendChild(fb);
   DB.lists.slice(0, 2).forEach(l => { const b = h('button'); b.type = 'button'; b.append(mosaic(l.tracks, 'cv'), h('span', '', l.name)); b.onclick = () => setView('list', l.id); qp.appendChild(b); });
   DB.recent.slice(0, 6 - qp.children.length).forEach((t, i) => { const b = h('button'); b.type = 'button'; b.dataset.id = t.id; const im = h('img'); im.src = thumb(t.id); im.alt = ''; b.append(im, h('span', '', t.title)); b.onclick = () => playFrom(DB.recent, i); qp.appendChild(b); });
-  m.appendChild(qp);
+  if (UI.qp !== '0') m.appendChild(qp);
   const rs0 = !queue.length ? getResume() : null;
   if (rs0) {
     const c = h('button', 'rsm'); c.type = 'button'; const im = h('img'); im.src = thumb(rs0.q[0].id); im.alt = ''; const tx = h('div', 'rb');
@@ -687,6 +784,10 @@ function rSearch(m) {
   };
   i.addEventListener('input', paintSg); paintSg();
   if (!lastQ) { sec(m, 'Coba cari'); chipsRow(m); genreGrid(m); const r = DB.recent; if (r.length) { sec(m, 'Terakhir diputar'); const l = h('div', 'list'); r.slice(0, 8).forEach((t, k) => l.appendChild(row(t, r, k))); m.appendChild(l); } return; }
+  const tb = h('div', 'chips');
+  [['songs', 'Lagu'], ['artists', 'Artis'], ['albums', 'Album'], ['playlists', 'Playlist']].forEach(([k, l]) => { const b = h('button', 'chip' + (stype === k ? ' on' : ''), l); b.type = 'button'; b.onclick = () => runKind(k); tb.appendChild(b); });
+  m.appendChild(tb);
+  if (stype !== 'songs') { renderKind(m); return; }
   if (searching) { m.appendChild(h('div', 'msg', 'Mencari...')); return; }
   if (!results || !results.length) { m.appendChild(h('div', 'msg', 'Lagu tidak ditemukan. Coba kata kunci lain.')); return; }
   sec(m, 'Hasil untuk "' + lastQ + '"');
@@ -765,7 +866,7 @@ function rList(m) {
 }
 function render() {
   const m = $('main'); m.innerHTML = '';
-  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, recap: rRecap, me: rMe, friends: rFriends }[V.v] || rHome)(m);
+  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, recap: rRecap, me: rMe, friends: rFriends, plv: rRemote, artist: rArtist }[V.v] || rHome)(m);
   updNav(); markNow(); paintLikes();
 }
 
@@ -930,6 +1031,10 @@ function rMe(m) {
     b.append(pv, h('span', '', t.n)); b.onclick = () => { try { localStorage.setItem('alya_theme', String(i)); } catch (e) {} applyTheme(i); render(); }; sw.appendChild(b);
   });
   g1.appendChild(sw);
+  uiSeg(g1, 'Kepadatan daftar lagu', 'dens', [['p', 'Padat'], ['n', 'Nyaman'], ['l', 'Lega']], 'n');
+  uiSeg(g1, 'Bentuk cover', 'cov', [['t', 'Tajam'], ['m', 'Membulat'], ['b', 'Sangat bulat']], 'm');
+  uiSeg(g1, 'Ukuran kartu', 'size', [['k', 'Kecil'], ['m', 'Sedang'], ['b', 'Besar']], 'm');
+  uiSeg(g1, 'Akses cepat di beranda', 'qp', [['1', 'Tampil'], ['0', 'Sembunyi']], '1');
 
   const g2 = sgrp(m, 'Aktivitas');
   srow(g2, 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
@@ -1356,11 +1461,28 @@ function setSleep(min) {
 }
 setIc($('s-sl'), 'moon');
 $('s-sl').addEventListener('click', () => modal('Timer tidur' + (sleepEnd ? ' (sisa ' + Math.ceil((sleepEnd - Date.now()) / 6e4) + ' mnt)' : ''), b => { [15, 30, 45, 60].forEach(n => act(b, n + ' menit', () => setSleep(n), '', 'moon')); if (sleepEnd) act(b, 'Matikan timer', () => setSleep(0), 'danger', 'trash'); }));
+// ---------- pengaturan tampilan ----------
+let UI = {}; try { UI = JSON.parse(localStorage.getItem('alya_ui') || '{}') || {}; } catch (e) {}
+const UIP = { dens: { p: ['3px', '70px', '40px'], n: ['8px', '88px', '50px'], l: ['12px', '104px', '58px'] }, cov: { t: '4px', m: '16px', b: '30px' }, size: { k: '120px', m: '150px', b: '184px' } };
+function applyUI() {
+  const st = document.documentElement.style, d = UIP.dens[UI.dens] || UIP.dens.n;
+  st.setProperty('--rpad', d[0]); st.setProperty('--riw', d[1]); st.setProperty('--rih', d[2]);
+  st.setProperty('--cvr', UIP.cov[UI.cov] || UIP.cov.m); st.setProperty('--cw', UIP.size[UI.size] || UIP.size.m);
+}
+function setUI(k, v) { UI[k] = v; try { localStorage.setItem('alya_ui', JSON.stringify(UI)); } catch (e) {} applyUI(); render(); }
+function uiSeg(g, title, key, opts, def) {
+  const w = h('div'); w.style.cssText = 'padding:12px 14px 4px'; w.appendChild(h('div', 'mut', title));
+  const c = h('div', 'chips'); c.style.cssText = 'margin:8px 0 6px;padding:0';
+  opts.forEach(([v, l]) => { const b = h('button', 'chip' + ((UI[key] || def) === v ? ' on' : ''), l); b.type = 'button'; b.onclick = () => setUI(key, v); c.appendChild(b); });
+  w.appendChild(c); g.appendChild(w);
+}
 const THEMES = [
   { n: 'Malam', a: '#8b5cf6', b: '#22d3ee', bg: '#0a0a12' }, { n: 'AMOLED', a: '#a78bfa', b: '#38bdf8', bg: '#000000' },
   { n: 'Samudra', a: '#3b82f6', b: '#06b6d4', bg: '#06101c' }, { n: 'Hutan', a: '#10b981', b: '#84cc16', bg: '#07120e' },
   { n: 'Senja', a: '#f97316', b: '#ec4899', bg: '#150b0b' }, { n: 'Mawar', a: '#ec4899', b: '#f59e0b', bg: '#14090f' },
-  { n: 'Terang', a: '#7c3aed', b: '#0891b2', bg: '#f6f6fb', light: 1 }];
+  { n: 'Terang', a: '#7c3aed', b: '#0891b2', bg: '#f6f6fb', light: 1 },
+  { n: 'Kopi', a: '#c2855a', b: '#f5c37a', bg: '#130d09' }, { n: 'Neon', a: '#22d3ee', b: '#a3e635', bg: '#04060d' },
+  { n: 'Sakura', a: '#ec4899', b: '#f97316', bg: '#fff4f7', light: 1 }, { n: 'Mint', a: '#059669', b: '#0ea5e9', bg: '#f0faf6', light: 1 }];
 const hx = c => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
 const mixc = (c1, c2, t, al) => { const x = hx(c1), y = hx(c2), v = x.map((n, i) => Math.round(n + (y[i] - n) * t)).join(','); return al ? 'rgba(' + v + ',' + al + ')' : 'rgb(' + v + ')'; };
 let ACC = { a: '#8b5cf6', b: '#22d3ee' };
@@ -1380,6 +1502,7 @@ function applyTheme(i) {
   sendAccent();
 }
 applyTheme(themeIdx());
+applyUI();
 setInterval(() => {
   if (!G.u || document.hidden) return; const ae = document.activeElement; if (ae && ae.tagName === 'INPUT') return;
   if (V.v === 'colist' && G.cur && !G.cur.bad && G.cur.id === V.id) { const prev = G.cur, bf = JSON.stringify(prev); colLoad(V.id).then(() => { if (G.cur.bad) { G.cur = prev; return; } if (V.v === 'colist' && JSON.stringify(G.cur) !== bf) render(); }); }

@@ -4,6 +4,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.schabi.newpipe.extractor.InfoItem;
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem;
+import org.schabi.newpipe.extractor.channel.ChannelInfoItem;
 import org.schabi.newpipe.extractor.MediaFormat;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.ListExtractor;
@@ -92,6 +94,45 @@ final class Backend {
             out.put(o);
             if (out.length() >= 12) break;
         }
+        return out;
+    }
+
+    // ---------- pencarian per jenis: "artists", "albums", "playlists" ----------
+    private static String compact(long n) {
+        if (n >= 1000000) return String.format(java.util.Locale.US, "%.1f jt", n / 1e6).replace(".0 ", " ");
+        if (n >= 1000) return String.format(java.util.Locale.US, "%.1f rb", n / 1e3).replace(".0 ", " ");
+        return String.valueOf(n);
+    }
+
+    static JSONArray searchKind(String q, String kind) throws Exception {
+        String filter = "artists".equals(kind) ? "music_artists" : "albums".equals(kind) ? "music_albums" : "playlists".equals(kind) ? "playlists" : null;
+        if (filter == null) return search(q);
+        init();
+        StreamingService yt = ServiceList.YouTube;
+        SearchExtractor se = yt.getSearchExtractor(yt.getSearchQHFactory().fromQuery(q, Collections.singletonList(filter), ""));
+        se.fetchPage();
+        JSONArray out = new JSONArray();
+        for (InfoItem it : se.getInitialPage().getItems()) {
+            JSONObject o = new JSONObject();
+            if ("artists".equals(kind) && it instanceof ChannelInfoItem) {
+                ChannelInfoItem c = (ChannelInfoItem) it;
+                o.put("name", c.getName());
+                long sc = c.getSubscriberCount();
+                o.put("subs", sc >= 0 ? compact(sc) + " pelanggan" : "");
+            } else if (!"artists".equals(kind) && it instanceof PlaylistInfoItem) {
+                PlaylistInfoItem p = (PlaylistInfoItem) it;
+                Matcher m = Pattern.compile("[?&]list=([A-Za-z0-9_-]{10,64})").matcher(p.getUrl() == null ? "" : p.getUrl());
+                if (!m.find()) continue;
+                o.put("id", m.group(1));
+                o.put("title", p.getName());
+                o.put("author", p.getUploaderName() == null ? "" : p.getUploaderName());
+                o.put("count", p.getStreamCount());
+            } else continue;
+            out.put(o);
+            if (out.length() >= 15) break;
+        }
+        // Hasil album kadang tidak membawa id playlist; cadangannya cari sebagai playlist biasa.
+        if (out.length() == 0 && "albums".equals(kind)) return searchKind(q + " album", "playlists");
         return out;
     }
 
