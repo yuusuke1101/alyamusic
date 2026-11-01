@@ -21,6 +21,7 @@ public class AlyaServer extends NanoHTTPD {
 
     static synchronized int ensure(Context c) {
         Backend.initDirs(c.getApplicationContext());
+        new Thread(() -> { try { Thread.sleep(5000); } catch (Exception e) { } Backend.backfillCovers(); }).start();
         if (inst != null && inst.isAlive()) return port;
         for (int p = 38517; p < 38527; p++) {
             try {
@@ -75,6 +76,11 @@ public class AlyaServer extends NanoHTTPD {
             }
             if (uri.startsWith("/api/track/") && Backend.validId(last)) {
                 if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);
+                // Lagu yang sudah diunduh dan perangkat sedang offline: langsung pakai data lokal, tanpa menunggu timeout jaringan.
+                if (!Backend.isOnline() && Backend.downloadFile(last) != null) {
+                    JSONObject offNow = Backend.offlineTrackJson(last);
+                    if (offNow != null) return json(offNow.toString());
+                }
                 try {
                     return json(Backend.trackJson(last).toString());
                 } catch (Exception liveErr) {
@@ -125,6 +131,15 @@ public class AlyaServer extends NanoHTTPD {
     }
 
     private Response thumb(String id) {
+        java.io.File cf = Backend.coverFile(id);
+        if (cf != null) {
+            try (java.io.FileInputStream in = new java.io.FileInputStream(cf)) {
+                byte[] cb = Backend.readAll(in);
+                Response r0 = newFixedLengthResponse(Response.Status.OK, "image/jpeg", new ByteArrayInputStream(cb), cb.length);
+                r0.addHeader("Cache-Control", "max-age=86400");
+                return r0;
+            } catch (IOException e) { /* lanjut ke jaringan */ }
+        }
         byte[] b = Backend.bytes("https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", Backend.FF);
         if (b == null) return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "-");
         Response r = newFixedLengthResponse(Response.Status.OK, "image/jpeg", new ByteArrayInputStream(b), b.length);

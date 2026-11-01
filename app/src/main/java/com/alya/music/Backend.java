@@ -503,7 +503,41 @@ final class Backend {
     static void downloadRemove(String id) {
         JSONObject o = dlIndex.remove(id);
         if (o != null) { try { new java.io.File(o.optString("path", "")).delete(); } catch (Throwable e) { } }
+        try { java.io.File cf = coverFile(id); if (cf != null) cf.delete(); } catch (Throwable e) { }
         saveDlIndex();
+    }
+
+    // Apakah perangkat punya internet yang benar-benar aktif? Kalau tidak bisa dicek, anggap online.
+    static boolean isOnline() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) appCtx.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    && nc.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        } catch (Throwable e) { return true; }
+    }
+
+    // Sampul lagu yang diunduh disimpan di sebelah file audio supaya tetap tampil saat offline.
+    static java.io.File coverFile(String id) {
+        if (dlDir == null || !validId(id)) return null;
+        java.io.File f = new java.io.File(dlDir, id + ".jpg");
+        return f.isFile() ? f : null;
+    }
+
+    static void saveCover(String id) {
+        try {
+            byte[] b = bytes("https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", FF);
+            if (b == null || dlDir == null || !validId(id)) return;
+            try (java.io.FileOutputStream w = new java.io.FileOutputStream(new java.io.File(dlDir, id + ".jpg"))) { w.write(b); }
+        } catch (Throwable e) { /* sampul opsional */ }
+    }
+
+    // Unduhan lama yang belum punya sampul dilengkapi saat online.
+    static void backfillCovers() {
+        try {
+            if (!isOnline()) return;
+            for (String id : new ArrayList<>(dlIndex.keySet())) if (downloadFile(id) != null && coverFile(id) == null) saveCover(id);
+        } catch (Throwable e) { }
     }
 
     static java.io.File downloadFile(String id) {
@@ -513,9 +547,12 @@ final class Backend {
         return f.isFile() ? f : null;
     }
 
+    // id yang sedang diunduh (mencegah dua unduhan menulis ke file .part yang sama)
+    static final java.util.Set<String> dlBusy = ConcurrentHashMap.newKeySet();
+
     static JSONObject downloadStateJson(String id) {
         JSONObject o = new JSONObject();
-        try { o.put("state", downloadFile(id) != null ? "done" : "none"); } catch (Throwable e) { }
+        try { o.put("state", downloadFile(id) != null ? "done" : dlBusy.contains(id) ? "busy" : "none"); } catch (Throwable e) { }
         return o;
     }
 
@@ -547,9 +584,9 @@ final class Backend {
             o.put("previewNote", "Offline (tersimpan)");
             o.put("audioUrl", "/audio/" + id);
             o.put("imageSrc", "/thumb/" + id);
-            Object[] ly = lyrics(id, stub);
-            o.put("lyrics", ly[0]);
-            o.put("lyricsKind", ly[1]);
+            Object[] ly = lyLoad(id); // hanya cache disk, supaya lagu offline langsung mulai tanpa menunggu jaringan
+            o.put("lyrics", ly != null ? ly[0] : new JSONArray());
+            o.put("lyricsKind", ly != null ? ly[1] : "synced");
             o.put("lyricsDbg", "offline");
             return o;
         } catch (Exception e) { return null; }
@@ -576,7 +613,10 @@ final class Backend {
     private static java.io.File lyDir;
     private static final int LY_MAX = 400, LY_KEEP = 300;
 
+    private static android.content.Context appCtx;
+
     static void initDirs(android.content.Context c) {
+        appCtx = c;
         java.io.File d = new java.io.File(c.getFilesDir(), "lyrics");
         d.mkdirs();
         lyDir = d;

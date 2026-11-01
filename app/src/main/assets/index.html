@@ -355,7 +355,17 @@ const save = n => { try { localStorage.setItem('alya_v2', JSON.stringify(DB)); }
 const thumb = id => 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
 const isLiked = id => DB.likes.some(t => t.id === id);
 const uid = () => Math.random().toString(36).slice(2, 9);
-function listOf(id) { return id === 'fav' ? { id: 'fav', name: 'Favorit', tracks: DB.likes, fav: true } : DB.lists.find(l => l.id === id); }
+// Daftar "Unduhan" bersifat virtual: dihitung dari lagu yang benar-benar tersimpan di perangkat, tidak masuk DB.lists.
+let DLS = [], dlT = 0;
+function loadDownloads() { clearTimeout(dlT); dlT = setTimeout(doLoadDownloads, 250); }
+function doLoadDownloads() {
+  fetch('/api/downloads').then(r => r.ok ? r.json() : []).then(a => {
+    DLS = (Array.isArray(a) ? a : []).filter(x => x && okId(x.id)).sort((p, q) => (q.addedAt || 0) - (p.addedAt || 0))
+      .map(x => ({ id: x.id, title: String(x.title || x.id).slice(0, 120), author: String(x.artist || '').slice(0, 80) }));
+  }).catch(() => {}).then(() => { if (V.v === 'lib' || (V.v === 'list' && V.id === 'dl')) render(); });
+}
+function isDownloaded(id) { return DLS.some(x => x.id === id); }
+function listOf(id) { return id === 'fav' ? { id: 'fav', name: 'Favorit', tracks: DB.likes, fav: true } : id === 'dl' ? { id: 'dl', name: 'Unduhan', tracks: DLS, dl: true } : DB.lists.find(l => l.id === id); }
 function addRecent(t) { DB.recent = [slim(t)].concat(DB.recent.filter(x => x.id !== t.id)).slice(0, 24); save(); }
 function toggleLike(t) {
   DB.favTs = Date.now();
@@ -471,6 +481,7 @@ window.addEventListener('message', e => {
     if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + (pendingSeek.exact ? 0 : 2500), d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; saveResume(media.pos, media.dur); media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
   else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
   else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
+  else if (d.type === 'alya-ui') { const t0 = queue[qi]; if (t0 && d.act === 'more') trackMenu(t0, {}); }
   else if (d.type === 'alya-near') { if (upNext < 0 && DB.prefs.auto && radioOn()) radioMore(); const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
   else if (d.type === 'alya-blocked') openSheet();
   else if (d.type === 'alya-error') { errStreak++; if (DB.prefs.auto && errStreak < 3) setTimeout(next, 1500); }
@@ -509,7 +520,7 @@ function buildNav() {
     b.onclick = () => setView(v); box.appendChild(b);
   }));
 }
-function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' || V.v === 'colist' ? 'lib' : V.v === 'profile' ? 'friends' : V.v === 'recap' ? 'me' : V.v))); }
+function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' || V.v === 'colist' ? 'lib' : V.v === 'profile' ? 'friends' : V.v === 'recap' || V.v === 'set' ? 'me' : V.v === 'plv' || V.v === 'artist' ? 'search' : V.v))); }
 const stateObj = () => ({ v: V.v, id: V.id, sheet: document.body.classList.contains('sheet') ? 1 : 0 });
 function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); if (G.u && (v === 'friends' || v === 'lib')) gLoad(); }
 function openSheet() { if (!document.body.classList.contains('sheet')) { document.body.classList.add('sheet'); history.pushState({ v: V.v, id: V.id, sheet: 1 }, ''); } }
@@ -537,7 +548,11 @@ function trackMenu(t, ctx) {
     act(b, 'Bagikan', () => { const txt = t.title + ' - ' + (t.author || '') + ' https://youtu.be/' + t.id; if (window.AlyaApp && AlyaApp.share) AlyaApp.share(txt); else if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else toast('Berbagi tidak didukung'); }, '', 'share');
     act(b, 'Buka di YouTube', () => openExt('https://youtu.be/' + t.id), '', 'ext');
     if (ctx && ctx.col) act(b, 'Hapus dari playlist bersama', () => colDel(ctx.col, t.id), 'danger', 'trash');
-    if (ctx && ctx.list) act(b, 'Hapus dari playlist ini', () => { removeFrom(ctx.list, t.id); render(); }, 'danger', 'trash');
+    if (window.AlyaApp && AlyaApp.downloadTrack) {
+      if (isDownloaded(t.id)) act(b, 'Hapus unduhan', () => { try { AlyaApp.removeDownload(t.id); } catch (e) {} }, 'danger', 'trash');
+      else act(b, 'Unduh untuk offline', () => { toast('Mengunduh...'); try { AlyaApp.downloadTrack(t.id, t.title, t.author || ''); } catch (e) {} }, '', 'plus');
+    }
+    if (ctx && ctx.list && ctx.list !== 'dl') act(b, 'Hapus dari playlist ini', () => { removeFrom(ctx.list, t.id); render(); }, 'danger', 'trash');
   });
 }
 function pickList(t) {
@@ -850,7 +865,7 @@ function rLib(m) {
   const ib = h('button', 'sbtn', 'Impor'); ib.type = 'button'; ib.onclick = importPlModal;
   const ac = h('div'); ac.style.cssText = 'display:flex;gap:8px'; ac.append(ib, nb);
   t.appendChild(ac); m.appendChild(t);
-  const g = h('div', 'grid'); g.appendChild(plCard(listOf('fav')));
+  const g = h('div', 'grid'); g.appendChild(plCard(listOf('fav'))); g.appendChild(plCard(listOf('dl')));
   DB.lists.forEach(l => g.appendChild(plCard(l))); m.appendChild(g);
   if (!DB.lists.length) m.appendChild(h('div', 'msg', 'Belum ada playlist. Tekan "Baru" untuk membuat, lalu tambahkan lagu lewat tombol ⋮ di setiap lagu.'));
 }
@@ -859,27 +874,32 @@ function rList(m) {
   if (!l) { setView('lib'); return; }
   const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Playlist')); bk.onclick = () => history.back(); m.appendChild(bk);
   const hd = h('div', 'dhead'); hd.appendChild(mosaic(l.tracks, 'dcv'));
-  const tx = h('div'); tx.append(h('h1', '', l.name), h('div', 'mut', l.tracks.length + ' lagu')); hd.appendChild(tx); m.appendChild(hd);
+  const tx = h('div'); tx.append(h('h1', '', l.name), h('div', 'mut', l.tracks.length + ' lagu' + (l.dl ? ' • otomatis dari lagu yang diunduh' : ''))); hd.appendChild(tx); m.appendChild(hd);
   const a = h('div', 'acts');
   const pl = h('button', 'pbtn'); pl.type = 'button'; const p1 = h('span', 'ic'); setIc(p1, 'play', 18); pl.append(p1, h('span', '', 'Putar'));
   pl.onclick = () => { if (l.tracks.length) playFrom(l.tracks, 0); };
   const sh = h('button', 'sbtn'); sh.type = 'button'; const p2 = h('span', 'ic'); setIc(p2, 'shuffle', 16); sh.append(p2, h('span', '', 'Acak'));
   sh.onclick = () => { if (!l.tracks.length) return; DB.prefs.shuffle = true; save(); paintToggles(); playFrom(l.tracks, Math.floor(Math.random() * l.tracks.length)); };
   a.append(pl, sh);
-  if (!l.fav) {
+  if (!l.fav && !l.dl) {
     const rn = h('button', 'sbtn'); rn.type = 'button'; const p3 = h('span', 'ic'); setIc(p3, 'edit', 16); rn.append(p3, h('span', '', 'Nama'));
     rn.onclick = () => ask('Ganti nama', l.name, 'Simpan', n => { l.name = n; l.ts = Date.now(); save(); render(); });
     const dl = h('button', 'sbtn'); dl.type = 'button'; const p4 = h('span', 'ic'); setIc(p4, 'trash', 16); dl.append(p4, h('span', '', 'Hapus'));
     dl.onclick = () => confirmBox('Hapus playlist "' + l.name + '"?', 'Hapus', () => { DB.lists = DB.lists.filter(x => x.id !== l.id); DB.gone[l.id] = Date.now(); save(); history.back(); });
     a.append(rn, dl);
   }
+  if (l.dl && l.tracks.length) {
+    const da = h('button', 'sbtn'); da.type = 'button'; const p5 = h('span', 'ic'); setIc(p5, 'trash', 16); da.append(p5, h('span', '', 'Hapus semua'));
+    da.onclick = () => confirmBox('Hapus semua ' + l.tracks.length + ' unduhan?', 'Hapus', () => { l.tracks.slice().forEach(t => { try { AlyaApp.removeDownload(t.id); } catch (e) {} }); });
+    a.append(da);
+  }
   m.appendChild(a);
-  if (!l.tracks.length) { m.appendChild(h('div', 'msg', l.fav ? 'Belum ada favorit. Tekan ikon hati di lagu mana saja.' : 'Playlist masih kosong. Tambahkan lagu lewat tombol ⋮ di hasil pencarian.')); return; }
+  if (!l.tracks.length) { m.appendChild(h('div', 'msg', l.dl ? 'Belum ada lagu yang diunduh. Buka menu ⋮ di sebuah lagu lalu pilih Unduh untuk offline.' : l.fav ? 'Belum ada favorit. Tekan ikon hati di lagu mana saja.' : 'Playlist masih kosong. Tambahkan lagu lewat tombol ⋮ di hasil pencarian.')); return; }
   const ls = h('div', 'list'); l.tracks.forEach((t, i) => ls.appendChild(row(t, l.tracks, i, { list: l.id }))); m.appendChild(ls);
 }
 function render() {
   const m = $('main'); m.innerHTML = '';
-  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, recap: rRecap, me: rMe, friends: rFriends, plv: rRemote, artist: rArtist }[V.v] || rHome)(m);
+  ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, recap: rRecap, me: rMe, friends: rFriends, plv: rRemote, artist: rArtist, set: rSet }[V.v] || rHome)(m);
   updNav(); markNow(); paintLikes();
 }
 
@@ -895,7 +915,7 @@ function pushMedia() {
   }, 60);
 }
 // Kabar progres unduhan dari native; pemutar ada di iframe, jadi diteruskan lewat postMessage.
-window.alyaDl = d => { try { if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-dl', d: d }, location.origin); } catch (e) {} };
+window.alyaDl = d => { try { if (d && (d.done || d.removed)) loadDownloads(); if (d && d.done) toast('Unduhan selesai'); if (d && d.err) toast('Unduhan gagal: ' + String(d.err).slice(0, 80)); if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-dl', d: d }, location.origin); } catch (e) {} };
 function cmdPlayer(o) { if (fstate === 2) frame.contentWindow.postMessage(Object.assign({ type: 'alya-cmd' }, o), location.origin); }
 window.alyaCmd = c => {
   if (c === 'play' || c === 'pause' || c === 'toggle') cmdPlayer({ cmd: c });
@@ -1040,6 +1060,21 @@ function rMe(m) {
   [[DB.lists.length, 'Playlist'], [DB.likes.length, 'Favorit'], [G.friends.length, 'Teman'], [w.total, 'Diputar 7 hari']].forEach(([n, l]) => { const d = h('div'); d.append(h('b', '', String(n)), h('span', '', l)); st.appendChild(d); });
   pc.appendChild(st); m.appendChild(pc);
 
+  const g2 = sgrp(m, 'Aktivitas');
+  srow(g2, 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
+  srow(g2, 'Antrean', queue.length ? queue.length + ' lagu' : 'Kosong', () => openQueue());
+  const gs = sgrp(m, 'Pengaturan');
+  SETS.forEach(([id, t, sub]) => srow(gs, t, sub, () => setView('set', id)));
+  m.appendChild(h('div', 'mut', ' ')).style.height = '12px';
+}
+// ---------- pengaturan (sub-halaman dari Saya) ----------
+const SETS = [
+  ['tampilan', 'Tampilan', 'Tema warna, bentuk cover, kepadatan daftar'],
+  ['putar', 'Pemutaran & unduhan', 'Autoplay, daftar dan penyimpanan unduhan'],
+  ['akun', 'Akun & cadangan', 'Google, GitHub, kode cadangan'],
+  ['tentang', 'Tentang & diagnostik', 'Versi, pembaruan, diagnostik pemutaran']
+];
+function setTampilan(m) {
   const g1 = sgrp(m, 'Tampilan'), sw = h('div', 'swg');
   THEMES.forEach((t, i) => {
     const b = h('button', 'swt' + (themeIdx() === i ? ' on' : '')); b.type = 'button'; const pv = h('i'); pv.style.background = 'linear-gradient(135deg,' + t.bg + ' 50%,' + t.a + ' 50% 75%,' + t.b + ' 75%)';
@@ -1050,13 +1085,15 @@ function rMe(m) {
   uiSeg(g1, 'Bentuk cover', 'cov', [['t', 'Tajam'], ['m', 'Membulat'], ['b', 'Sangat bulat']], 'm');
   uiSeg(g1, 'Ukuran kartu', 'size', [['k', 'Kecil'], ['m', 'Sedang'], ['b', 'Besar']], 'm');
   uiSeg(g1, 'Akses cepat di beranda', 'qp', [['1', 'Tampil'], ['0', 'Sembunyi']], '1');
-
-  const g2 = sgrp(m, 'Aktivitas');
-  srow(g2, 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
-  srow(g2, 'Antrean', queue.length ? queue.length + ' lagu' : 'Kosong', () => openQueue());
+}
+function setPutar(m) {
   const g2b = sgrp(m, 'Pemutaran');
   srow(g2b, 'Autoplay lagu serupa', 'Saat antrean habis, musik lanjut dengan lagu yang mirip', () => { DB.prefs.radio = !radioOn(); save(true); render(); }, h('span', 'tgl' + (radioOn() ? ' on' : '')));
-
+  const gd = sgrp(m, 'Unduhan');
+  srow(gd, 'Daftar Unduhan', DLS.length ? DLS.length + ' lagu tersimpan di perangkat' : 'Belum ada lagu yang diunduh', () => setView('list', 'dl'));
+  if (DLS.length) srow(gd, 'Hapus semua unduhan', 'Mengosongkan penyimpanan offline', () => confirmBox('Hapus semua ' + DLS.length + ' unduhan?', 'Hapus', () => { DLS.slice().forEach(t => { try { AlyaApp.removeDownload(t.id); } catch (e) {} }); })).classList.add('danger');
+}
+function setAkun(m) {
   if (G.u) {
     const g3 = sgrp(m, 'Akun & sosial');
     srow(g3, 'Kode teman', 'Ketuk untuk membagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); }, gCode());
@@ -1065,7 +1102,6 @@ function rMe(m) {
     srow(g3, 'Sinkronkan sekarang', 'Playlist dan favorit ke akun Google', () => gSync().then(() => toast('Tersinkron')));
     srow(g3, 'Keluar', 'Data di HP ini tetap ada', () => confirmBox('Keluar dari akun Google? Data di HP ini tetap ada.', 'Keluar', gOut)).classList.add('danger');
   }
-
   const g4 = sgrp(m, 'Data & cadangan');
   if (tok()) {
     srow(g4, 'GitHub tersambung', '@' + (localStorage.getItem('alya_user') || 'GitHub') + ' - ' + (syncing ? 'menyinkronkan...' : (syncMsg || 'terakhir ' + ago())), () => syncNow(false));
@@ -1073,12 +1109,19 @@ function rMe(m) {
   } else srow(g4, 'Sinkronisasi GitHub', 'Alternatif tanpa Google', githubModal);
   srow(g4, 'Salin kode cadangan', 'Untuk dipindahkan ke HP lain', () => { const code = exportCode(); if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(code); else if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => toast('Kode disalin'), () => toast('Gagal menyalin')); });
   srow(g4, 'Pulihkan dari kode', '', importModal);
-
+}
+function setTentang(m) {
   const g5 = sgrp(m, 'Aplikasi');
   const up = !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub' : updInfo.error ? 'Tidak bisa memeriksa update' : updInfo.available ? 'Update ' + updInfo.latestName + ' tersedia, ketuk untuk memperbarui' : 'Sudah versi terbaru';
   srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) updStart(); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
   srow(g5, 'Alya Music', updInfo && updInfo.currentName ? 'Versi ' + updInfo.currentName : '');
   diagBox(m);
+}
+function rSet(m) {
+  const sec = SETS.find(x => x[0] === V.id); if (!sec) { setView('me'); return; }
+  const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Saya')); bk.onclick = () => history.back(); m.appendChild(bk);
+  m.appendChild(h('h1', '', sec[1]));
+  ({ tampilan: setTampilan, putar: setPutar, akun: setAkun, tentang: setTentang })[sec[0]](m);
   m.appendChild(h('div', 'mut', ' ')).style.height = '12px';
 }
 
@@ -1518,6 +1561,7 @@ function applyTheme(i) {
 }
 applyTheme(themeIdx());
 applyUI();
+loadDownloads();
 setInterval(() => {
   if (!G.u || document.hidden) return; const ae = document.activeElement; if (ae && ae.tagName === 'INPUT') return;
   if (V.v === 'colist' && G.cur && !G.cur.bad && G.cur.id === V.id) { const prev = G.cur, bf = JSON.stringify(prev); colLoad(V.id).then(() => { if (G.cur.bad) { G.cur = prev; return; } if (V.v === 'colist' && JSON.stringify(G.cur) !== bf) render(); }); }

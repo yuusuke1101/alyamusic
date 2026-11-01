@@ -190,9 +190,11 @@ public class MainActivity extends androidx.activity.ComponentActivity {
         @JavascriptInterface
         public void downloadTrack(final String id, final String title, final String artist) {
             if (!Backend.validId(id)) { dl(String.valueOf(id), "{\"err\":\"ID tidak valid\"}"); return; }
+            if (!Backend.dlBusy.add(id)) { dl(id, "{\"stage\":\"Unduhan lagu ini sedang berjalan...\"}"); return; }
             new Thread(() -> {
                 java.net.HttpURLConnection c = null;
-                Backend.Track t;
+                java.io.File tmp = null;
+                Backend.Track t = null;
                 boolean viaFallback = false;
                 try {
                     try {
@@ -203,19 +205,30 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                         if (code != 200 && code != 206) { c.disconnect(); throw new Exception("HTTP " + code); }
                     } catch (Exception primaryErr) {
                         android.util.Log.w("AlyaDl", "sumber utama gagal: " + primaryErr);
-                        dl(id, "{\"stage\":\"Sumber utama gagal, mencoba cadangan (bisa sampai 1 menit)...\"}");
-                        t = Backend.fromYtmp3(id);
-                        viaFallback = true;
-                        c = Backend.openFull(t.url, Backend.FF);
-                        int code = c.getResponseCode();
-                        if (code != 200 && code != 206) { c.disconnect(); throw new Exception("Sumber cadangan menolak (HTTP " + code + ")"); }
+                        boolean altOk = false;
+                        try {
+                            dl(id, "{\"stage\":\"Mencoba sumber alternatif...\"}");
+                            t = Backend.track(id, true);
+                            c = Backend.openFull(t.url, Backend.streamUa(t.url));
+                            int code2 = c.getResponseCode();
+                            if (code2 != 200 && code2 != 206) { c.disconnect(); throw new Exception("HTTP " + code2); }
+                            altOk = true;
+                        } catch (Exception altErr) { android.util.Log.w("AlyaDl", "sumber alternatif gagal: " + altErr); }
+                        if (!altOk) {
+                            dl(id, "{\"stage\":\"Sumber utama gagal, mencoba cadangan (bisa sampai 1 menit)...\"}");
+                            t = Backend.fromYtmp3(id);
+                            viaFallback = true;
+                            c = Backend.openFull(t.url, Backend.FF);
+                            int code = c.getResponseCode();
+                            if (code != 200 && code != 206) { c.disconnect(); throw new Exception("Sumber cadangan menolak (HTTP " + code + ")"); }
+                        }
                     }
                     dl(id, "{\"stage\":\"Mengunduh...\"}");
                     String ext = Backend.extFor(t.mime);
                     String nameSrc = (title != null && !title.trim().isEmpty()) ? title : t.title;
                     java.io.File dir = Backend.downloadDir();
                     dir.mkdirs();
-                    java.io.File tmp = new java.io.File(dir, id + ".part");
+                    tmp = new java.io.File(dir, id + ".part");
                     long total = c.getContentLengthLong(), got = 0;
                     int last = -1;
                     try (java.io.InputStream in = c.getInputStream(); java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
@@ -228,15 +241,20 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                             if (p != last) { last = p; dl(id, "{\"p\":" + p + "}"); }
                         }
                     } finally { c.disconnect(); }
+                    if (total > 0 && got < total) throw new Exception("Unduhan terputus di " + (got * 100 / total) + "%, coba lagi");
                     java.io.File dest = new java.io.File(dir, id + "." + ext);
                     if (dest.exists()) dest.delete();
                     if (!tmp.renameTo(dest)) throw new Exception("Gagal menyimpan file");
                     Backend.downloadPut(id, dest.getAbsolutePath(), Backend.safeName(nameSrc),
                             artist != null ? artist : (t.artist == null ? "" : t.artist), t.mime == null ? "audio/mpeg" : t.mime);
+                    Backend.saveCover(id);
                     dl(id, "{\"done\":true,\"src\":" + org.json.JSONObject.quote(viaFallback ? "cadangan" : "utama") + "}");
                 } catch (Exception e) {
                     android.util.Log.w("AlyaDl", "unduhan gagal: " + e);
+                    if (tmp != null) tmp.delete();
                     dl(id, "{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}");
+                } finally {
+                    Backend.dlBusy.remove(id);
                 }
             }).start();
         }

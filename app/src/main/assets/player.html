@@ -104,6 +104,24 @@
   /* v11: ringan di GPU, hormati preferensi kurangi gerak */
   .disc { will-change:transform; }
   @media (prefers-reduced-motion:reduce) { .disc { animation:none; } }
+
+  /* v13: pemutar lebih rapi */
+  .top { display:none; }
+  .title { font-size:21px; }
+  .artist { font-size:14px; }
+  .tags:empty { display:none; }
+  .disc.sq { width:min(66vw,214px); height:min(66vw,214px); padding:0; margin:12px auto 14px; border-radius:24px; background:none; animation:none; box-shadow:0 22px 44px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08); }
+  .disc.sq::after { display:none; }
+  .disc.sq img { border-radius:24px; }
+  .acts2 { display:flex; justify-content:center; gap:10px; margin:4px 0 12px; }
+  .ab { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:78px; padding:8px 10px; border-radius:14px; background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:11px; font-weight:600; cursor:pointer; }
+  .ab svg { width:20px; height:20px; }
+  .ab.act { color:#fff; background:linear-gradient(135deg,var(--a),var(--b)); border-color:transparent; }
+  .ab:active { transform:scale(.94); }
+  .tools { margin-top:8px; }
+  .tools summary { list-style:none; text-align:center; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer; padding:6px; }
+  .tools summary::-webkit-details-marker { display:none; }
+  .ctl2 .ctrl { flex:1; width:auto; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--muted); }
 </style>
 
 <div class="wrap">
@@ -125,6 +143,11 @@
           <div class="title" id="t-title">Memuat lagu...</div>
           <div class="artist" id="t-artist"></div>
           <div class="tags" id="tags"></div>
+          <div class="acts2">
+            <button class="ab" id="ac-dl" aria-label="Unduh untuk offline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span id="ac-dl-l">Unduh</span></button>
+            <button class="ab" id="ac-share" aria-label="Bagikan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span>Bagikan</span></button>
+            <button class="ab" id="ac-more" aria-label="Menu lagu"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg><span>Lainnya</span></button>
+          </div>
           <div class="now" id="now"></div>
           <canvas class="viz" id="viz" width="300" height="40"></canvas>
           <div class="bar" id="bar">
@@ -137,24 +160,32 @@
             <button class="sbtn" id="btn-loop" aria-label="Ulangi lagu">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
             </button>
-            <button class="ctrl" id="btn-rw" aria-label="Mundur 10 detik">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="16.5" font-size="7.5" font-family="sans-serif" font-weight="bold" stroke="none" fill="currentColor" text-anchor="middle">10</text></svg>
+            <button class="ctrl" id="btn-prev" aria-label="Lagu sebelumnya">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>
             </button>
             <button class="play" id="play" aria-label="Putar">
               <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M8 5.6 v12.8 a.6.6 0 0 0 .92.5 l10-6.4 a.6.6 0 0 0 0-1 l-10-6.4 a.6.6 0 0 0-.92.5z"/></svg>
               <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" width="28" height="28" style="display:none"><rect x="6.5" y="5" width="3.8" height="14" rx="1"/><rect x="13.7" y="5" width="3.8" height="14" rx="1"/></svg>
             </button>
-            <button class="ctrl" id="btn-fw" aria-label="Maju 10 detik">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="16.5" font-size="7.5" font-family="sans-serif" font-weight="bold" stroke="none" fill="currentColor" text-anchor="middle">10</text></svg>
+            <button class="ctrl" id="btn-next" aria-label="Lagu berikutnya">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>
             </button>
             <button class="sbtn" id="btn-speed" aria-label="Ganti kecepatan">1x</button>
           </div>
-          <div class="ctl ctl2" style="margin-top:10px">
+          <details class="tools"><summary>Alat lanjutan</summary>
+          <div class="ctl ctl2" style="margin-top:8px">
+            <button class="ctrl" id="btn-rw" aria-label="Mundur 10 detik">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="16.5" font-size="7.5" font-family="sans-serif" font-weight="bold" stroke="none" fill="currentColor" text-anchor="middle">10</text></svg>
+            </button>
+            <button class="ctrl" id="btn-fw" aria-label="Maju 10 detik">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="16.5" font-size="7.5" font-family="sans-serif" font-weight="bold" stroke="none" fill="currentColor" text-anchor="middle">10</text></svg>
+            </button>
             <button class="sbtn" id="btn-ab" aria-label="Ulang bagian A-B">A-B: mati</button>
             <button class="sbtn" id="btn-mark" aria-label="Tandai posisi">+ Tandai</button>
             <button class="sbtn" id="btn-vizmode" aria-label="Ganti visualizer">Bar</button>
             <button class="sbtn" id="btn-mute" aria-label="Bisukan">Suara</button>
           </div>
+          </details>
         </div>
 
         <!-- LIRIK -->
@@ -225,6 +256,13 @@
             <div class="sec">
               <h4><span>Tema warna</span></h4>
               <div class="chips" id="chips-theme"></div>
+            </div>
+            <div class="sec">
+              <h4><span>Gaya sampul</span></h4>
+              <div class="chips" id="chips-cover">
+                <button class="chip" data-cv="sq">Sampul</button>
+                <button class="chip" data-cv="disc">Piringan</button>
+              </div>
             </div>
             <div class="sec">
               <h4><span>Kecepatan</span><b id="v-rate">1x</b></h4>
@@ -1152,17 +1190,21 @@
   // ===== Unduhan offline =====
   function refreshDlUi() {
     if (!dlBtn) return;
-    if (!(window.AlyaApp && AlyaApp.downloadState)) { dlBtn.style.display = 'none'; return; }
+    if (!(window.AlyaApp && AlyaApp.downloadState)) { dlBtn.style.display = 'none'; if (acDl) acDl.style.display = 'none'; return; }
     dlBtn.style.display = '';
+    if (acDl) acDl.style.display = '';
     dlBtn.disabled = false;
     try {
       var s2 = JSON.parse(AlyaApp.downloadState(curTrackId) || '{}');
       if (s2.state === 'done') {
-        dlState.textContent = 'Sudah diunduh';
+        dlState.textContent = 'Sudah diunduh'; paintAcDl('done');
         dlBtn.textContent = 'Hapus unduhan';
         dlBtn.dataset.mode = 'remove';
+      } else if (s2.state === 'busy') {
+        dlState.textContent = 'Sedang diunduh...';
+        dlBtn.disabled = true; paintAcDl('busy', -1);
       } else {
-        dlState.textContent = 'Belum diunduh';
+        dlState.textContent = 'Belum diunduh'; paintAcDl('none');
         dlBtn.textContent = 'Unduh untuk offline';
         dlBtn.dataset.mode = 'download';
       }
@@ -1183,11 +1225,41 @@
   }
   window.alyaDl = function(d) {
     if (!d || d.id !== curTrackId) return;
-    if (d.err) { dlState.textContent = 'Gagal: ' + d.err; dlBtn.disabled = false; return; }
-    if (d.stage) { dlState.textContent = String(d.stage).slice(0, 80); return; }
+    if (d.err) { dlState.textContent = 'Gagal: ' + d.err; dlBtn.disabled = false; paintAcDl('none'); st.textContent = 'Unduhan gagal: ' + String(d.err).slice(0, 60); return; }
+    if (d.stage) { dlState.textContent = String(d.stage).slice(0, 80); paintAcDl('busy', -1); return; }
     if (d.removed || d.done) { refreshDlUi(); return; }
-    if (typeof d.p === 'number') dlState.textContent = d.p >= 0 ? ('Mengunduh ' + d.p + '%') : 'Mengunduh...';
+    if (typeof d.p === 'number') { dlState.textContent = d.p >= 0 ? ('Mengunduh ' + d.p + '%') : 'Mengunduh...'; paintAcDl('busy', d.p); }
   };
+  // ===== v13: aksi cepat, sebelumnya/berikutnya, gaya sampul =====
+  var acDl = $('ac-dl');
+  function paintAcDl(state, pct) {
+    if (!acDl) return;
+    var lb = $('ac-dl-l');
+    lb.textContent = state === 'done' ? 'Tersimpan' : state === 'busy' ? (typeof pct === 'number' && pct >= 0 ? pct + '%' : 'Mengunduh') : 'Unduh';
+    acDl.classList.toggle('act', state === 'done');
+    acDl.disabled = state === 'busy';
+  }
+  acDl.addEventListener('click', function() {
+    if (acDl.classList.contains('act')) { st.textContent = 'Tersimpan di perangkat. Hapus lewat menu Lainnya.'; return; }
+    dlBtn.click();
+  });
+  $('ac-share').addEventListener('click', function() {
+    if (!curTrackId) return;
+    var t = ($('t-title').textContent || '') + ' - ' + ($('t-artist').textContent || '') + ' https://youtu.be/' + curTrackId;
+    try { if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.share) navigator.share({ text: t }); } catch (e) {}
+  });
+  $('ac-more').addEventListener('click', function() { post({ type: 'alya-ui', act: 'more' }); });
+  $('btn-prev').addEventListener('click', function() { post({ type: 'alya-nav', dir: -1 }); });
+  $('btn-next').addEventListener('click', function() { post({ type: 'alya-nav', dir: 1 }); });
+  var coverPref = 'sq'; try { coverPref = localStorage.getItem('alya_cover') || 'sq'; } catch (e) {}
+  function applyCover() {
+    $('disc').classList.toggle('sq', coverPref !== 'disc');
+    var cs = document.querySelectorAll('#chips-cover .chip');
+    for (var i = 0; i < cs.length; i++) cs[i].classList.toggle('on', cs[i].dataset.cv === coverPref);
+  }
+  var cvs = document.querySelectorAll('#chips-cover .chip');
+  for (var ci = 0; ci < cvs.length; ci++) cvs[ci].addEventListener('click', function() { coverPref = this.dataset.cv; try { localStorage.setItem('alya_cover', coverPref); } catch (e) {} applyCover(); });
+  applyCover();
   try { localStorage.removeItem('alya_ly_undefined'); } catch (e) {}
   $('ly-refresh').addEventListener('click', function() {
     if (!curTrackId) return;
