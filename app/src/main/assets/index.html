@@ -266,6 +266,12 @@ button:active{transform:scale(.96)}
 .card img,.card .sk,.pl .cv{width:var(--cw);height:var(--cw);border-radius:var(--cvr)}
 .row{padding:var(--rpad)}
 .row img{width:var(--riw);height:var(--rih);border-radius:calc(var(--cvr)*.7)}
+
+/* ===== v13: bilah atas layar pemutar muat di layar kecil ===== */
+.sh{gap:4px;justify-content:space-between}
+.sh .shl{display:none}
+.sh .tg{padding:6px 9px;font-size:11px}
+.sh .ib{width:38px;height:38px;flex:none}
 </style>
 </head>
 <body>
@@ -1054,7 +1060,7 @@ function rMe(m) {
   const w = recapStats(7);
   const pc = h('div', 'pcard'), tp = h('div', 'ptop');
   if (G.u) tp.appendChild(av(G.u.name, G.u.photo, 72)); else { const im = h('img'); im.src = '/mascot.png'; im.alt = ''; tp.appendChild(im); }
-  const tx = h('div'); tx.append(h('h1', '', G.u ? G.u.name : 'Halo!'), h('div', 'mut', G.u ? 'Masuk dengan Google' : 'Masuk untuk sinkron dan berteman')); tp.appendChild(tx); pc.appendChild(tp);
+  const tx = h('div'); tx.append(h('h1', '', G.u ? G.u.name : 'Halo!'), h('div', 'mut', G.u ? 'Tersambung dengan Google' : 'Masuk untuk sinkron dan berteman')); tp.appendChild(tx); pc.appendChild(tp);
   if (!G.u) { const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.style.marginTop = '14px'; gb.onclick = gStart; pc.appendChild(gb); }
   const st = h('div', 'pst');
   [[DB.lists.length, 'Playlist'], [DB.likes.length, 'Favorit'], [G.friends.length, 'Teman'], [w.total, 'Diputar 7 hari']].forEach(([n, l]) => { const d = h('div'); d.append(h('b', '', String(n)), h('span', '', l)); st.appendChild(d); });

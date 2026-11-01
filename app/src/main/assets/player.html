@@ -16,7 +16,7 @@
   .state::before { content:''; width:6px; height:6px; border-radius:50%; background:#6b7280; }
   .state.on { color:#fff; }
   .state.on::before { background:var(--b); box-shadow:0 0 8px var(--b); }
-  .panels { position:relative; height:clamp(430px, calc(100vh - 190px), 680px); }
+  .panels { position:relative; height:clamp(430px, calc(100vh - 96px), 880px); }
   .panel { display:none; height:100%; padding:10px 18px 0; overflow-x:hidden; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; }
   .panel::-webkit-scrollbar { display:none; }
   .panel.on { display:block; }
@@ -73,7 +73,7 @@
   .btn:active { transform:scale(.98); }
 
   /* ---- Lirik ---- */
-  .lyrics { position:relative; height:clamp(250px, calc(100vh - 340px), 540px); overflow-x:hidden; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; overscroll-behavior:contain; -webkit-mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); }
+  .lyrics { position:relative; height:clamp(250px, calc(100vh - 246px), 740px); overflow-x:hidden; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; overscroll-behavior:contain; -webkit-mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); }
   .lyrics::-webkit-scrollbar { display:none; }
   .lyrics-text { width:100%; padding:120px 6px; display:flex; flex-direction:column; gap:14px; text-align:center; }
   .ly { font-size:var(--lf); color:rgba(255,255,255,.32); line-height:1.4; font-weight:600; cursor:pointer; transition:color .3s ease, transform .3s ease; overflow-wrap:anywhere; }
@@ -110,9 +110,10 @@
   .title { font-size:21px; }
   .artist { font-size:14px; }
   .tags:empty { display:none; }
-  .disc.sq { width:min(66vw,214px); height:min(66vw,214px); padding:0; margin:12px auto 14px; border-radius:24px; background:none; animation:none; box-shadow:0 22px 44px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08); }
-  .disc.sq::after { display:none; }
-  .disc.sq img { border-radius:24px; }
+  html:not(.cv-disc) .disc { width:min(66vw,214px); height:min(66vw,214px); padding:0; margin:12px auto 14px; border-radius:24px; background:none; animation:none; box-shadow:0 22px 44px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08); }
+  html:not(.cv-disc) .disc::after { display:none; }
+  html:not(.cv-disc) .disc img { border-radius:24px; }
+  @media (max-height:700px) { html:not(.cv-disc) .disc { width:150px; height:150px; margin:8px auto 10px; } }
   .acts2 { display:flex; justify-content:center; gap:10px; margin:4px 0 12px; }
   .ab { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:78px; padding:8px 10px; border-radius:14px; background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:11px; font-weight:600; cursor:pointer; }
   .ab svg { width:20px; height:20px; }
@@ -121,6 +122,8 @@
   .tools { margin-top:8px; }
   .tools summary { list-style:none; text-align:center; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer; padding:6px; }
   .tools summary::-webkit-details-marker { display:none; }
+  .tools summary::after { content:' \25BE'; }
+  .tools[open] summary::after { content:' \25B4'; }
   .ctl2 .ctrl { flex:1; width:auto; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--muted); }
 </style>
 
@@ -1253,7 +1256,7 @@
   $('btn-next').addEventListener('click', function() { post({ type: 'alya-nav', dir: 1 }); });
   var coverPref = 'sq'; try { coverPref = localStorage.getItem('alya_cover') || 'sq'; } catch (e) {}
   function applyCover() {
-    $('disc').classList.toggle('sq', coverPref !== 'disc');
+    document.documentElement.classList.toggle('cv-disc', coverPref === 'disc');
     var cs = document.querySelectorAll('#chips-cover .chip');
     for (var i = 0; i < cs.length; i++) cs[i].classList.toggle('on', cs[i].dataset.cv === coverPref);
   }
