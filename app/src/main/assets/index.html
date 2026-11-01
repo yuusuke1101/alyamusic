@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0a12">
-<link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -698,11 +697,45 @@ function plCard(l, small) {
   c.append(mosaic(l.tracks, 'cv'), h('div', 'ct', l.name), h('div', 'ca', l.tracks.length + ' lagu'));
   c.onclick = () => setView('list', l.id); return c;
 }
+// ---------- impor playlist YouTube ----------
+function importPlModal() {
+  modal('Impor playlist YouTube', bx => {
+    line(bx, 'Tempel link playlist YouTube (yang berisi "list="). Playlist privat dan mix otomatis biasanya tidak bisa diimpor.');
+    const i = h('input', 'minput'); i.type = 'url'; i.placeholder = 'https://www.youtube.com/playlist?list=...'; bx.appendChild(i);
+    const out = h('div', 'mut'); bx.appendChild(out);
+    const go = btn(bx, 'Ambil daftar lagu', () => {
+      const u = i.value.trim();
+      if (!/[?&]list=/.test(u)) { out.textContent = 'Link tidak berisi "list=". Salin link playlist, bukan link satu lagu.'; return; }
+      go.disabled = true; out.textContent = 'Mengambil playlist, bisa beberapa detik...';
+      fetch('/api/playlist?url=' + encodeURIComponent(u)).then(r => r.json()).then(d => {
+        if (d.error) throw new Error(d.error);
+        const items = (d.items || []).filter(t => okId(t.id));
+        if (!items.length) throw new Error('Tidak ada lagu yang bisa diimpor');
+        preview(items, d.name);
+      }).catch(e => { out.textContent = 'Gagal: ' + (e && e.message && e.message !== '0' ? e.message : 'tidak bisa memuat playlist'); go.disabled = false; });
+    }, 'pbtn');
+    function preview(items, name) {
+      i.style.display = 'none'; go.style.display = 'none';
+      out.textContent = items.length + ' lagu ditemukan' + (items.length >= 300 ? ' (dibatasi 300)' : '') + '. Beri nama lalu simpan.';
+      const nm = h('input', 'minput'); nm.value = (name || 'Playlist YouTube').slice(0, 60); bx.appendChild(nm);
+      items.slice(0, 5).forEach(t => bx.appendChild(h('div', 'mut', '• ' + t.title)));
+      if (items.length > 5) bx.appendChild(h('div', 'mut', '... dan ' + (items.length - 5) + ' lagu lainnya'));
+      btn(bx, 'Simpan sebagai playlist', () => {
+        const seen = {}, tracks = items.filter(t => !seen[t.id] && (seen[t.id] = 1)).slice(0, 300).map(slim);
+        DB.lists.push({ id: uid(), name: nm.value.trim() || 'Playlist YouTube', tracks, ts: Date.now() });
+        save(); closeModal(); toast(tracks.length + ' lagu diimpor'); render();
+      }, 'pbtn');
+    }
+  });
+}
+
 function rLib(m) {
   const t = h('div', 'sec'); t.appendChild(h('h1', '', 'Playlist'));
   const nb = h('button', 'sbtn'); nb.type = 'button'; const pi = h('span', 'ic'); setIc(pi, 'plus', 16); nb.append(pi, h('span', '', 'Baru'));
   nb.onclick = () => ask('Playlist baru', '', 'Buat', n => { DB.lists.push({ id: uid(), name: n, tracks: [], ts: Date.now() }); save(); render(); });
-  t.appendChild(nb); m.appendChild(t);
+  const ib = h('button', 'sbtn', 'Impor'); ib.type = 'button'; ib.onclick = importPlModal;
+  const ac = h('div'); ac.style.cssText = 'display:flex;gap:8px'; ac.append(ib, nb);
+  t.appendChild(ac); m.appendChild(t);
   const g = h('div', 'grid'); g.appendChild(plCard(listOf('fav')));
   DB.lists.forEach(l => g.appendChild(plCard(l))); m.appendChild(g);
   if (!DB.lists.length) m.appendChild(h('div', 'msg', 'Belum ada playlist. Tekan "Baru" untuk membuat, lalu tambahkan lagu lewat tombol ⋮ di setiap lagu.'));
@@ -1357,7 +1390,6 @@ setIc($('s-q'), 'list'); $('s-q').addEventListener('click', openQueue);
 buildNav(); paintToggles();
 history.replaceState({ v: 'home' }, '');
 if (window.AlyaApp && typeof AlyaApp.changeServer === 'function') { $('srv').hidden = false; $('srv').onclick = () => AlyaApp.changeServer(); }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 render();
 if (window.AlyaApp) setTimeout(() => checkUpdate(false), 800);
 if (tok()) setTimeout(() => syncNow(true), 1500);

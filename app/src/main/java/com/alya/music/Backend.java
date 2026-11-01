@@ -44,6 +44,8 @@ final class Backend {
     static final String ANDROID_UA = "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip";
     static final String IOS_UA = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)";
     static final Map<String, Track> cache = new ConcurrentHashMap<>();
+    // Batas cache info-lagu di memori (beda dari cache lirik di disk) - lihat touch() di bawah.
+    private static final int CACHE_MAX = 120, CACHE_KEEP = 80;
     private static boolean ready;
 
     static final class Track {
@@ -51,7 +53,7 @@ final class Backend {
         int kbps;
         boolean subAuto;
         JSONArray lyr;
-        long seconds, exp;
+        long seconds, exp, touched;
     }
 
     static synchronized void init() {
@@ -135,9 +137,9 @@ final class Backend {
     // preferFallback=true dipakai saat alamat audio dari sumber utama ditolak server (mis. HTTP 403).
     static Track track(String id, boolean preferFallback) throws Exception {
         Track t = cache.get(id);
-        if (!preferFallback && t != null && t.exp > System.currentTimeMillis()) return t;
+        if (!preferFallback && t != null && t.exp > System.currentTimeMillis()) { touch(t); return t; }
         if (preferFallback) {
-            try { t = fromPiped(id); cache.put(id, t); return t; } catch (Exception e) { /* coba sumber utama */ }
+            try { t = fromPiped(id); cache.put(id, t); touch(t); return t; } catch (Exception e) { /* coba sumber utama */ }
         }
         try {
             t = fromNewPipe(id);
@@ -146,7 +148,21 @@ final class Backend {
             try { t = fromPiped(id); pipedUsed++; } catch (Exception backup) { throw primary; }
         }
         cache.put(id, t);
+        touch(t);
         return t;
+    }
+
+    // Catat kapan entri dipakai. Kalau cache mulai membengkak: buang dulu yang sudah kedaluwarsa (exp lewat),
+    // lalu kalau masih kebanyakan, buang yang paling lama tidak disentuh sampai sisa CACHE_KEEP.
+    private static void touch(Track t) {
+        long now = System.currentTimeMillis();
+        t.touched = now;
+        if (cache.size() <= CACHE_MAX) return;
+        cache.entrySet().removeIf(e -> e.getValue().exp < now);
+        if (cache.size() <= CACHE_KEEP) return;
+        List<Map.Entry<String, Track>> es = new ArrayList<>(cache.entrySet());
+        es.sort((a, b) -> Long.compare(a.getValue().touched, b.getValue().touched));
+        for (int i = 0; i < es.size() - CACHE_KEEP; i++) cache.remove(es.get(i).getKey());
     }
 
     private static Track fromNewPipe(String id) throws Exception {

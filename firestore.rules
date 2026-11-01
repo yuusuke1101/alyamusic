@@ -1,6 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
+    // Field boleh tidak ada atau null (mis. akun tanpa foto), tapi kalau ada harus string dengan panjang terbatas.
+    function okStr(d, k, n) {
+      return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= n);
+    }
     match /users/{u} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == u;
@@ -13,8 +17,15 @@ service cloud.firestore {
       }
       match /inbox/{i} {
         allow read, delete: if request.auth.uid == u;
+        // Hanya field yang benar-benar dikirim aplikasi (sendTo / sendReact), dengan batas panjang.
         allow create: if request.auth.uid == request.resource.data.from
-          && request.resource.data.get('txt', '').size() <= 200
+          && request.resource.data.keys().hasOnly(['from', 'name', 'photo', 'tid', 'title', 'author', 'ts', 'react'])
+          && request.resource.data.tid is string && request.resource.data.tid.size() == 11
+          && okStr(request.resource.data, 'title', 200)
+          && okStr(request.resource.data, 'author', 120)
+          && okStr(request.resource.data, 'name', 80)
+          && okStr(request.resource.data, 'photo', 500)
+          && okStr(request.resource.data, 'react', 20)
           && exists(/databases/$(db)/documents/users/$(u)/friends/$(request.auth.uid));
       }
       match /colists/{c} {
