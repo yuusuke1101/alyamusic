@@ -125,6 +125,19 @@
   .tools summary::after { content:' \25BE'; }
   .tools[open] summary::after { content:' \25B4'; }
   .ctl2 .ctrl { flex:1; width:auto; height:40px; border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--muted); }
+
+  /* v14: karaoke */
+  html.kon .now { display:none; }
+  .kar { height:240px; gap:14px; }
+  .kar .k0, .kar .k2 { font-size:15px; }
+  .kar .k1 { font-size:27px; letter-spacing:-.01em; }
+  .kar .k1.in { animation:kin .28s ease-out; }
+  @keyframes kin { from { opacity:.25; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  .kw { color:transparent; -webkit-background-clip:text; background-clip:text; background-image:linear-gradient(90deg,var(--b),var(--a)),linear-gradient(rgba(255,255,255,.4),rgba(255,255,255,.4)); background-repeat:no-repeat; background-size:0% 100%,100% 100%; background-position:left center; transition:background-size .26s linear; }
+  .acts2 { gap:8px; }
+  .ab { min-width:68px; padding:8px 6px; }
+  @media (max-height:700px) { .kar { height:170px; } .kar .k1 { font-size:22px; } }
+  @media (prefers-reduced-motion:reduce) { .kar .k1.in { animation:none; } .kw { transition:none; } }
 </style>
 
 <div class="wrap">
@@ -148,6 +161,7 @@
           <div class="tags" id="tags"></div>
           <div class="acts2">
             <button class="ab" id="ac-dl" aria-label="Unduh untuk offline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg><span id="ac-dl-l">Unduh</span></button>
+            <button class="ab" id="ac-kar" aria-label="Mode karaoke"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Karaoke</span></button>
             <button class="ab" id="ac-share" aria-label="Bagikan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span>Bagikan</span></button>
             <button class="ab" id="ac-more" aria-label="Menu lagu"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg><span>Lainnya</span></button>
           </div>
@@ -460,9 +474,10 @@
   function updLyrics(t, instant) {
     if (!LY.length) return;
     var idx = lyFind(t);
-    if (idx === lyActive && !instant) return;
+    if (idx === lyActive && !instant) { kFill(t); return; }
     lyActive = idx;
     updKar(idx);
+    kFill(t);
     for (var i = 0; i < lyEls.length; i++) {
       if (i === idx) lyEls[i].classList.add('on'); else lyEls[i].classList.remove('on');
     }
@@ -813,17 +828,54 @@
   }
 
   // ===== Karaoke, lompat baris, bisu =====
+  // Karaoke v2: baris besar, warna mengisi kata demi kata. Waktu tiap kata adalah PERKIRAAN
+  // (lirik hanya punya waktu per baris), dibagi menurut panjang kata dalam durasi baris itu.
+  var LYKIND = 'synced', kWords = [], kStart = 0, kDur = 1, kIdx = -2;
+  function kClamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function buildKLine(idx) {
+    var el = $('k1'), text = idx >= 0 ? (LY[idx].text || '\u266A') : '\u266A', parts = text.split(/(\s+)/), total = 0, acc = 0, i;
+    el.innerHTML = ''; kWords = []; kIdx = idx;
+    for (i = 0; i < parts.length; i++) if (parts[i] && !/^\s+$/.test(parts[i])) total += parts[i].length;
+    var timed = idx >= 0 && LYKIND !== 'plain';
+    for (i = 0; i < parts.length; i++) {
+      var w = parts[i]; if (!w) continue;
+      if (/^\s+$/.test(w)) { el.appendChild(document.createTextNode(' ')); continue; }
+      var sp = document.createElement('span'); sp.className = 'kw'; sp.textContent = w;
+      if (!timed) sp.style.backgroundSize = '100% 100%, 100% 100%';
+      el.appendChild(sp);
+      if (timed) kWords.push({ el: sp, a: acc / total, b: (acc + w.length) / total });
+      acc += w.length;
+    }
+    if (idx >= 0) {
+      kStart = Number(LY[idx].time) || 0;
+      var nxt = idx + 1 < LY.length ? Number(LY[idx + 1].time) : kStart + 6, gap = Math.max(0.5, nxt - kStart);
+      kDur = Math.min(gap * 0.92, Math.max(1.2, total * 0.075));
+    }
+    el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+  }
+  function kFill(t) {
+    if (!karaoke || !kWords.length) return;
+    var p = kClamp((t - kStart) / kDur);
+    for (var i = 0; i < kWords.length; i++) {
+      var w = kWords[i];
+      w.el.style.backgroundSize = (kClamp((p - w.a) / Math.max(0.001, w.b - w.a)) * 100).toFixed(1) + '% 100%, 100% 100%';
+    }
+  }
   function updKar(idx) {
     if (!karaoke) return;
-    if (!LY.length) { $('k0').textContent = ''; $('k1').textContent = 'Lirik belum tersedia'; $('k2').textContent = ''; return; }
+    if (!LY.length) { $('k0').textContent = ''; $('k1').textContent = 'Lirik belum tersedia'; $('k2').textContent = ''; kWords = []; kIdx = -2; return; }
+    if (idx === kIdx) return;
     $('k0').textContent = idx > 0 ? (LY[idx - 1].text || '') : '';
-    $('k1').textContent = idx >= 0 ? (LY[idx].text || '♪') : '♪';
     $('k2').textContent = (idx + 1 < LY.length) ? (LY[idx + 1].text || '') : '';
+    buildKLine(idx);
   }
   function setKaraoke(on) {
-    karaoke = !!on;
-    if (karaoke) { $('sw-kar').classList.add('on'); $('kar').classList.add('on'); disc.style.display = 'none'; updKar(LY.length ? lyFind(pos()) : -1); }
+    karaoke = !!on; kIdx = -2;
+    document.documentElement.classList.toggle('kon', karaoke);
+    try { localStorage.setItem('alya_kar', karaoke ? '1' : '0'); } catch (e) {}
+    if (karaoke) { $('sw-kar').classList.add('on'); $('kar').classList.add('on'); disc.style.display = 'none'; updKar(LY.length ? lyFind(pos()) : -1); kFill(pos()); }
     else { $('sw-kar').classList.remove('on'); $('kar').classList.remove('on'); disc.style.display = ''; }
+    if (typeof paintAcKar === 'function') paintAcKar();
   }
   function lyJump(dir) {
     if (!LY.length || !ready) return;
@@ -1118,7 +1170,7 @@
     lyText.style.paddingBottom = pd;
   }
   function setLyrics(arr) {
-    LY = Array.isArray(arr) ? arr : [];
+    LY = Array.isArray(arr) ? arr : []; kIdx = -2;
     lyEls = [];
     lyText.innerHTML = '';
     lyActive = -2;
@@ -1177,7 +1229,7 @@
         if (cl && cl.l && cl.l.length) { m.lyrics = cl.l.map(function(x) { return { time: x[0], text: x[1] }; }); m.lyricsKind = cl.k; m.lyricsDbg = ''; }
       }
     } catch (e) {}
-    setLyrics(m.lyrics);
+    LYKIND = m.lyricsKind || 'synced'; setLyrics(m.lyrics);
     if (!LY.length && m.lyricsDbg) $('i-ly').textContent = 'Tidak tersedia (' + m.lyricsDbg + ')';
     if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
     else if (m.lyricsKind === 'caption') $('i-ly').textContent = LY.length + ' baris dari subtitle YouTube';
@@ -1251,6 +1303,9 @@
     var t = ($('t-title').textContent || '') + ' - ' + ($('t-artist').textContent || '') + ' https://youtu.be/' + curTrackId;
     try { if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.share) navigator.share({ text: t }); } catch (e) {}
   });
+  var acKar = $('ac-kar');
+  function paintAcKar() { if (acKar) acKar.classList.toggle('act', karaoke); }
+  acKar.addEventListener('click', function() { setKaraoke(!karaoke); });
   $('ac-more').addEventListener('click', function() { post({ type: 'alya-ui', act: 'more' }); });
   $('btn-prev').addEventListener('click', function() { post({ type: 'alya-nav', dir: -1 }); });
   $('btn-next').addEventListener('click', function() { post({ type: 'alya-nav', dir: 1 }); });
@@ -1263,6 +1318,7 @@
   var cvs = document.querySelectorAll('#chips-cover .chip');
   for (var ci = 0; ci < cvs.length; ci++) cvs[ci].addEventListener('click', function() { coverPref = this.dataset.cv; try { localStorage.setItem('alya_cover', coverPref); } catch (e) {} applyCover(); });
   applyCover();
+  try { if (localStorage.getItem('alya_kar') === '1') setKaraoke(true); } catch (e) {}
   try { localStorage.removeItem('alya_ly_undefined'); } catch (e) {}
   $('ly-refresh').addEventListener('click', function() {
     if (!curTrackId) return;
@@ -1274,7 +1330,7 @@
       .then(function(r) { return r.json(); })
       .then(function(m) {
         if (id !== curTrackId) return;
-        setLyrics(m.lyrics);
+        LYKIND = m.lyricsKind || 'synced'; setLyrics(m.lyrics);
         if (LY.length) {
           if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
           else if (m.lyricsKind === 'caption') $('i-ly').textContent = LY.length + ' baris dari subtitle YouTube';

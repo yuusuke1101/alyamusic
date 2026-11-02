@@ -282,6 +282,19 @@ button:active{transform:scale(.96)}
 /* ===== v15: ringkasan kalimat di Rekap ===== */
 .rsum{display:grid;gap:7px;margin:14px 0 6px;padding:14px 16px;border-radius:var(--r1);background:var(--card);border:1px solid var(--line);font-size:14px;line-height:1.5;color:var(--mut)}
 .rsum b{color:var(--ink);font-weight:700}
+
+/* ===== v16: perapian Beranda, Cari, Playlist, Teman (dari screenshot) ===== */
+.qp{margin-bottom:12px}
+.sform{background:transparent;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.hh{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 2px;font-size:13px;font-weight:700;color:var(--mut)}
+.hh button{color:var(--b);font-size:13px;font-weight:600;padding:4px 6px}
+.sec.top{margin-top:6px}
+.sico{width:36px;height:36px;flex:none;border-radius:11px;display:grid;place-items:center;color:var(--ink);background:color-mix(in srgb,var(--a) 22%,transparent)}
+.pcard{margin:14px 0 10px;padding-bottom:14px}
+.pcard>:last-child{margin-bottom:0}
+.fr{gap:10px}
+.fr .ib{width:38px;height:38px}
+.fr .rs{white-space:normal;overflow:visible;text-overflow:clip}
 </style>
 </head>
 <body>
@@ -349,7 +362,12 @@ const P = {
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   up: '<path d="M18 15l-6-6-6 6"/>',
   chev: '<path d="M9 6l6 6-6 6"/>',
-  ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>'
+  ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>'  ,
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.5-1.8-.3-1 .3-2 1.4-2H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/>',
+  sliders: '<path d="M4 6h8M19 6h1M4 12h3M13 12h7M4 18h9M19 18h1"/><circle cx="15" cy="6" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="16" cy="18" r="2.5"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9H7z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
 };
 const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
 const svg = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="' + (FILL[n] ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + P[n] + '</svg>';
@@ -838,7 +856,7 @@ function rHome(m) {
   const rs0 = !queue.length ? getResume() : null;
   if (rs0) {
     const c = h('button', 'rsm'); c.type = 'button'; const im = h('img'); im.src = thumb(rs0.q[0].id); im.alt = ''; const tx = h('div', 'rb');
-    const sec0 = Math.floor(rs0.ms / 1000); tx.append(h('b', '', rs0.q[0].title), h('span', '', 'Lanjutkan dari ' + Math.floor(sec0 / 60) + ':' + String(sec0 % 60).padStart(2, '0')));
+    const sec0 = Math.floor(rs0.ms / 1000); tx.append(h('b', '', rs0.q[0].title), h('span', '', sec0 < 5 ? 'Lanjutkan antrean terakhir' : 'Lanjutkan dari ' + Math.floor(sec0 / 60) + ':' + String(sec0 % 60).padStart(2, '0')));
     const pi = h('span', 'ic'); setIc(pi, 'play', 20); c.append(im, tx, pi);
     c.onclick = () => { playFrom((rs0.b || []).concat(rs0.q), (rs0.b || []).length); pendingSeek = { id: rs0.q[0].id, ms: rs0.ms, exact: true }; }; m.appendChild(c);
   }
@@ -872,10 +890,17 @@ function rSearch(m) {
   f.onsubmit = e => { e.preventDefault(); const q = i.value.trim(); if (q) { i.blur(); runSearch(q); } };
   m.appendChild(f);
   const sg = h('div', 'list'); m.appendChild(sg); let sgT;
-  const addS = (q, hist) => { const b = h('button', 'act'); b.type = 'button'; const ic = h('span', 'ic'); setIc(ic, hist ? 'list' : 'search', 18); b.append(ic, h('span', '', q)); b.onclick = () => { i.value = q; i.blur(); runSearch(q); }; sg.appendChild(b); };
+  const addS = (q, hist) => { const b = h('button', 'act'); b.type = 'button'; const ic = h('span', 'ic'); setIc(ic, hist ? 'clock' : 'search', 18); b.append(ic, h('span', '', q)); b.onclick = () => { i.value = q; i.blur(); runSearch(q); }; sg.appendChild(b); };
   const paintSg = () => {
     const v = i.value.trim(); sg.innerHTML = '';
-    if (!v) { if (!lastQ) DB.hist.slice(0, 8).forEach(q => addS(q, true)); return; }
+    if (!v) {
+      if (!lastQ && DB.hist.length) {
+        const hh = h('div', 'hh'); hh.appendChild(h('span', '', 'Terakhir dicari'));
+        const cb = h('button', '', 'Hapus'); cb.type = 'button'; cb.onclick = () => { DB.hist = []; save(); render(); }; hh.appendChild(cb); sg.appendChild(hh);
+        DB.hist.slice(0, 8).forEach(q => addS(q, true));
+      }
+      return;
+    }
     clearTimeout(sgT); sgT = setTimeout(() => fetch('/api/suggest?q=' + encodeURIComponent(v)).then(x => x.json()).then(d => { if (i.value.trim() !== v) return; sg.innerHTML = ''; (d[1] || []).slice(0, 6).forEach(q => addS(String(q), false)); }).catch(() => {}), 250);
   };
   i.addEventListener('input', paintSg); paintSg();
@@ -927,7 +952,7 @@ function importPlModal() {
 }
 
 function rLib(m) {
-  const t = h('div', 'sec'); t.appendChild(h('h1', '', 'Playlist'));
+  const t = h('div', 'sec top'); t.appendChild(h('h1', '', 'Playlist'));
   const nb = h('button', 'sbtn'); nb.type = 'button'; const pi = h('span', 'ic'); setIc(pi, 'plus', 16); nb.append(pi, h('span', '', 'Baru'));
   nb.onclick = () => ask('Playlist baru', '', 'Buat', n => { DB.lists.push({ id: uid(), name: n, tracks: [], ts: Date.now() }); save(); render(); });
   const ib = h('button', 'sbtn', 'Impor'); ib.type = 'button'; ib.onclick = importPlModal;
@@ -1105,6 +1130,9 @@ function box(m, title) { const c = h('div', 'set'); c.appendChild(h('h3', '', ti
 function line(c, text) { c.appendChild(h('div', 'mut', text)); }
 function btn(c, text, fn, cls) { const b = h('button', cls || 'sbtn', text); b.type = 'button'; b.onclick = fn; c.appendChild(b); return b; }
 function sgrp(m, title) { m.appendChild(h('div', 'sgt', title)); const c = h('div', 'sgrp'); m.appendChild(c); return c; }
+function srowI(c, icon, title, sub, fn, right) {
+  const r = srow(c, title, sub, fn, right), e = h('span', 'ic sico'); setIc(e, icon, 20); r.prepend(e); return r;
+}
 function srow(c, title, sub, fn, right) {
   const r = h('button', 'srow'); r.type = 'button'; const t = h('div', 'st'); t.appendChild(h('b', '', title)); if (sub) t.appendChild(h('span', '', sub)); r.appendChild(t);
   if (right) r.appendChild(typeof right === 'string' ? h('span', 'sr', right) : right); else if (fn) { const ch = h('span', 'ic sr'); setIc(ch, 'chev', 18); r.appendChild(ch); }
@@ -1130,18 +1158,18 @@ function rMe(m) {
   pc.appendChild(st); m.appendChild(pc);
 
   const g2 = sgrp(m, 'Aktivitas');
-  srow(g2, 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
-  srow(g2, 'Antrean', queue.length ? queue.length + ' lagu' : 'Kosong', () => openQueue());
+  srowI(g2, 'music', 'Rekap musik', w.total ? w.total + ' lagu diputar dalam 7 hari terakhir' : 'Belum ada data, putar beberapa lagu dulu', () => setView('recap'));
+  srowI(g2, 'list', 'Antrean', queue.length ? queue.length + ' lagu' : 'Kosong', () => openQueue());
   const gs = sgrp(m, 'Pengaturan');
-  SETS.forEach(([id, t, sub]) => srow(gs, t, sub, () => setView('set', id)));
+  SETS.forEach(([id, t, sub, ico]) => srowI(gs, ico, t, sub, () => setView('set', id)));
   m.appendChild(h('div', 'mut', ' ')).style.height = '12px';
 }
 // ---------- pengaturan (sub-halaman dari Saya) ----------
 const SETS = [
-  ['tampilan', 'Tampilan', 'Tema warna, bentuk cover, kepadatan daftar'],
-  ['putar', 'Pemutaran & unduhan', 'Autoplay, daftar dan penyimpanan unduhan'],
-  ['akun', 'Akun & cadangan', 'Google, GitHub, kode cadangan'],
-  ['tentang', 'Tentang & diagnostik', 'Versi, pembaruan, diagnostik pemutaran']
+  ['tampilan', 'Tampilan', 'Tema warna, bentuk cover, kepadatan daftar', 'palette'],
+  ['putar', 'Pemutaran & unduhan', 'Autoplay, daftar dan penyimpanan unduhan', 'sliders'],
+  ['akun', 'Akun & cadangan', 'Google, GitHub, kode cadangan', 'cloud'],
+  ['tentang', 'Tentang & diagnostik', 'Versi, pembaruan, diagnostik pemutaran', 'info']
 ];
 function setTampilan(m) {
   const g1 = sgrp(m, 'Tampilan'), sw = h('div', 'swg');
