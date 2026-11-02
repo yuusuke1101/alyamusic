@@ -309,6 +309,28 @@ button:active{transform:scale(.96)}
 .ob-dots i{width:7px;height:7px;border-radius:99px;background:var(--line);transition:width .2s,background .2s}
 .ob-dots i.on{width:22px;background:var(--a)}
 .ob-go{display:block;width:100%;max-width:420px;margin:0 auto;padding:14px;border-radius:99px;font-weight:700;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--a),var(--b))}
+/* ===== v17: tampilan Cari dirapikan (dari screenshot 2 Nov 2026) ===== */
+.sform{gap:10px;padding:10px 0 12px;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;transition:background-color .2s}
+.sform::after{content:'';position:absolute;left:0;right:0;top:100%;height:16px;background:linear-gradient(color-mix(in srgb,var(--bg) 94%,transparent),transparent);opacity:0;pointer-events:none;transition:opacity .2s}
+.sform.stuck{background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.sform.stuck::after{opacity:1}
+.sin{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:0 16px;border-radius:18px;background:var(--surf);box-shadow:inset 0 0 0 1px var(--line);color:var(--mut);transition:box-shadow .18s}
+.sin:focus-within{box-shadow:inset 0 0 0 2px var(--b)}
+.sin .ic{flex:none}
+.sform .sin input{flex:1;min-width:0;padding:15px 0;border:none;border-radius:0;background:transparent;color:var(--ink);font-size:16px;-webkit-appearance:none;appearance:none}
+.sform .sin input:focus,.sform .sin input:focus-visible{outline:none}
+.sform .sin input::placeholder{color:var(--mut)}
+.sform>button{padding:0 22px;border-radius:18px}
+.hh{margin:8px 0 2px;padding:0 2px}
+.hh span{font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.hh button{padding:6px 14px;border:none;border-radius:99px;background:var(--card);color:var(--b);font-size:13px;font-weight:650}
+.sg .act{padding:12px 6px;color:var(--ink)}
+.sg .act .ic{color:var(--mut)}
+.chips.mood{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
+.gens{gap:10px}
+.gen{min-height:60px;padding:14px 16px;border-radius:18px;font-size:15px;letter-spacing:-.01em;text-shadow:0 1px 2px rgba(0,0,0,.25);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 6px 16px rgba(0,0,0,.22)}
+.gen:active{transform:scale(.97)}
+@media(min-width:900px){.chips.mood{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px}}
 </style>
 </head>
 <body>
@@ -400,6 +422,7 @@ function slim(t) { return { id: t.id, title: t.title, author: t.author || '', du
 let DB = load();
 if (DB.prefs.rep == null) DB.prefs.rep = DB.prefs.repeat ? 1 : 0;
 if (!DB.hist) DB.hist = []; if (!DB.log) DB.log = []; if (!DB.histN) DB.histN = {};
+['lagu viral trending', 'lagu baru rilis minggu ini'].forEach(q => { DB.hist = DB.hist.filter(x => x !== q); delete DB.histN[q]; });
 const save = n => { try { localStorage.setItem('alya_v2', JSON.stringify(DB)); } catch (e) {} if (!n) queueSync(); };
 const thumb = id => 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
 const isLiked = id => DB.likes.some(t => t.id === id);
@@ -700,8 +723,8 @@ const RAILS = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lof
 function addHist(q) { DB.hist = [q].concat(DB.hist.filter(x => x !== q)).slice(0, 12); DB.histN[q] = (DB.histN[q] || 0) + 1; save(true); }
 // Kata kunci yang paling sering dicari, dipakai rail "artis sering terkait" di Beranda.
 function topSearch(n) { return Object.keys(DB.histN).sort((a, b) => (DB.histN[b] || 0) - (DB.histN[a] || 0)).slice(0, n); }
-function runSearch(q) {
-  addHist(q); lastQ = q; results = null; stype = 'songs'; xres = null; searching = true; setView('search'); 
+function runSearch(q, noHist) {
+  if (!noHist) addHist(q); lastQ = q; results = null; stype = 'songs'; xres = null; searching = true; setView('search'); 
   api(q).then(d => { results = d; }).catch(() => { results = []; }).then(() => { searching = false; if (V.v === 'search') render(); });
 }
 function runKind(kind) {
@@ -807,14 +830,14 @@ function rRemote(m) {
   const ls = h('div', 'list'); p.tracks.forEach((t, i) => ls.appendChild(row(t, p.tracks, i))); m.appendChild(ls);
 }
 function chipsRow(m) {
-  const c = h('div', 'chips');
-  MOODS.forEach(([l, q]) => { const b = h('button', 'chip', l); b.type = 'button'; b.onclick = () => runSearch(q); c.appendChild(b); });
+  const c = h('div', 'chips mood');
+  MOODS.forEach(([l, q]) => { const b = h('button', 'chip', l); b.type = 'button'; b.onclick = () => runSearch(q, true); c.appendChild(b); });
   m.appendChild(c);
 }
 
 // ---------- halaman ----------
 const QUICK = [['🔎', 'Cari', () => setView('search')], ['📚', 'Playlist', () => setView('lib')], ['❤️', 'Favorit', () => setView('list', 'fav')], ['👥', 'Teman', () => setView('friends')],
-  ['🔥', 'Trending', () => runSearch('lagu viral trending')], ['🆕', 'Rilis baru', () => runSearch('lagu baru rilis minggu ini')], ['🎤', 'Karaoke', () => runSearch('karaoke lirik')], ['🎲', 'Acak', shufflePlay]];
+  ['🔥', 'Trending', () => runSearch('lagu viral trending', true)], ['🆕', 'Rilis baru', () => runSearch('lagu baru rilis minggu ini', true)], ['🎤', 'Karaoke', () => runSearch('karaoke lirik', true)], ['🎲', 'Acak', shufflePlay]];
 const GENRES = [['Pop', '#ec4899,#8b5cf6', 'pop hits'], ['Dangdut', '#f59e0b,#ef4444', 'dangdut populer'], ['Rock', '#ef4444,#7f1d1d', 'rock classic'], ['Hip-Hop', '#10b981,#065f46', 'hip hop hits'],
   ['EDM', '#22d3ee,#6366f1', 'edm best'], ['Jazz', '#f97316,#7c2d12', 'jazz santai'], ['Reggae', '#84cc16,#166534', 'reggae santai'], ['Klasik', '#a78bfa,#312e81', 'musik klasik piano']];
 const POOL = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai'],
@@ -828,7 +851,7 @@ function av(name, photo, sz) {
   if (sz) { e.style.width = e.style.height = sz + 'px'; } return e;
 }
 function railSlot(m, title, q) {
-  sec(m, title, 'Lihat semua', () => runSearch(q));
+  sec(m, title, 'Lihat semua', () => runSearch(q, true));
   const slot = h('div', 'rail');
   for (let i = 0; i < 5; i++) { const c = h('div', 'card'); c.append(h('div', 'sk'), h('div', 'ct', ' ')); slot.appendChild(c); }
   m.appendChild(slot); lazyLoad(slot, q);
@@ -865,7 +888,7 @@ function friendRow(f, withPlay) {
 }
 function genreGrid(m) {
   sec(m, 'Jelajahi semua'); const gg = h('div', 'gens');
-  GENRES.forEach(([n, c, q]) => { const b = h('button', 'gen', n); b.type = 'button'; b.style.background = 'linear-gradient(135deg,' + c + ')'; b.onclick = () => runSearch(q); gg.appendChild(b); }); m.appendChild(gg);
+  GENRES.forEach(([n, c, q]) => { const b = h('button', 'gen', n); b.type = 'button'; b.style.background = 'linear-gradient(135deg,' + c + ')'; b.onclick = () => runSearch(q, true); gg.appendChild(b); }); m.appendChild(gg);
 }
 let HF = '';
 function rHome(m) {
@@ -927,12 +950,15 @@ function lazyLoad(slot, q) {
     const io = new IntersectionObserver(es => { if (es[0].isIntersecting) { io.disconnect(); go(); } }, { rootMargin: '200px' }); io.observe(slot);
   } else go();
 }
+addEventListener('scroll', () => { const f = document.querySelector('.sform'); if (f) f.classList.toggle('stuck', (window.pageYOffset || document.documentElement.scrollTop) > 6); }, { passive: true });
 function rSearch(m) {
   const f = h('form', 'sform'); const i = h('input'); i.type = 'search'; i.placeholder = 'Judul lagu atau artis'; i.value = lastQ; i.autocomplete = 'off'; i.enterKeyHint = 'search';
-  const b = h('button', '', 'Cari'); b.type = 'submit'; f.append(i, b);
+  const sin = h('label', 'sin'), sic = h('span', 'ic'); setIc(sic, 'search', 20); sin.append(sic, i);
+  const b = h('button', '', 'Cari'); b.type = 'submit'; f.append(sin, b);
+  f.classList.toggle('stuck', (window.pageYOffset || 0) > 6);
   f.onsubmit = e => { e.preventDefault(); const q = i.value.trim(); if (q) { i.blur(); runSearch(q); } };
   m.appendChild(f);
-  const sg = h('div', 'list'); m.appendChild(sg); let sgT;
+  const sg = h('div', 'list sg'); m.appendChild(sg); let sgT;
   const addS = (q, hist) => { const b = h('button', 'act'); b.type = 'button'; const ic = h('span', 'ic'); setIc(ic, hist ? 'clock' : 'search', 18); b.append(ic, h('span', '', q)); b.onclick = () => { i.value = q; i.blur(); runSearch(q); }; sg.appendChild(b); };
   const paintSg = () => {
     const v = i.value.trim(); sg.innerHTML = '';
