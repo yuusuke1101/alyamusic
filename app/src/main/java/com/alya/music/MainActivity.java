@@ -68,9 +68,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             }
         });
 
-        if (Build.VERSION.SDK_INT >= 33) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
-        }
+        // Izin notifikasi kini diminta dari layar sambutan (JS memanggil AlyaApp.askNotif)
         try {
             Intent i = new Intent(this, PlaybackService.class);
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
@@ -200,7 +198,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                     try {
                         dl(id, "{\"stage\":\"Mencari sumber audio...\"}");
                         t = Backend.track(id);
-                        c = Backend.openFull(t.url, Backend.streamUa(t.url));
+                        c = Backend.openFirst(t.url, Backend.streamUa(t.url));
                         int code = c.getResponseCode();
                         if (code != 200 && code != 206) { c.disconnect(); throw new Exception("HTTP " + code); }
                     } catch (Exception primaryErr) {
@@ -209,7 +207,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                         try {
                             dl(id, "{\"stage\":\"Mencoba sumber alternatif...\"}");
                             t = Backend.track(id, true);
-                            c = Backend.openFull(t.url, Backend.streamUa(t.url));
+                            c = Backend.openFirst(t.url, Backend.streamUa(t.url));
                             int code2 = c.getResponseCode();
                             if (code2 != 200 && code2 != 206) { c.disconnect(); throw new Exception("HTTP " + code2); }
                             altOk = true;
@@ -229,19 +227,8 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                     java.io.File dir = Backend.downloadDir();
                     dir.mkdirs();
                     tmp = new java.io.File(dir, id + ".part");
-                    long total = c.getContentLengthLong(), got = 0;
-                    int last = -1;
-                    try (java.io.InputStream in = c.getInputStream(); java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
-                        byte[] buf = new byte[65536];
-                        int n;
-                        while ((n = in.read(buf)) > 0) {
-                            out.write(buf, 0, n);
-                            got += n;
-                            int p = total > 0 ? (int) Math.min(99, got * 100 / total) : -1;
-                            if (p != last) { last = p; dl(id, "{\"p\":" + p + "}"); }
-                        }
-                    } finally { c.disconnect(); }
-                    if (total > 0 && got < total) throw new Exception("Unduhan terputus di " + (got * 100 / total) + "%, coba lagi");
+                    // Per potongan 4 MB untuk NewPipe/Piped; ytmp3 (viaFallback) tetap dibaca satu kali seperti dulu.
+                    Backend.saveChunked(c, t.url, viaFallback ? Backend.FF : Backend.streamUa(t.url), tmp, !viaFallback, id, p -> dl(id, "{\"p\":" + p + "}"));
                     java.io.File dest = new java.io.File(dir, id + "." + ext);
                     if (dest.exists()) dest.delete();
                     if (!tmp.renameTo(dest)) throw new Exception("Gagal menyimpan file");
@@ -310,6 +297,15 @@ public class MainActivity extends androidx.activity.ComponentActivity {
             runOnUiThread(() -> {
                 Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
                 startActivity(Intent.createChooser(i, "Bagikan"));
+            });
+        }
+
+        @JavascriptInterface
+        public void askNotif() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    MainActivity.this.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+                }
             });
         }
 

@@ -295,6 +295,20 @@ button:active{transform:scale(.96)}
 .fr{gap:10px}
 .fr .ib{width:38px;height:38px}
 .fr .rs{white-space:normal;overflow:visible;text-overflow:clip}
+
+.ob{position:fixed;inset:0;z-index:80;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 24px calc(20px + var(--sb))}
+.ob[hidden]{display:none}
+.ob-top{display:flex;justify-content:flex-end;min-height:36px}
+.ob-skip{padding:8px 14px;border-radius:99px;color:var(--mut);font-weight:600;font-size:14px}
+.ob-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;max-width:420px;width:100%;margin:0 auto}
+.ob-ic{width:112px;height:112px;border-radius:32px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--a),var(--b))}
+.ob-t{font-size:24px;font-weight:800;line-height:1.25}
+.ob-d{font-size:15px;line-height:1.55;color:var(--mut)}
+.ob-n{font-size:12.5px;line-height:1.5;color:var(--mut);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.ob-dots{display:flex;gap:7px;justify-content:center;margin-bottom:16px}
+.ob-dots i{width:7px;height:7px;border-radius:99px;background:var(--line);transition:width .2s,background .2s}
+.ob-dots i.on{width:22px;background:var(--a)}
+.ob-go{display:block;width:100%;max-width:420px;margin:0 auto;padding:14px;border-radius:99px;font-weight:700;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--a),var(--b))}
 </style>
 </head>
 <body>
@@ -367,7 +381,8 @@ const P = {
   palette: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.5-1.8-.3-1 .3-2 1.4-2H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/>',
   sliders: '<path d="M4 6h8M19 6h1M4 12h3M13 12h7M4 18h9M19 18h1"/><circle cx="15" cy="6" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="16" cy="18" r="2.5"/>',
   cloud: '<path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9H7z"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  dlo: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>'
 };
 const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
 const svg = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="' + (FILL[n] ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + P[n] + '</svg>';
@@ -384,7 +399,7 @@ function norm(d) { d.gone = d.gone || {}; d.favTs = d.favTs || 0; d.lists.forEac
 function slim(t) { return { id: t.id, title: t.title, author: t.author || '', duration: t.duration || '' }; }
 let DB = load();
 if (DB.prefs.rep == null) DB.prefs.rep = DB.prefs.repeat ? 1 : 0;
-if (!DB.hist) DB.hist = []; if (!DB.log) DB.log = [];
+if (!DB.hist) DB.hist = []; if (!DB.log) DB.log = []; if (!DB.histN) DB.histN = {};
 const save = n => { try { localStorage.setItem('alya_v2', JSON.stringify(DB)); } catch (e) {} if (!n) queueSync(); };
 const thumb = id => 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
 const isLiked = id => DB.likes.some(t => t.id === id);
@@ -682,7 +697,9 @@ function cached(q) {
 let lastQ = '', results = null, searching = false, stype = 'songs', xres = null;
 const MOODS = [['Santai', 'lagu santai'], ['Semangat', 'lagu semangat'], ['Fokus', 'focus music instrumental'], ['Galau', 'lagu galau'], ['Anime', 'anime songs'], ['Indonesia', 'lagu indonesia populer']];
 const RAILS = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai']];
-function addHist(q) { DB.hist = [q].concat(DB.hist.filter(x => x !== q)).slice(0, 12); save(true); }
+function addHist(q) { DB.hist = [q].concat(DB.hist.filter(x => x !== q)).slice(0, 12); DB.histN[q] = (DB.histN[q] || 0) + 1; save(true); }
+// Kata kunci yang paling sering dicari, dipakai rail "artis sering terkait" di Beranda.
+function topSearch(n) { return Object.keys(DB.histN).sort((a, b) => (DB.histN[b] || 0) - (DB.histN[a] || 0)).slice(0, n); }
 function runSearch(q) {
   addHist(q); lastQ = q; results = null; stype = 'songs'; xres = null; searching = true; setView('search'); 
   api(q).then(d => { results = d; }).catch(() => { results = []; }).then(() => { searching = false; if (V.v === 'search') render(); });
@@ -816,6 +833,27 @@ function railSlot(m, title, q) {
   for (let i = 0; i < 5; i++) { const c = h('div', 'card'); c.append(h('div', 'sk'), h('div', 'ct', ' ')); slot.appendChild(c); }
   m.appendChild(slot); lazyLoad(slot, q);
 }
+// Rail artis di Beranda, berdasarkan kata kunci yang paling sering dicari (topSearch). Avatar bulat sama seperti di tab Artis pencarian.
+function artistRelRail(m, term) {
+  const s = h('div', 'sec'); s.appendChild(h('h2', '', 'Karena kamu sering cari "' + term + '"'));
+  m.appendChild(s);
+  const slot = h('div', 'rail');
+  for (let i = 0; i < 5; i++) { const c = h('div', 'card'); c.append(h('div', 'sk'), h('div', 'ct', ' ')); slot.appendChild(c); }
+  m.appendChild(slot);
+  fetch('/api/search?type=artists&q=' + encodeURIComponent(term)).then(r => r.ok ? r.json() : []).then(d => {
+    if (!slot.isConnected) return;
+    const arr = (Array.isArray(d) ? d : []).filter(x => x && x.name).slice(0, 10);
+    if (!arr.length) { s.remove(); slot.remove(); return; }
+    const r = h('div', 'rail');
+    arr.forEach(x => {
+      const c = h('button', 'card'); c.type = 'button';
+      c.append(xcv(x.img, x.name.trim().charAt(0).toUpperCase(), '142px', '50%'), h('div', 'ct', x.name), h('div', 'ca', x.subs || 'Artis'));
+      c.onclick = () => openArtist(x.name, x.subs, x.img);
+      r.appendChild(c);
+    });
+    slot.replaceWith(r);
+  }).catch(() => { if (slot.isConnected) { s.remove(); slot.remove(); } });
+}
 function friendRow(f, withPlay) {
   const r = h('div', 'fr'); r.appendChild(av(f.name, f.photo));
   const b = h('div', 'rb'); b.appendChild(h('div', 'rt', f.name || 'Teman')); if (f.uid) { b.style.cursor = 'pointer'; b.onclick = () => setView('profile', f.uid); }
@@ -862,6 +900,11 @@ function rHome(m) {
   }
   const tp = topArtists(3);
   if (tp.length) { const mx = h('button', 'mix'); mx.type = 'button'; mx.append(h('b', '', 'Mix Harian'), h('span', '', tp.join(', ') + ' dan lainnya')); mx.onclick = () => { toast('Menyiapkan mix...'); buildMix(tp).then(l => l.length ? playFrom(l, 0) : toast('Mix kosong')).catch(() => toast('Gagal menyiapkan mix')); }; m.appendChild(mx); }
+
+  railSlot(m, 'Trending sekarang', 'lagu viral trending');
+  railSlot(m, 'Rilis baru minggu ini', 'lagu baru rilis minggu ini');
+  const relTerm = topSearch(1)[0];
+  if (relTerm) artistRelRail(m, relTerm);
 
   if (G.u && G.friends.some(f => f.now)) {
     sec(m, 'Teman sedang mendengarkan', 'Semua', () => setView('friends'));
@@ -1212,6 +1255,7 @@ function setTentang(m) {
   const up = !updInfo || !updInfo.enabled ? 'Pemeriksaan update aktif untuk aplikasi yang dibangun lewat GitHub' : updInfo.error ? 'Tidak bisa memeriksa update' : updInfo.available ? 'Update ' + updInfo.latestName + ' tersedia, ketuk untuk memperbarui' : 'Sudah versi terbaru';
   srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) updStart(); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
   srow(g5, 'Alya Music', updInfo && updInfo.currentName ? 'Versi ' + updInfo.currentName : '');
+  srow(g5, 'Lihat panduan', 'Pengenalan singkat aplikasi', () => showOnboarding());
   diagBox(m);
   logBox(m);
 }
@@ -1726,10 +1770,56 @@ setInterval(() => {
 }, 20000);
 setIc($('s-q'), 'list'); $('s-q').addEventListener('click', openQueue);
 
+// ---------- onboarding (layar sambutan pertama kali) ----------
+const OB_KEY = 'alya_onboarded';
+const OB_SLIDES = [
+  ['music', 'Selamat datang di Alya Music', 'Cari dan putar lagu apa saja, lengkap dengan lirik yang ikut bergulir.'],
+  ['dlo', 'Dengar tanpa internet', 'Unduh lagu favoritmu. Semuanya tersimpan di playlist Unduhan dan bisa diputar offline.'],
+  ['friends', 'Bareng teman', 'Berteman lewat kode, kirim lagu ke teman, dan lihat rekap musik kamu.']
+];
+function obDone() { try { localStorage.setItem(OB_KEY, '1'); } catch (e) {} }
+function askNotif() { try { if (window.AlyaApp && AlyaApp.askNotif) AlyaApp.askNotif(); } catch (e) {} }
+function showOnboarding() {
+  let el = $('ob'); if (el) el.remove();
+  el = h('div', 'ob'); el.id = 'ob';
+  let k = 0;
+  const top = h('div', 'ob-top'), skip = h('button', 'ob-skip', 'Lewati'); skip.type = 'button';
+  top.appendChild(skip);
+  const body = h('div', 'ob-body');
+  const dots = h('div', 'ob-dots'), go = h('button', 'ob-go'); go.type = 'button';
+  const close = () => { obDone(); el.remove(); askNotif(); };
+  skip.onclick = close;
+  const paint = () => {
+    const s = OB_SLIDES[k], last = k === OB_SLIDES.length - 1;
+    body.innerHTML = '';
+    const ic = h('div', 'ob-ic'); setIc(ic, s[0], 52);
+    body.append(ic, h('div', 'ob-t', s[1]), h('div', 'ob-d', s[2]));
+    if (last && window.AlyaApp && AlyaApp.askNotif) body.appendChild(h('div', 'ob-n', 'Setelah ini Android akan meminta izin notifikasi, supaya kontrol musik muncul di layar kunci.'));
+    dots.innerHTML = ''; OB_SLIDES.forEach((_, j) => dots.appendChild(h('i', j === k ? 'on' : '')));
+    go.textContent = last ? 'Mulai' : 'Lanjut'; skip.style.visibility = last ? 'hidden' : 'visible';
+  };
+  go.onclick = () => { if (k < OB_SLIDES.length - 1) { k++; paint(); } else close(); };
+  let x0 = null;
+  el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (dx < -50 && k < OB_SLIDES.length - 1) { k++; paint(); } else if (dx > 50 && k > 0) { k--; paint(); }
+  }, { passive: true });
+  el.append(top, body, dots, go); document.body.appendChild(el); paint();
+}
+function maybeOnboard() {
+  let done = false; try { done = !!localStorage.getItem(OB_KEY); } catch (e) { done = true; }
+  if (done) return;
+  const old = (DB.likes && DB.likes.length) || (DB.lists && DB.lists.length) || (DB.log && DB.log.length);
+  if (old) { obDone(); askNotif(); return; }   // pengguna lama: lewati sambutan, izin notifikasi tetap diminta sekali
+  showOnboarding();
+}
+
 buildNav(); paintToggles();
 history.replaceState({ v: 'home' }, '');
 if (window.AlyaApp && typeof AlyaApp.changeServer === 'function') { $('srv').hidden = false; $('srv').onclick = () => AlyaApp.changeServer(); }
 render();
+maybeOnboard();
 if (window.AlyaApp) setTimeout(() => checkUpdate(false), 800);
 if (tok()) setTimeout(() => syncNow(true), 1500);
 if (G.u) setTimeout(() => { gSync(); gLoad(); }, 1200);

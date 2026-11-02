@@ -475,6 +475,85 @@ final class Backend {
         return c;
     }
 
+    // ---------- unduhan per potongan ----------
+    // Sama seperti streaming (AlyaServer.CHUNK, 4 MB): satu unduhan panjang `Range: bytes=0-` rawan dibatasi
+    // kecepatannya oleh YouTube. Matikan dengan DL_CHUNKING = false untuk kembali ke perilaku lama.
+    static final boolean DL_CHUNKING = true;
+    static final long DL_CHUNK = 4L << 20;
+
+    interface DlProg { void on(int pct); }
+
+    // to < 0 = tanpa batas akhir (perilaku lama).
+    static HttpURLConnection openRange(String url, String ua, long from, long to) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        c.setRequestProperty("User-Agent", ua);
+        c.setRequestProperty("Range", "bytes=" + from + "-" + (to >= 0 ? String.valueOf(to) : ""));
+        return c;
+    }
+
+    // Koneksi pertama untuk unduhan: potongan pertama (atau tanpa batas kalau DL_CHUNKING mati).
+    static HttpURLConnection openFirst(String url, String ua) throws IOException {
+        return openRange(url, ua, 0, DL_CHUNKING ? DL_CHUNK - 1 : -1);
+    }
+
+    private static long rangeTotal(String cr) {
+        try { return cr == null ? -1 : Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim()); } catch (Exception e) { return -1; }
+    }
+
+    // Simpan isi `first` (sudah terbuka, kodenya sudah dicek 200/206) ke `tmp`. Kalau chunk=true dan server menjawab 206,
+    // sisanya diambil potongan demi potongan sampai total; potongan yang putus diulang dari byte terakhir (maks. 2x).
+    // chunk=false (sumber cadangan ytmp3): baca satu kali apa adanya, seperti dulu.
+    // Melempar IOException kalau file akhirnya tidak lengkap.
+    static void saveChunked(HttpURLConnection first, String url, String ua, java.io.File tmp, boolean chunk, String id, DlProg cb) throws IOException {
+        HttpURLConnection c = first;
+        long got = 0, total = -1;
+        int last = -2, fails = 0;
+        byte[] buf = new byte[65536];
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+            while (true) {
+                try {
+                    if (c == null) c = openRange(url, ua, got, total > 0 ? Math.min(got + DL_CHUNK, total) - 1 : got + DL_CHUNK - 1);
+                    int code = c.getResponseCode();
+                    if (code == 416 && got > 0) break; // sudah melewati ujung berkas
+                    if (code != 200 && code != 206) throw new IOException("Potongan ditolak (HTTP " + code + ")");
+                    long clen = c.getContentLengthLong();
+                    if (code == 200) {
+                        if (got > 0) throw new IOException("Server mengabaikan Range di tengah unduhan");
+                        total = clen;
+                    } else {
+                        long t2 = rangeTotal(c.getHeaderField("Content-Range"));
+                        if (t2 > 0) total = t2;
+                    }
+                    long chunkGot = 0;
+                    try (java.io.InputStream in = c.getInputStream()) {
+                        int r;
+                        while ((r = in.read(buf)) > 0) {
+                            out.write(buf, 0, r);
+                            got += r; chunkGot += r;
+                            int p = total > 0 ? (int) Math.min(99, got * 100 / total) : -1;
+                            if (p != last) { last = p; cb.on(p); }
+                        }
+                    }
+                    c.disconnect(); c = null;
+                    if (code == 200 || !chunk) break;
+                    if (clen > 0 && chunkGot < clen) throw new IOException("Potongan terpotong");
+                    if (total > 0 ? got >= total : chunkGot < DL_CHUNK) break;
+                    fails = 0;
+                } catch (IOException e) {
+                    if (c != null) { c.disconnect(); c = null; }
+                    if (!chunk || ++fails > 2) throw e;
+                    logErr("unduh", id + " · potongan gagal di " + got + " B, ulang " + fails + "/2: " + e);
+                    try { Thread.sleep(700L * fails); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new IOException("Dibatalkan"); }
+                }
+            }
+        } finally {
+            if (c != null) c.disconnect();
+        }
+        if (total > 0 && got < total) throw new IOException("Unduhan terputus di " + (got * 100 / total) + "%, coba lagi");
+    }
+
     static String extFor(String mime) {
         if (mime == null) return "m4a";
         if (mime.contains("mpeg") || mime.contains("mp3")) return "mp3";
