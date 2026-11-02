@@ -272,6 +272,16 @@ button:active{transform:scale(.96)}
 .sh .shl{display:none}
 .sh .tg{padding:6px 9px;font-size:11px}
 .sh .ib{width:38px;height:38px;flex:none}
+
+/* ===== v14: penanda unduhan dan antrean unduh ===== */
+.dlb{display:inline-grid;place-items:center;width:15px;height:15px;margin-right:6px;border-radius:50%;background:var(--b);color:#04121a;font-size:9px;font-weight:800;vertical-align:1px}
+.dlq{position:fixed;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:80;display:flex;align-items:center;gap:10px;padding:7px 7px 7px 14px;border-radius:99px;background:var(--minibg);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:12.5px;font-weight:600;color:var(--ink);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);white-space:nowrap}
+.dlq[hidden]{display:none}
+.dlq button{padding:5px 12px;border-radius:99px;background:var(--card2);color:var(--ink);font-size:12px;font-weight:700}
+
+/* ===== v15: ringkasan kalimat di Rekap ===== */
+.rsum{display:grid;gap:7px;margin:14px 0 6px;padding:14px 16px;border-radius:var(--r1);background:var(--card);border:1px solid var(--line);font-size:14px;line-height:1.5;color:var(--mut)}
+.rsum b{color:var(--ink);font-weight:700}
 </style>
 </head>
 <body>
@@ -368,9 +378,61 @@ function doLoadDownloads() {
   fetch('/api/downloads').then(r => r.ok ? r.json() : []).then(a => {
     DLS = (Array.isArray(a) ? a : []).filter(x => x && okId(x.id)).sort((p, q) => (q.addedAt || 0) - (p.addedAt || 0))
       .map(x => ({ id: x.id, title: String(x.title || x.id).slice(0, 120), author: String(x.artist || '').slice(0, 80) }));
-  }).catch(() => {}).then(() => { if (V.v === 'lib' || (V.v === 'list' && V.id === 'dl')) render(); });
+  }).catch(() => {}).then(() => { if (V.v === 'lib' || (V.v === 'list' && V.id === 'dl')) render(); else paintDl(); });
 }
 function isDownloaded(id) { return DLS.some(x => x.id === id); }
+// Penanda centang pada baris lagu yang sudah diunduh
+function paintDl() {
+  document.querySelectorAll('.row[data-id]').forEach(r => {
+    let b = r.querySelector('.dlb'); const on = isDownloaded(r.dataset.id);
+    if (on && !b) { b = h('span', 'dlb', '\u2713'); b.title = 'Tersimpan di perangkat'; const rs = r.querySelector('.rs'); if (rs) rs.prepend(b); }
+    else if (!on && b) b.remove();
+  });
+}
+// Unduh semua: antrean berurutan, satu lagu pada satu waktu
+const DLQ = { items: [], cur: null, total: 0, ok: 0, fail: 0, timer: 0, seen: {} };
+let dlq$ = null;
+function dlqUi() {
+  if (!DLQ.total) { if (dlq$) dlq$.hidden = true; return; }
+  if (!dlq$) { dlq$ = h('div', 'dlq'); document.body.appendChild(dlq$); }
+  dlq$.hidden = false; dlq$.textContent = '';
+  dlq$.appendChild(h('span', '', 'Mengunduh ' + Math.min(DLQ.ok + DLQ.fail + 1, DLQ.total) + ' dari ' + DLQ.total));
+  const b = h('button', '', 'Batal'); b.type = 'button';
+  b.onclick = () => { DLQ.items = []; DLQ.total = DLQ.ok + DLQ.fail + (DLQ.cur ? 1 : 0); dlqUi(); };
+  dlq$.appendChild(b);
+}
+function dlAll(tracks) {
+  const todo = tracks.filter(t => okId(t.id) && !isDownloaded(t.id) && !DLQ.seen[t.id]).slice(0, 100);
+  if (!todo.length) { toast('Semua lagu sudah diunduh atau sedang diantre'); return; }
+  todo.forEach(t => { DLQ.seen[t.id] = 1; });
+  DLQ.items.push(...todo); DLQ.total += todo.length; dlqUi(); dlNext();
+}
+function dlNext() {
+  if (DLQ.cur) return;
+  if (!DLQ.items.length) {
+    if (DLQ.total) { toast('Unduhan selesai: ' + DLQ.ok + ' berhasil' + (DLQ.fail ? ', ' + DLQ.fail + ' gagal' : '')); DLQ.total = DLQ.ok = DLQ.fail = 0; }
+    DLQ.seen = {}; dlqUi(); return;
+  }
+  const t = DLQ.items.shift(); DLQ.cur = t; dlqUi();
+  DLQ.timer = setTimeout(() => dlFinish(false), 180000); // jaga-jaga kalau kabar selesai tidak datang
+  try { AlyaApp.downloadTrack(t.id, t.title, t.author || ''); } catch (e) { dlFinish(false); }
+}
+function dlFinish(ok) {
+  clearTimeout(DLQ.timer); if (!DLQ.cur) return;
+  if (ok) DLQ.ok++; else DLQ.fail++;
+  DLQ.cur = null; dlqUi(); setTimeout(dlNext, 600);
+}
+function dlAllAsk(tracks) {
+  const todo = tracks.filter(t => okId(t.id) && !isDownloaded(t.id));
+  if (!todo.length) { toast('Semua lagu sudah diunduh'); return; }
+  const n = Math.min(todo.length, 100);
+  confirmBox('Unduh ' + n + ' lagu untuk offline? Perkiraan ' + (n * 4) + ' MB' + (todo.length > 100 ? ' (dibatasi 100 lagu sekali unduh)' : '') + '. Lagu diunduh satu per satu.', 'Unduh', () => dlAll(todo.slice(0, 100)));
+}
+function dlAllBtn(tracks) {
+  const n = tracks.filter(t => !isDownloaded(t.id)).length;
+  const b = h('button', 'sbtn', n ? 'Unduh semua (' + n + ')' : 'Semua terunduh'); b.type = 'button'; b.disabled = !n;
+  b.onclick = () => dlAllAsk(tracks); return b;
+}
 function listOf(id) { return id === 'fav' ? { id: 'fav', name: 'Favorit', tracks: DB.likes, fav: true } : id === 'dl' ? { id: 'dl', name: 'Unduhan', tracks: DLS, dl: true } : DB.lists.find(l => l.id === id); }
 function addRecent(t) { DB.recent = [slim(t)].concat(DB.recent.filter(x => x.id !== t.id)).slice(0, 24); save(); }
 function toggleLike(t) {
@@ -706,7 +768,7 @@ function rRemote(m) {
   sh.onclick = () => { DB.prefs.shuffle = true; save(); paintToggles(); playFrom(p.tracks, Math.floor(Math.random() * p.tracks.length)); };
   const sv = h('button', 'sbtn', 'Simpan'); sv.type = 'button';
   sv.onclick = () => { DB.lists.push({ id: uid(), name: p.name.slice(0, 60), tracks: p.tracks.slice(0, 300), ts: Date.now() }); save(); toast('Disimpan ke Playlist'); };
-  a.append(pl, sh, sv); m.appendChild(a);
+  a.append(pl, sh, sv); if (window.AlyaApp && AlyaApp.downloadTrack) a.append(dlAllBtn(p.tracks)); m.appendChild(a);
   const ls = h('div', 'list'); p.tracks.forEach((t, i) => ls.appendChild(row(t, p.tracks, i))); m.appendChild(ls);
 }
 function chipsRow(m) {
@@ -894,6 +956,7 @@ function rList(m) {
     dl.onclick = () => confirmBox('Hapus playlist "' + l.name + '"?', 'Hapus', () => { DB.lists = DB.lists.filter(x => x.id !== l.id); DB.gone[l.id] = Date.now(); save(); history.back(); });
     a.append(rn, dl);
   }
+  if (!l.dl && l.tracks.length && window.AlyaApp && AlyaApp.downloadTrack) a.append(dlAllBtn(l.tracks));
   if (l.dl && l.tracks.length) {
     const da = h('button', 'sbtn'); da.type = 'button'; const p5 = h('span', 'ic'); setIc(p5, 'trash', 16); da.append(p5, h('span', '', 'Hapus semua'));
     da.onclick = () => confirmBox('Hapus semua ' + l.tracks.length + ' unduhan?', 'Hapus', () => { l.tracks.slice().forEach(t => { try { AlyaApp.removeDownload(t.id); } catch (e) {} }); });
@@ -906,7 +969,7 @@ function rList(m) {
 function render() {
   const m = $('main'); m.innerHTML = '';
   ({ home: rHome, search: rSearch, lib: m => { rLib(m); colSection(m); }, list: rList, colist: rColist, profile: rProfile, recap: rRecap, me: rMe, friends: rFriends, plv: rRemote, artist: rArtist, set: rSet }[V.v] || rHome)(m);
-  updNav(); markNow(); paintLikes();
+  updNav(); markNow(); paintLikes(); paintDl();
 }
 
 
@@ -921,7 +984,7 @@ function pushMedia() {
   }, 60);
 }
 // Kabar progres unduhan dari native; pemutar ada di iframe, jadi diteruskan lewat postMessage.
-window.alyaDl = d => { try { if (d && (d.done || d.removed)) loadDownloads(); if (d && d.done) toast('Unduhan selesai'); if (d && d.err) toast('Unduhan gagal: ' + String(d.err).slice(0, 80)); if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-dl', d: d }, location.origin); } catch (e) {} };
+window.alyaDl = d => { try { if (d && (d.done || d.removed)) loadDownloads(); if (d && DLQ.cur && d.id === DLQ.cur.id) { if (d.done) dlFinish(true); else if (d.err) dlFinish(false); } else { if (d && d.done) toast('Unduhan selesai'); if (d && d.err) toast('Unduhan gagal: ' + String(d.err).slice(0, 80)); } if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-dl', d: d }, location.origin); } catch (e) {} };
 function cmdPlayer(o) { if (fstate === 2) frame.contentWindow.postMessage(Object.assign({ type: 'alya-cmd' }, o), location.origin); }
 window.alyaCmd = c => {
   if (c === 'play' || c === 'pause' || c === 'toggle') cmdPlayer({ cmd: c });
@@ -1432,14 +1495,30 @@ function recapBox(m) {
 // ---------- rekap dengan kartu gambar (canvas) ----------
 let RR = 7;
 const durS = x => { const p = String(x || '').split(':').map(Number); return !p.length || p.some(isNaN) ? 0 : p.reduce((a, v) => a * 60 + v, 0); };
+const BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const WAKTU = ['dini hari', 'pagi hari', 'siang hari', 'sore hari', 'malam hari'];
+function recapRange(spec) {
+  const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
+  if (spec === 'bln') return { from: +new Date(y, mo, 1), to: Infinity, label: BLN[mo] + ' ' + y };
+  if (spec === 'lalu') { const f = new Date(y, mo - 1, 1); return { from: +f, to: +new Date(y, mo, 1), label: BLN[f.getMonth()] + ' ' + f.getFullYear() }; }
+  if (spec) return { from: Date.now() - spec * 864e5, to: Infinity, label: spec + ' hari terakhir' };
+  return { from: 0, to: Infinity, label: 'Sepanjang waktu' };
+}
+function fmtMin(m) { return m < 60 ? m + ' mnt' : Math.floor(m / 60) + ' j' + (m % 60 ? ' ' + (m % 60) + ' mnt' : ''); }
 function recapStats(days) {
-  const L = DB.log.filter(t => !days || t.ts > Date.now() - days * 864e5), tc = {}, ac = {};
-  L.forEach(t => { tc[t.id] = tc[t.id] || { t, n: 0 }; tc[t.id].n++; if (t.author) ac[t.author] = (ac[t.author] || 0) + 1; });
-  return { total: L.length, nArt: Object.keys(ac).length, mins: Math.round(L.reduce((a, t) => a + durS(t.dur), 0) / 60),
+  const R = recapRange(days), L = DB.log.filter(t => t.ts > R.from && t.ts < R.to), tc = {}, ac = {}, wd = [0, 0, 0, 0, 0, 0, 0], pt = [0, 0, 0, 0, 0];
+  L.forEach(t => {
+    tc[t.id] = tc[t.id] || { t, n: 0 }; tc[t.id].n++; if (t.author) ac[t.author] = (ac[t.author] || 0) + 1;
+    const dt = new Date(t.ts), hr = dt.getHours(); wd[dt.getDay()]++; pt[hr < 5 ? 0 : hr < 11 ? 1 : hr < 15 ? 2 : hr < 18 ? 3 : 4]++;
+  });
+  const top = a => a.indexOf(Math.max.apply(null, a));
+  return { total: L.length, nArt: Object.keys(ac).length, mins: Math.round(L.reduce((a, t) => a + durS(t.dur), 0) / 60), label: R.label,
+    day: L.length ? HARI[top(wd)] : '', part: L.length ? WAKTU[top(pt)] : '',
     tracks: Object.keys(tc).map(k => tc[k]).sort((a, b) => b.n - a.n).slice(0, 5), artists: Object.keys(ac).sort((a, b) => ac[b] - ac[a]).slice(0, 5).map(k => [k, ac[k]]) };
 }
 const loadImg = src => new Promise(res => { const im = new Image(), to = setTimeout(() => res(null), 2500); im.onload = () => { clearTimeout(to); res(im); }; im.onerror = () => { clearTimeout(to); res(null); }; im.src = src; });
-async function paintRecap(cv, d, days) {
+async function paintRecap(cv, d, days, lbl) {
   const [masc, cover] = await Promise.all([loadImg('/mascot.png'), loadImg('/thumb/' + d.tracks[0].t.id)]);
   const x = cv.getContext('2d'), W = 1080, H = 1920, A = ACC.a, B = ACC.b;
   const fit = (t, w) => { let q = String(t); while (x.measureText(q).width > w && q.length > 1) q = q.slice(0, -1); return q === String(t) ? q : q.trimEnd() + '…'; };
@@ -1450,7 +1529,7 @@ async function paintRecap(cv, d, days) {
   x.fillStyle = '#fff'; x.font = '700 38px sans-serif'; x.globalAlpha = .75; x.fillText('ALYA MUSIC', 80, 120); x.globalAlpha = 1;
   if (masc) { const k = Math.min(130 / masc.width, 130 / masc.height), w2 = masc.width * k, h2 = masc.height * k; x.drawImage(masc, W - 80 - w2, 60, w2, h2); }
   x.font = '800 100px sans-serif'; x.fillText('Rekap musikmu', 80, 270);
-  x.font = '500 40px sans-serif'; x.globalAlpha = .75; x.fillText(days ? days + ' hari terakhir' : 'Sepanjang waktu', 80, 335); x.globalAlpha = 1;
+  x.font = '500 40px sans-serif'; x.globalAlpha = .75; x.fillText(lbl || (days ? days + ' hari terakhir' : 'Sepanjang waktu'), 80, 335); x.globalAlpha = 1;
   x.save(); rr(80, 400, 400, 400, 40); x.clip();
   if (cover) { const sz = Math.min(cover.width, cover.height); x.drawImage(cover, (cover.width - sz) / 2, (cover.height - sz) / 2, sz, sz, 80, 400, 400, 400); } else { x.fillStyle = A; x.fillRect(80, 400, 400, 400); }
   x.restore();
@@ -1480,14 +1559,24 @@ async function paintRecap(cv, d, days) {
 function rRecap(m) {
   const bk = h('button', 'back'); bk.type = 'button'; const bi = h('span', 'ic'); setIc(bi, 'back', 18); bk.append(bi, h('span', '', 'Saya')); bk.onclick = () => history.back(); m.appendChild(bk);
   m.appendChild(h('h1', '', 'Rekap musik'));
+  m.appendChild(h('div', 'mut', recapRange(RR).label));
   const ch = h('div', 'chips'); ch.style.marginTop = '10px';
-  [[7, '7 hari'], [30, '30 hari'], [0, 'Semua']].forEach(([n, l]) => { const b = h('button', 'chip' + (RR === n ? ' on' : ''), l); b.type = 'button'; b.onclick = () => { RR = n; render(); }; ch.appendChild(b); }); m.appendChild(ch);
+  [[7, '7 hari'], [30, '30 hari'], ['bln', 'Bulan ini'], ['lalu', 'Bulan lalu'], [0, 'Semua']].forEach(([n, l]) => { const b = h('button', 'chip' + (RR === n ? ' on' : ''), l); b.type = 'button'; b.onclick = () => { RR = n; render(); }; ch.appendChild(b); }); m.appendChild(ch);
   const d = recapStats(RR);
-  if (!d.total) { m.appendChild(h('div', 'msg', 'Belum ada data untuk periode ini. Putar beberapa lagu dulu.')); return; }
-  const st = h('div', 'rst'); [[d.total, 'Lagu diputar'], [d.nArt, 'Artis'], [d.mins ? d.mins + ' mnt' : '-', 'Perkiraan durasi']].forEach(([n, l]) => { const c = h('div'); c.append(h('b', '', String(n)), h('span', '', l)); st.appendChild(c); }); m.appendChild(st);
-  const cv = h('canvas', 'rcv'); cv.width = 1080; cv.height = 1920; m.appendChild(cv); paintRecap(cv, d, RR);
+  if (!d.total) { m.appendChild(h('div', 'msg', RR === 'lalu' ? 'Tidak ada lagu yang diputar bulan lalu.' : 'Belum ada lagu yang diputar pada periode ini. Putar beberapa lagu dulu.')); return; }
+  const st = h('div', 'rst'); [[d.total, 'Lagu diputar'], [d.nArt, 'Artis'], [d.mins ? fmtMin(d.mins) : '-', 'Waktu dengar']].forEach(([n, l]) => { const c = h('div'); c.append(h('b', '', String(n)), h('span', '', l)); st.appendChild(c); }); m.appendChild(st);
+  // ringkasan dalam kalimat
+  const sm = h('div', 'rsum'), ln = (a, b, c) => { const e = h('div'); e.append(a, h('b', '', b), c || ''); sm.appendChild(e); };
+  ln('Kamu memutar ', d.total + ' lagu', ' dari ' + d.nArt + ' artis' + (d.mins ? ', sekitar ' + fmtMin(d.mins) + ' waktu dengar' : '') + '.');
+  if (d.artists[0]) ln('Artis teratas: ', d.artists[0][0], ' (' + d.artists[0][1] + '× diputar).');
+  if (d.tracks[0]) ln('Lagu teratas: ', d.tracks[0].t.title, ' (' + d.tracks[0].n + '× diputar).');
+  if (d.total >= 10 && d.day) ln('Paling aktif pada hari ', d.day, ', biasanya pada ' + d.part + '.');
+  m.appendChild(sm);
+  const cv = h('canvas', 'rcv'); cv.width = 1080; cv.height = 1920; m.appendChild(cv); paintRecap(cv, d, typeof RR === 'number' ? RR : 0, d.label);
   const a = h('div', 'acts'); a.style.justifyContent = 'center'; m.appendChild(a);
-  const txt = 'Rekap Alya Music: ' + d.total + ' lagu diputar. Teratas: ' + d.tracks.slice(0, 3).map(o => o.t.title).join(', ') + '.';
+  const txt = ['\uD83C\uDFA7 Rekap Alya Music \u2022 ' + d.label, d.total + ' lagu \u2022 ' + d.nArt + ' artis' + (d.mins ? ' \u2022 sekitar ' + fmtMin(d.mins) : ''), '',
+    'Artis teratas'].concat(d.artists.slice(0, 3).map((x, i) => (i + 1) + '. ' + x[0] + ' (' + x[1] + '\u00D7)'), ['', 'Lagu teratas'],
+    d.tracks.slice(0, 3).map((o, i) => (i + 1) + '. ' + o.t.title + (o.t.author ? ' \u2013 ' + o.t.author : '') + ' (' + o.n + '\u00D7)')).join('\n');
   btn(a, 'Bagikan gambar', () => {
     try {
       const url = cv.toDataURL('image/png');
@@ -1496,7 +1585,10 @@ function rRecap(m) {
     } catch (e) { toast('Gagal membuat gambar'); }
   }, 'pbtn');
   btn(a, 'Bagikan teks', () => { if (window.AlyaApp && AlyaApp.share) AlyaApp.share(txt); else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Disalin')); });
-  sec(m, 'Lagu teratas'); const items = d.tracks.map(o => slim(o.t)), ls = h('div', 'list'); items.forEach((t, i) => ls.appendChild(row(t, items, i))); m.appendChild(ls);
+  const ga = sgrp(m, 'Artis teratas'); d.artists.forEach(([n, c]) => srow(ga, n, c + '× diputar', () => openArtist(n)));
+  sec(m, 'Lagu teratas'); const items = d.tracks.map(o => slim(o.t)), ls = h('div', 'list'); items.forEach((t, i) => ls.appendChild(row(t, items, i)));
+  d.tracks.forEach((o, i) => { const rs = ls.children[i] && ls.children[i].querySelector('.rs'); if (rs) rs.append(' \u2022 ' + o.n + '\u00D7 diputar'); });
+  m.appendChild(ls);
 }
 
 // ---------- antrean ----------
