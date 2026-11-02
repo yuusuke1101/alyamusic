@@ -58,6 +58,10 @@ public class AlyaServer extends NanoHTTPD {
             }
             
             if (uri.equals("/api/diag")) return json(Backend.diagJson(BuildConfig.EXTRACTOR).toString());
+            if (uri.equals("/api/log")) {
+                if ("1".equals(s.getParms().get("clear"))) Backend.logClear();
+                return json(Backend.logJson(BuildConfig.EXTRACTOR).toString());
+            }
 
             if (uri.equals("/api/suggest")) {
                 String q = s.getParms().get("q");
@@ -75,7 +79,6 @@ public class AlyaServer extends NanoHTTPD {
                 return json((type == null || type.isEmpty() ? Backend.search(qq) : Backend.searchKind(qq, type)).toString());
             }
             if (uri.startsWith("/api/track/") && Backend.validId(last)) {
-                if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);
                 // Lagu yang sudah diunduh dan perangkat sedang offline: langsung pakai data lokal, tanpa menunggu timeout jaringan.
                 if (!Backend.isOnline() && Backend.downloadFile(last) != null) {
                     JSONObject offNow = Backend.offlineTrackJson(last);
@@ -89,8 +92,13 @@ public class AlyaServer extends NanoHTTPD {
                     throw liveErr;
                 }
             }
+            if (uri.startsWith("/api/lyrics/") && Backend.validId(last)) {
+                if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);
+                return json(Backend.lyricsJson(last).toString());
+            }
             if (uri.startsWith("/api/prefetch/") && Backend.validId(last)) {
-                new Thread(() -> { try { Backend.track(last); } catch (Exception e) { } }).start();
+                // Siapkan alamat audio DAN lirik lagu berikutnya, supaya saat giliran tiba langsung mulai.
+                new Thread(() -> { try { Backend.Track pt = Backend.track(last); Backend.lyrics(last, pt); } catch (Exception e) { } }).start();
                 return json("{\"ok\":true}");
             }
             if (uri.equals("/api/downloads")) return json(Backend.downloadsList().toString());
@@ -107,6 +115,7 @@ public class AlyaServer extends NanoHTTPD {
             }
             return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Tidak ditemukan");
         } catch (Exception e) {
+            Backend.logErr("server", uri + " · " + e.getClass().getSimpleName() + ": " + e.getMessage());
             try {
                 JSONObject o = new JSONObject();
                 o.put("error", String.valueOf(e.getMessage()));

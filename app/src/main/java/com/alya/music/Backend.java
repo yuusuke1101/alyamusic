@@ -220,7 +220,8 @@ final class Backend {
             t = fromNewPipe(id);
         } catch (Exception primary) {
             npFail++; lastErr = primary.getClass().getSimpleName() + ": " + primary.getMessage();
-            try { t = fromPiped(id); pipedUsed++; } catch (Exception backup) { throw primary; }
+            logErr("ekstraksi", id + " · NewPipe gagal: " + lastErr);
+            try { t = fromPiped(id); pipedUsed++; } catch (Exception backup) { logErr("piped", id + " · cadangan Piped gagal: " + backup.getMessage()); throw primary; }
         }
         cache.put(id, t);
         touch(t);
@@ -281,11 +282,44 @@ final class Backend {
     static volatile String lastErr = "";
     static volatile int npFail, pipedUsed;
 
+    // ---------- catatan galat (hanya di memori, hilang saat aplikasi ditutup) ----------
+    // Cincin 100 entri terakhir. Dibaca layar Pengaturan > Tentang & diagnostik lewat /api/log.
+    private static final int ELOG_MAX = 100;
+    private static final java.util.ArrayDeque<JSONObject> elog = new java.util.ArrayDeque<>();
+
+    static void logErr(String tag, String msg) {
+        try {
+            String m = msg == null ? "" : msg;
+            if (m.length() > 400) m = m.substring(0, 400) + "…";
+            JSONObject e = new JSONObject().put("t", System.currentTimeMillis()).put("g", tag == null ? "" : tag).put("m", m);
+            synchronized (elog) {
+                elog.addLast(e);
+                while (elog.size() > ELOG_MAX) elog.removeFirst();
+            }
+        } catch (Exception ignore) { }
+    }
+
+    static void logClear() { synchronized (elog) { elog.clear(); } }
+
+    // Urutan: terbaru di depan.
+    static JSONObject logJson(String ver) {
+        JSONObject o = new JSONObject();
+        try {
+            JSONArray a = new JSONArray();
+            synchronized (elog) {
+                java.util.Iterator<JSONObject> it = elog.descendingIterator();
+                while (it.hasNext()) a.put(it.next());
+            }
+            o.put("extractor", ver).put("items", a);
+        } catch (Exception ignore) { }
+        return o;
+    }
+
     // Dipanggil tiap permintaan audio dari pemutar
     static void diagBegin(String id, Track t, long ttfb, int http) {
         if (!id.equals(curId)) { curId = id; reqs = 0; errs = 0; initKbps = 0; }
         curTrack = t; ttfbMs = ttfb; reqs++;
-        if (http != 200 && http != 206) errs++;
+        if (http != 200 && http != 206) { errs++; logErr("audio", id + " · server audio menjawab HTTP " + http); }
     }
 
     static JSONObject diagJson(String ver) {
@@ -602,7 +636,32 @@ final class Backend {
         o.put("previewNote", "");
         o.put("audioUrl", "/audio/" + id);
         o.put("imageSrc", "/thumb/" + id);
+        // Lirik TIDAK dicari di sini (bisa belasan detik). Kalau sudah ada di cache dipakai langsung,
+        // kalau belum pemutar mengambilnya terpisah lewat /api/lyrics/ setelah audio mulai.
+        Object[] ly = lyricsCached(id, t);
+        o.put("lyrics", ly != null ? ly[0] : new JSONArray());
+        o.put("lyricsKind", ly != null ? ly[1] : "synced");
+        o.put("lyricsDbg", ly != null ? ly[2] : "");
+        o.put("lyricsPending", ly == null);
+        return o;
+    }
+
+    // Lirik dari cache memori/disk saja, tanpa jaringan. null kalau belum ada.
+    static Object[] lyricsCached(String id, Track t) {
+        if (t.lyr == null) {
+            Object[] c = lyLoad(id);
+            if (c != null) { t.lyr = (JSONArray) c[0]; t.kind = (String) c[1]; }
+        }
+        if (t.lyr != null) return new Object[]{t.lyr, t.kind, ""};
+        if (lyNone(id)) return new Object[]{new JSONArray(), "synced", LY_NONE_MSG};
+        return null;
+    }
+
+    // Pencarian lirik lengkap (boleh lambat), dipanggil terpisah oleh pemutar.
+    static JSONObject lyricsJson(String id) throws Exception {
+        Track t = track(id);
         Object[] ly = lyrics(id, t);
+        JSONObject o = new JSONObject();
         o.put("lyrics", ly[0]);
         o.put("lyricsKind", ly[1]);
         o.put("lyricsDbg", ly[2]);
@@ -641,6 +700,33 @@ final class Backend {
         Track t = cache.get(id);
         if (t != null) { t.lyr = null; t.kind = null; }
         try { if (lyDir != null && validId(id)) new java.io.File(lyDir, id + ".json").delete(); } catch (Throwable e) { }
+        lyClearNone(id);
+    }
+
+    // Lagu yang sudah dicari tapi liriknya memang tidak ada dicatat 7 hari, supaya tidak dicari ulang tiap diputar.
+    // Hanya dicatat kalau layanan lirik benar-benar menjawab (bukan karena jaringan putus).
+    private static final long LY_NONE_MS = 7L * 24 * 3600 * 1000;
+    private static final String LY_NONE_MSG = "tidak ditemukan, dicari ulang tiap 7 hari";
+
+    static boolean lyNone(String id) {
+        try {
+            if (lyDir == null || !validId(id)) return false;
+            java.io.File f = new java.io.File(lyDir, id + ".none");
+            return f.isFile() && System.currentTimeMillis() - f.lastModified() < LY_NONE_MS;
+        } catch (Throwable e) { return false; }
+    }
+
+    private static void lyMarkNone(String id) {
+        try {
+            if (lyDir == null || !validId(id)) return;
+            java.io.File f = new java.io.File(lyDir, id + ".none");
+            if (!f.exists()) f.createNewFile();
+            f.setLastModified(System.currentTimeMillis());
+        } catch (Throwable e) { }
+    }
+
+    private static void lyClearNone(String id) {
+        try { if (lyDir != null && validId(id)) new java.io.File(lyDir, id + ".none").delete(); } catch (Throwable e) { }
     }
 
     private static Object[] lyLoad(String id) {
@@ -661,6 +747,7 @@ final class Backend {
     private static void lySave(String id, JSONArray l, String kind) {
         try {
             if (lyDir == null || !validId(id)) return;
+            lyClearNone(id);
             JSONObject o = new JSONObject().put("k", kind).put("l", l);
             java.io.File tmp = new java.io.File(lyDir, id + ".tmp");
             try (java.io.FileOutputStream w = new java.io.FileOutputStream(tmp)) { w.write(o.toString().getBytes(StandardCharsets.UTF_8)); }
@@ -681,10 +768,12 @@ final class Backend {
             if (c != null) { t.lyr = (JSONArray) c[0]; t.kind = (String) c[1]; }
         }
         if (t.lyr != null) return new Object[]{t.lyr, t.kind, ""};
+        if (lyNone(id)) return new Object[]{new JSONArray(), "synced", LY_NONE_MSG};
         JSONArray out = new JSONArray();
         String kind = "synced";
         long dl = System.currentTimeMillis() + 12000;
         int g = 0, sr = 0;
+        boolean reached = false;
         try {
             String ti = cleanTitle(t.title), ch = cleanArtist(t.artist);
             List<String[]> cands = new ArrayList<>();
@@ -716,6 +805,7 @@ final class Backend {
                     sr++;
                     Object o = lrc("search?q=" + enc(q));
                     if (!(o instanceof JSONArray)) continue;
+                    reached = true;
                     JSONArray arr = (JSONArray) o;
                     for (int k = 0; k < arr.length(); k++) {
                         JSONObject x = arr.optJSONObject(k);
@@ -738,6 +828,7 @@ final class Backend {
             }
         } catch (Throwable e) { /* lirik opsional */ }
         if (out.length() > 0) { t.lyr = out; t.kind = kind; lySave(id, out, kind); }
+        else if (reached) lyMarkNone(id);
         String d = "get " + g + "x, cari " + sr + "x, subtitle " + (t.subUrl != null ? "ada" : "tidak ada") + ", hasil " + out.length() + " baris";
         return new Object[]{out, kind, d};
     }

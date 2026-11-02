@@ -1213,6 +1213,7 @@ function setTentang(m) {
   srow(g5, 'Pembaruan', up, () => { if (updInfo && updInfo.available) updStart(); else checkUpdate(true).then(d => toast(!d ? 'Tidak bisa memeriksa' : d.available ? 'Update tersedia' : 'Sudah terbaru')); });
   srow(g5, 'Alya Music', updInfo && updInfo.currentName ? 'Versi ' + updInfo.currentName : '');
   diagBox(m);
+  logBox(m);
 }
 function rSet(m) {
   const sec = SETS.find(x => x[0] === V.id); if (!sec) { setView('me'); return; }
@@ -1251,6 +1252,36 @@ function diagBox(m) {
       }
       srow(g, 'Muat ulang', 'Perbarui angka di atas', fill);
       srow(g, 'Salin laporan', 'Tempel ke chat untuk dianalisis', () => { const t = rep.join('\n'); if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(t); else if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Disalin')); });
+    }).catch(() => { g.textContent = ''; srow(g, 'Tidak bisa memuat', 'Server internal tidak menjawab', fill); });
+  };
+  fill();
+}
+
+// ---------- catatan galat ----------
+function logBox(m) {
+  const g = sgrp(m, 'Catatan galat');
+  const p2 = n => String(n).padStart(2, '0');
+  const hm = ms => { const d = new Date(ms); return p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()); };
+  const copyTxt = t => { if (window.AlyaApp && AlyaApp.copy) AlyaApp.copy(t); else if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Disalin'), () => toast('Gagal menyalin')); };
+  const fill = () => {
+    g.textContent = '';
+    srow(g, 'Memuat...', 'Membaca catatan galat');
+    fetch('/api/log').then(r => r.json()).then(d => {
+      g.textContent = '';
+      const items = d.items || [];
+      if (!items.length) srow(g, 'Belum ada galat', 'Catatan hanya di memori dan hilang saat aplikasi ditutup');
+      else {
+        items.slice(0, 15).forEach(e => srow(g, hm(e.t) + ' · ' + e.g, String(e.m).slice(0, 140)));
+        if (items.length > 15) srow(g, 'Dan ' + (items.length - 15) + ' lainnya', 'Semua ikut tersalin lewat \"Salin catatan\"');
+      }
+      srow(g, 'Muat ulang', 'Perbarui daftar di atas', fill);
+      if (items.length) {
+        srow(g, 'Salin catatan', 'Tempel ke chat untuk dianalisis', () => {
+          const head = 'Catatan galat Alya Music' + (updInfo && updInfo.currentName ? ' ' + updInfo.currentName : '') + ' · NewPipe ' + (d.extractor || '?') + ' · ' + items.length + ' entri (terbaru di atas)';
+          copyTxt(head + '\n' + items.map(e => '[' + hm(e.t) + '] ' + e.g + ' · ' + e.m).join('\n'));
+        });
+        srow(g, 'Kosongkan catatan', '', () => confirmBox('Kosongkan catatan galat?', 'Kosongkan', () => { fetch('/api/log?clear=1').then(fill, fill); })).classList.add('danger');
+      }
     }).catch(() => { g.textContent = ''; srow(g, 'Tidak bisa memuat', 'Server internal tidak menjawab', fill); });
   };
   fill();

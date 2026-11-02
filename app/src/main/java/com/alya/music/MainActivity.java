@@ -204,7 +204,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                         int code = c.getResponseCode();
                         if (code != 200 && code != 206) { c.disconnect(); throw new Exception("HTTP " + code); }
                     } catch (Exception primaryErr) {
-                        android.util.Log.w("AlyaDl", "sumber utama gagal: " + primaryErr);
+                        android.util.Log.w("AlyaDl", "sumber utama gagal: " + primaryErr); Backend.logErr("unduh", id + " · sumber utama gagal: " + primaryErr);
                         boolean altOk = false;
                         try {
                             dl(id, "{\"stage\":\"Mencoba sumber alternatif...\"}");
@@ -213,7 +213,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                             int code2 = c.getResponseCode();
                             if (code2 != 200 && code2 != 206) { c.disconnect(); throw new Exception("HTTP " + code2); }
                             altOk = true;
-                        } catch (Exception altErr) { android.util.Log.w("AlyaDl", "sumber alternatif gagal: " + altErr); }
+                        } catch (Exception altErr) { android.util.Log.w("AlyaDl", "sumber alternatif gagal: " + altErr); Backend.logErr("unduh", id + " · sumber alternatif gagal: " + altErr); }
                         if (!altOk) {
                             dl(id, "{\"stage\":\"Sumber utama gagal, mencoba cadangan (bisa sampai 1 menit)...\"}");
                             t = Backend.fromYtmp3(id);
@@ -250,7 +250,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                     Backend.saveCover(id);
                     dl(id, "{\"done\":true,\"src\":" + org.json.JSONObject.quote(viaFallback ? "cadangan" : "utama") + "}");
                 } catch (Exception e) {
-                    android.util.Log.w("AlyaDl", "unduhan gagal: " + e);
+                    android.util.Log.w("AlyaDl", "unduhan gagal: " + e); Backend.logErr("unduh", id + " · unduhan gagal: " + e);
                     if (tmp != null) tmp.delete();
                     dl(id, "{\"err\":" + org.json.JSONObject.quote(String.valueOf(e.getMessage())) + "}");
                 } finally {
