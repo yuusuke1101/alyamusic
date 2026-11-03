@@ -331,6 +331,61 @@ button:active{transform:scale(.96)}
 .gen{min-height:60px;padding:14px 16px;border-radius:18px;font-size:15px;letter-spacing:-.01em;text-shadow:0 1px 2px rgba(0,0,0,.25);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 6px 16px rgba(0,0,0,.22)}
 .gen:active{transform:scale(.97)}
 @media(min-width:900px){.chips.mood{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px}}
+
+/* ===== Paket 6: Beranda baru ===== */
+.home .rail{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;scroll-padding-left:16px}
+@media(min-width:900px){.home .rail{margin-left:-26px;margin-right:-26px;padding-left:26px;padding-right:26px;scroll-padding-left:26px}}
+.home .sec{margin:26px 0 12px;align-items:center}
+.home .sec h2{font-size:19px;font-weight:800;display:flex;align-items:center;gap:10px}
+.home .sec h2::before{content:"";width:4px;height:20px;border-radius:3px;background:linear-gradient(180deg,var(--a),var(--b));flex:none}
+.home .sec button::after{content:"\203A";font-size:19px;line-height:1;margin-left:4px}
+.hhd{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
+.hhd .abtn{border-radius:50%;box-shadow:0 0 0 2px color-mix(in srgb,var(--a) 70%,transparent),0 0 18px color-mix(in srgb,var(--a) 35%,transparent)}
+.hhd .gt{flex:1;min-width:0}
+.hhd h1{font-size:22px;font-weight:800;margin:0;letter-spacing:-.2px}
+.hhd p{margin:2px 0 0;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hhd .hib{position:relative;width:42px;height:42px;border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--ink)}
+.hhd .hib.dot::after{content:"";position:absolute;top:9px;right:10px;width:9px;height:9px;border-radius:50%;background:#ff4d6d;box-shadow:0 0 0 2px var(--bg)}
+.chip.hic{display:inline-flex;align-items:center;gap:7px;padding:10px 16px 10px 13px}
+.chip.hic .ic{color:var(--a)}.chip.hic.on .ic{color:#fff}
+.hero{position:relative;overflow:hidden;isolation:isolate;border-radius:26px;margin:6px 0 2px;min-height:204px;border:1px solid color-mix(in srgb,var(--a) 45%,transparent);background:radial-gradient(120% 140% at 82% 42%,color-mix(in srgb,var(--a) 50%,#1a1050) 0%,#150d3f 55%,#0b0724 100%);box-shadow:0 14px 36px color-mix(in srgb,var(--a) 26%,transparent)}
+.hwave{position:absolute;left:0;bottom:0;width:100%;height:62%;z-index:0;pointer-events:none}
+.hart{position:absolute;right:-26px;top:50%;height:96%;aspect-ratio:1;transform:translateY(-50%);z-index:0;pointer-events:none}
+.hvin{transform-box:fill-box;transform-origin:center;animation:hspin 40s linear infinite}
+.hhp{animation:hfloat 6s ease-in-out infinite}
+@keyframes hspin{to{transform:rotate(360deg)}}
+@keyframes hfloat{50%{transform:translateY(-5px)}}
+.hs{position:relative;z-index:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+.hs::-webkit-scrollbar{display:none}
+.hsl{flex:none;width:100%;box-sizing:border-box;scroll-snap-align:start;min-height:204px;padding:18px 18px 42px;color:#fff}
+.hbadge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border-radius:10px;background:rgba(255,255,255,.12);font-size:12px;font-weight:600}
+.hsl h2{margin:12px 0 4px;font-size:clamp(20px,6vw,26px);line-height:1.14;font-weight:850;letter-spacing:-.3px;white-space:nowrap}
+.hsl h2 em{font-style:normal;background:linear-gradient(90deg,#a78bfa,#38bdf8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hsl p{margin:0 0 14px;font-size:13.5px;opacity:.85}
+.hbtn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px 10px 14px;border:none;border-radius:99px;color:#fff;font-size:14px;font-weight:700;background:linear-gradient(135deg,#7c4dff,#5b6cff);box-shadow:0 8px 22px rgba(124,77,255,.5)}
+.hbtn:active{transform:scale(.96)}
+.hdots{position:absolute;right:16px;bottom:14px;z-index:2;display:flex;gap:6px}
+.hdots button{padding:0;border:none;width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.35);transition:width .25s var(--ease),background .25s}
+.hdots button.on{width:24px;background:linear-gradient(90deg,#8b5cf6,#38bdf8)}
+.pk{flex:none;width:clamp(96px,27vw,var(--cw));padding:0;text-align:left;background:none;border:none;color:inherit;scroll-snap-align:start}
+.pk .pc{position:relative;display:block;width:100%;aspect-ratio:1;border-radius:var(--cvr);overflow:hidden;background:var(--surf2)}
+.pk .pp{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(10,8,30,.55);border:1.5px solid rgba(255,255,255,.85)}
+.pk .pt{margin-top:8px;font-size:13px;font-weight:650;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tl{display:flex;flex-direction:column;gap:10px}
+.trow{display:flex;align-items:center;gap:12px;width:100%;padding:7px;border-radius:18px;background:var(--card);border:1px solid var(--line);color:inherit;text-align:left}
+.trow img,.trow .sk{width:88px;height:62px;border-radius:13px;object-fit:cover;flex:none;background:var(--surf2)}
+.trow .rb{flex:1;min-width:0}
+.trow .rt{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .rs{margin-top:3px;font-size:12.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .tp{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--ink);background:color-mix(in srgb,var(--a) 38%,transparent)}
+.trow.now{border-color:color-mix(in srgb,var(--a) 70%,transparent)}
+.card.ar{display:flex;flex-direction:column;align-items:center;text-align:center}
+.card.ar>:first-child{box-shadow:0 0 0 2px color-mix(in srgb,var(--a) 55%,transparent),0 8px 20px rgba(0,0,0,.28)}
+.card.ar .sk{width:calc(var(--cw)*.84);height:calc(var(--cw)*.84);border-radius:50%}
+.card.ar .ct,.card.ar .ca{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.ar .ct{margin-top:10px}
+.mini{border-color:color-mix(in srgb,var(--a) 50%,var(--line))}
+.mbar{position:absolute;left:20px;right:20px;bottom:0;height:2.5px;border-radius:2px;background:linear-gradient(90deg,var(--a),var(--b));transform-origin:left;transform:scaleX(0);transition:transform .45s linear;pointer-events:none}
 </style>
 </head>
 <body>
@@ -364,6 +419,7 @@ button:active{transform:scale(.96)}
   <button class="ib" id="m-prev" aria-label="Sebelumnya"></button>
   <button class="ib main-b" id="m-play" aria-label="Putar atau jeda"></button>
   <button class="ib" id="m-next" aria-label="Berikutnya"></button>
+  <i class="mbar" id="m-bar"></i>
 </div>
 <div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
 <div class="toast" id="toast"></div>
@@ -410,6 +466,16 @@ const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
 const svg = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="' + (FILL[n] ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + P[n] + '</svg>';
 const setIc = (el, n, s) => { el.innerHTML = svg(n, s); };
 const ib = (n, label, fn, cls) => { const b = h('button', 'ib ' + (cls || '')); b.type = 'button'; b.setAttribute('aria-label', label); setIc(b, n); b.addEventListener('click', e => { e.stopPropagation(); fn(e); }); return b; };
+
+Object.assign(P, {
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+  leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'
+});
+// Garis progres di mini player: membaca media.pos / media.dur tiap 0,5 detik, hanya saat mini terlihat.
+setInterval(() => { const b = document.getElementById('m-bar'), mn = document.getElementById('mini'); if (b && mn && !mn.hidden) b.style.transform = 'scaleX(' + (media.dur > 0 ? Math.min(1, media.pos / media.dur) : 0) + ')'; }, 500);
 
 // ---------- data ----------
 const load = () => {
@@ -861,7 +927,7 @@ function artistRelRail(m, term) {
   const s = h('div', 'sec'); s.appendChild(h('h2', '', 'Karena kamu sering cari "' + term + '"'));
   m.appendChild(s);
   const slot = h('div', 'rail');
-  for (let i = 0; i < 5; i++) { const c = h('div', 'card'); c.append(h('div', 'sk'), h('div', 'ct', ' ')); slot.appendChild(c); }
+  for (let i = 0; i < 5; i++) { const c = h('div', 'card ar'); c.append(h('div', 'sk'), h('div', 'ct', ' ')); slot.appendChild(c); }
   m.appendChild(slot);
   fetch('/api/search?type=artists&q=' + encodeURIComponent(term)).then(r => r.ok ? r.json() : []).then(d => {
     if (!slot.isConnected) return;
@@ -869,8 +935,8 @@ function artistRelRail(m, term) {
     if (!arr.length) { s.remove(); slot.remove(); return; }
     const r = h('div', 'rail');
     arr.forEach(x => {
-      const c = h('button', 'card'); c.type = 'button';
-      c.append(xcv(x.img, x.name.trim().charAt(0).toUpperCase(), '142px', '50%'), h('div', 'ct', x.name), h('div', 'ca', x.subs || 'Artis'));
+      const c = h('button', 'card ar'); c.type = 'button';
+      c.append(xcv(x.img, x.name.trim().charAt(0).toUpperCase(), 'calc(var(--cw)*.84)', '50%'), h('div', 'ct', x.name), h('div', 'ca', x.subs || 'Artis'));
       c.onclick = () => openArtist(x.name, x.subs, x.img);
       r.appendChild(c);
     });
@@ -891,15 +957,103 @@ function genreGrid(m) {
   GENRES.forEach(([n, c, q]) => { const b = h('button', 'gen', n); b.type = 'button'; b.style.background = 'linear-gradient(135deg,' + c + ')'; b.onclick = () => runSearch(q, true); gg.appendChild(b); }); m.appendChild(gg);
 }
 let HF = '';
-function rHome(m) {
-  const hr = new Date().getHours();
-  const top = h('div', 'htop');
+// ---------- Paket 6: Beranda baru ----------
+const MOOD_IC = { Santai: 'leaf', Semangat: 'flame', Fokus: 'target', Galau: 'moon', Anime: 'star', Indonesia: 'music' };
+const HERO_ART = `<svg class="hwave" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="hw" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c4dff" stop-opacity="0"/><stop offset=".5" stop-color="#7c4dff"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><g fill="none" stroke="url(#hw)" stroke-linecap="round"><path d="M0 96C70 52 130 124 210 84S340 36 400 74" stroke-width="2" opacity=".75"/><path d="M0 108C80 70 140 128 220 100S350 58 400 92" stroke-width="1.4" opacity=".5"/><path d="M0 84C60 40 140 104 220 66S350 24 400 56" stroke-width="1" opacity=".35"/></g></svg>` +
+`<svg class="hart" viewBox="0 0 220 200" aria-hidden="true"><defs><radialGradient id="hg" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".55"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient><linearGradient id="hv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#271a63"/><stop offset="1" stop-color="#0a0720"/></linearGradient><linearGradient id="hc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset=".55" stop-color="#5b3fe0"/><stop offset="1" stop-color="#2a1a85"/></linearGradient><linearGradient id="hb" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b79cff"/><stop offset=".5" stop-color="#6d4aff"/><stop offset="1" stop-color="#3b82f6"/></linearGradient><linearGradient id="hl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs>` +
+`<circle cx="112" cy="102" r="108" fill="url(#hg)"/><g class="hvin"><circle cx="118" cy="108" r="84" fill="url(#hv)" stroke="rgba(167,139,250,.35)" stroke-width="1.5"/><g fill="none" stroke="rgba(255,255,255,.07)"><circle cx="118" cy="108" r="74"/><circle cx="118" cy="108" r="65"/><circle cx="118" cy="108" r="56"/><circle cx="118" cy="108" r="47"/></g><path d="M118 108V24A84 84 0 0 1 186 58Z" fill="rgba(255,255,255,.06)"/><circle cx="118" cy="108" r="26" fill="url(#hl)"/><circle cx="118" cy="108" r="5" fill="#0a0720"/></g>` +
+`<g class="hhp"><path d="M58 124C54 34 182 34 178 124" fill="none" stroke="url(#hb)" stroke-width="13" stroke-linecap="round"/><path d="M64 120C61 46 175 46 172 120" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2" stroke-linecap="round"/><rect x="38" y="100" width="42" height="74" rx="21" fill="url(#hc)"/><rect x="156" y="100" width="42" height="74" rx="21" fill="url(#hc)"/><rect x="47" y="112" width="28" height="50" rx="14" fill="#1a1050" opacity=".75"/><rect x="161" y="112" width="28" height="50" rx="14" fill="#1a1050" opacity=".75"/><path d="M45 120Q43 137 45 154M158 120Q156 137 158 154" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.5" stroke-linecap="round"/></g>` +
+`<path d="M30 40V24l9-2v13" fill="none" stroke="#c4b5fd" stroke-width="2.4" stroke-linecap="round"/><g fill="#c4b5fd"><circle cx="26" cy="40" r="4"/><circle cx="35" cy="35" r="4"/></g><g fill="#e9e3ff"><path d="M196 36l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/><path d="M16 96l1.5 4.5 4.5 1.5-4.5 1.5L16 108l-1.5-4.5L10 102l4.5-1.5z" opacity=".7"/></g></svg>`;
+function homeHead(m, g) {
+  const hd = h('div', 'hhd');
   const ab = h('button', 'abtn'); ab.type = 'button'; ab.setAttribute('aria-label', 'Akun');
-  if (G.u) ab.appendChild(av(G.u.name, G.u.photo, 34)); else { const d = h('span', 'av ph0'); setIc(d, 'user', 18); ab.appendChild(d); }
-  ab.onclick = () => setView('me'); top.appendChild(ab);
-  const c = h('div', 'chips'); c.style.cssText = 'margin:0;padding:0;flex:1';
-  MOODS.forEach(([l, q]) => { const b = h('button', 'chip' + (HF === q ? ' on' : ''), l); b.type = 'button'; b.onclick = () => { HF = HF === q ? '' : q; render(); }; c.appendChild(b); });
-  top.appendChild(c); m.appendChild(top);
+  if (G.u) ab.appendChild(av(G.u.name, G.u.photo, 52)); else { const d = h('span', 'av ph0'); d.style.cssText = 'width:52px;height:52px'; setIc(d, 'user', 22); ab.appendChild(d); }
+  ab.onclick = () => setView('me');
+  const gt = h('div', 'gt'); gt.append(h('h1', '', g), h('p', '', 'Nikmati musik favoritmu!'));
+  const sb = ib('search', 'Cari', () => setView('search')); sb.classList.add('hib');
+  const bb = ib('bell', 'Teman dan kiriman', () => setView('friends')); bb.classList.add('hib');
+  if (G.u && (G.inbox.length || G.reqs.length)) bb.classList.add('dot');
+  hd.append(ab, gt, sb, bb); m.appendChild(hd);
+  const c = h('div', 'chips mood');
+  MOODS.forEach(([l, q]) => { const b = h('button', 'chip hic' + (HF === q ? ' on' : '')); b.type = 'button'; const i = h('span', 'ic'); setIc(i, MOOD_IC[l] || 'music', 16); b.append(i, h('span', '', l)); b.onclick = () => { HF = HF === q ? '' : q; render(); }; c.appendChild(b); });
+  m.appendChild(c);
+}
+function hero(m) {
+  const tp = topArtists(3);
+  const S = [
+    ['Dengarkan', 'Musik Terbaikmu!', 'Kapan saja, di mana saja', 'Mulai Sekarang', () => { if (tp.length) { toast('Menyiapkan mix...'); buildMix(tp).then(l => l.length ? playFrom(l, 0) : toast('Mix kosong')).catch(() => toast('Gagal menyiapkan mix')); } else runSearch('lagu viral trending', true); }],
+    ['Temukan', 'Rilis Barumu!', 'Lagu baru yang sedang naik', 'Jelajahi', () => runSearch('lagu baru rilis minggu ini', true)],
+    ['Unduh dan', 'Putar Offline!', 'Dengar tanpa internet', 'Buka Unduhan', () => setView('list', 'dl')],
+    ['Dengarkan', 'Bareng Teman!', 'Kirim lagu, lihat yang mereka putar', 'Buka Teman', () => setView('friends')]
+  ];
+  const w = h('div', 'hero'); w.insertAdjacentHTML('beforeend', HERO_ART);
+  const tr = h('div', 'hs'), dots = h('div', 'hdots');
+  S.forEach(([a, b, c, bt, fn], i) => {
+    const sl = h('section', 'hsl'), bd = h('span', 'hbadge'), bi = h('span', 'ic'); setIc(bi, 'music', 13); bd.append(bi, 'Alya Music');
+    const t = h('h2'); t.append(a, h('br'), h('em', '', b));
+    const bn = h('button', 'hbtn'); bn.type = 'button'; const pi = h('span', 'ic'); setIc(pi, 'play', 16); bn.append(pi, bt); bn.onclick = fn;
+    sl.append(bd, t, h('p', '', c), bn); tr.appendChild(sl);
+    const d = h('button', i ? '' : 'on'); d.type = 'button'; d.setAttribute('aria-label', 'Slide ' + (i + 1)); d.onclick = () => tr.scrollTo({ left: i * tr.clientWidth, behavior: 'smooth' }); dots.appendChild(d);
+  });
+  w.append(tr, dots); m.appendChild(w);
+  let hold = 0; const cur = () => Math.round(tr.scrollLeft / (tr.clientWidth || 1));
+  tr.addEventListener('scroll', () => { const k = cur(); [...dots.children].forEach((d, n) => d.classList.toggle('on', n === k)); }, { passive: true });
+  tr.addEventListener('touchstart', () => { hold = Date.now() + 15000; }, { passive: true });
+  if (!matchMedia('(prefers-reduced-motion:reduce)').matches) { const tm = setInterval(() => { if (!w.isConnected) { clearInterval(tm); return; } if (document.hidden || Date.now() < hold) return; tr.scrollTo({ left: ((cur() + 1) % S.length) * tr.clientWidth, behavior: 'smooth' }); }, 6000); }
+}
+const PICKS = [['Lagu Santai Viral 2026', 'lagu santai viral 2026'], ['Anime Song Collection', 'anime song collection'], ['Top Hits Indonesia', 'top hits indonesia'], ['Focus Music', 'focus music playlist']];
+function pickRail(m) {
+  const s = h('div', 'sec'); s.appendChild(h('h2', '', 'Playlist Pilihan'));
+  const mb = h('button', '', 'Lihat semua'); mb.type = 'button'; mb.onclick = () => { lastQ = 'playlist lagu populer'; results = []; setView('search'); runKind('playlists'); }; s.appendChild(mb); m.appendChild(s);
+  const rl = h('div', 'rail');
+  const cells = PICKS.map(() => { const b = h('div', 'pk'); b.append(h('div', 'pc sk'), h('div', 'pt', ' ')); rl.appendChild(b); return b; });
+  m.appendChild(rl);
+  let left = PICKS.length;
+  const gone = () => { if (--left <= 0 && s.isConnected) { s.remove(); rl.remove(); } };
+  PICKS.forEach(([label, q], i) => {
+    loadQ = loadQ.then(() => {
+      if (!rl.isConnected) return;
+      const k = 'alya_pk_' + q; let hit = null;
+      try { const c = JSON.parse(localStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < 216e5) hit = c.d; } catch (e) {}
+      return (hit ? Promise.resolve(hit) : fetch('/api/search?type=playlists&q=' + encodeURIComponent(q)).then(r => r.ok ? r.json() : []).then(d => { const x = (Array.isArray(d) ? d : []).find(z => z && z.id); if (!x) return null; const o = { id: x.id, img: x.img || '' }; try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), d: o })); } catch (e) {} return o; }))
+        .then(x => {
+          if (!cells[i].isConnected) return;
+          if (!x) { cells[i].remove(); gone(); return; }
+          const b = h('button', 'pk'); b.type = 'button';
+          const pc = h('span', 'pc'); pc.append(xcv(x.img, '\u{1F4BF}', '100%', '0', true)); const pp = h('span', 'pp'); setIc(pp, 'play', 15); pc.appendChild(pp);
+          b.append(pc, h('span', 'pt', label)); b.onclick = () => openRemote(x.id, label);
+          cells[i].replaceWith(b);
+        }).catch(() => { if (cells[i].isConnected) { cells[i].remove(); gone(); } });
+    });
+  });
+}
+function trendList(m) {
+  const s = h('div', 'sec'); s.appendChild(h('h2', '', 'Trending Sekarang'));
+  const mb = h('button', '', 'Lihat semua'); mb.type = 'button'; mb.onclick = () => runSearch('lagu viral trending', true); s.appendChild(mb); m.appendChild(s);
+  const box = h('div', 'tl');
+  for (let i = 0; i < 4; i++) { const r = h('div', 'trow'); r.append(h('div', 'sk'), h('div', 'rb')); box.appendChild(r); }
+  m.appendChild(box);
+  Promise.resolve().then(() => {
+    if (!box.isConnected) return;
+    return cached('lagu viral trending').then(d => {
+      if (!box.isConnected) return;
+      const items = (Array.isArray(d) ? d : []).slice(0, 5);
+      if (!items.length) { s.remove(); box.remove(); return; }
+      box.replaceChildren(...items.map((t, i) => {
+        const r = h('button', 'trow'); r.type = 'button'; r.dataset.id = t.id;
+        const im = h('img'); im.src = thumb(t.id); im.alt = ''; im.loading = 'lazy';
+        const bx = h('div', 'rb'); bx.append(h('div', 'rt', t.title), h('div', 'rs', (t.author || '') + (t.duration ? ' \u2022 ' + t.duration : '')));
+        const pi = h('span', 'tp'); setIc(pi, 'play', 18); r.append(im, bx, pi); r.onclick = () => playFrom(items, i); return r;
+      }));
+      markNow();
+    }).catch(() => { if (box.isConnected) { s.remove(); box.replaceWith(h('div', 'mut', 'Gagal memuat. Periksa koneksi.')); } });
+  });
+}
+function rHome(m0) {
+  const m = h('div', 'home'); m0.appendChild(m);
+  const hr = new Date().getHours();
+  const g = hr < 4 ? 'Selamat malam' : hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
+  homeHead(m, g);
   banner(m);
 
   if (HF) {
@@ -907,8 +1061,7 @@ function rHome(m) {
     railSlot(m, mo[0], HF); railSlot(m, mo[0] + ' terbaru', HF + ' terbaru'); railSlot(m, mo[0] + ' populer', HF + ' populer');
     return;
   }
-  const g = hr < 4 ? 'Selamat malam' : hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
-  m.appendChild(h('h1', 'gr', g));
+  hero(m);
   const qp = h('div', 'qp');
   const fb = h('button'); fb.type = 'button'; const fi = h('span', 'fv'); setIc(fi, 'heart', 22); fb.append(fi, h('span', '', 'Lagu Favorit')); fb.onclick = () => setView('list', 'fav'); qp.appendChild(fb);
   DB.lists.slice(0, 2).forEach(l => { const b = h('button'); b.type = 'button'; b.append(mosaic(l.tracks, 'cv'), h('span', '', l.name)); b.onclick = () => setView('list', l.id); qp.appendChild(b); });
@@ -924,7 +1077,7 @@ function rHome(m) {
   const tp = topArtists(3);
   if (tp.length) { const mx = h('button', 'mix'); mx.type = 'button'; mx.append(h('b', '', 'Mix Harian'), h('span', '', tp.join(', ') + ' dan lainnya')); mx.onclick = () => { toast('Menyiapkan mix...'); buildMix(tp).then(l => l.length ? playFrom(l, 0) : toast('Mix kosong')).catch(() => toast('Gagal menyiapkan mix')); }; m.appendChild(mx); }
 
-  railSlot(m, 'Trending sekarang', 'lagu viral trending');
+  pickRail(m); trendList(m);
   railSlot(m, 'Rilis baru minggu ini', 'lagu baru rilis minggu ini');
   const relTerm = topSearch(1)[0];
   if (relTerm) artistRelRail(m, relTerm);
@@ -1484,7 +1637,7 @@ function inboxSec(m, n) {
     b.append(h('div', 'rt', x.title), h('div', 'rs', x.react ? (x.name || 'Teman') + ' menyukai lagu ini' : 'Dikirim oleh ' + (x.name || 'teman') + (x.author ? ' • ' + x.author : ''))); r.appendChild(b);
     if (!x.react) r.appendChild(ib('heart', 'Suka', () => sendReact(x).catch(err)));
     r.append(ib('play', 'Putar', () => playFrom([{ id: x.tid, title: x.title, author: x.author }], 0)),
-      ib('trash', 'Hapus', () => fs('/users/' + G.u.uid + '/inbox/' + x.id, 'DELETE').then(() => { G.inbox = G.inbox.filter(i => i.id !== x.id); render(); }).catch(err)));
+      ib('trash', 'Hapus', () => confirmBox('Hapus lagu kiriman ini?', 'Hapus', () => fs('/users/' + G.u.uid + '/inbox/' + x.id, 'DELETE').then(() => { G.inbox = G.inbox.filter(i => i.id !== x.id); render(); }).catch(err))));
     m.appendChild(r);
   });
 }
