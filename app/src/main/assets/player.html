@@ -26,7 +26,7 @@
   .disc.spin { animation-play-state:running; }
   .disc img { width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; }
   .disc::after { content:''; position:absolute; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; background:var(--bg); border:3px solid rgba(255,255,255,.16); }
-  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
   @media (prefers-reduced-motion:reduce) { .disc { animation:none; } }
   .title { font-size:19px; font-weight:700; letter-spacing:-.01em; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .artist { font-size:13px; color:var(--muted); text-align:center; margin:4px 0 6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -163,7 +163,7 @@
   .nav button.on::before { content:''; position:absolute; top:-1px; left:32%; right:32%; height:2px; border-radius:2px; background:linear-gradient(90deg,var(--a),var(--b)); }
 
   /* -- Putar -- */
-  .disc { width:min(58vw,188px); height:min(58vw,188px); margin:6px auto 16px; backface-visibility:hidden; transform:translateZ(0); }
+  .disc { width:min(58vw,188px); height:min(58vw,188px); margin:6px auto 16px; backface-visibility:hidden; }
   .disc::before { content:''; position:absolute; inset:0; border-radius:50%; pointer-events:none; background:repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.06) 0 1px, transparent 1px 3px); -webkit-mask:radial-gradient(circle closest-side, transparent calc(100% - 14px), #000 calc(100% - 13px)); mask:radial-gradient(circle closest-side, transparent calc(100% - 14px), #000 calc(100% - 13px)); }
   html.cv-sq .disc::before { display:none; }
   .title { font-size:21px; font-weight:700; letter-spacing:-.015em; line-height:1.25; }
@@ -233,8 +233,23 @@
   .mk .md { flex:none; padding:6px; font-size:11px; color:var(--muted); cursor:pointer; }
   .grp .ly-empty { padding:6px 0 14px; }
 
-  @media (max-height:700px) { .disc { width:132px; height:132px; margin-bottom:10px; } .acts2 { margin-bottom:10px; } }
+  @media (max-height:700px) { .disc { width:160px; height:160px; margin-bottom:12px; } }
+  @media (max-height:600px) { .disc { width:128px; height:128px; margin-bottom:8px; } }
   @media (prefers-reduced-motion:reduce) { .panel.on, .chip.on { animation:none; } .ly, .bar__dot, button { transition:none; } }
+
+  /* -- v17: aksi ringkas, kontrol lebih tenang -- */
+  .acts2 { gap:0; justify-content:space-evenly; margin:2px 0 10px; }
+  .ab { flex:1; min-width:0; padding:0; gap:5px; background:none; border:none; border-radius:var(--r2); font-size:10.5px; font-weight:600; color:var(--muted); }
+  .ab svg { box-sizing:border-box; width:42px; height:42px; padding:11px; border-radius:50%; background:var(--card); border:1px solid var(--line); transition:transform .15s var(--e); }
+  .ab:active { transform:none; }
+  .ab:active svg { transform:scale(.9); }
+  .ab.act { background:none; color:var(--ink); }
+  .ab.act svg { color:#fff; background:linear-gradient(135deg,var(--a),var(--b)); border-color:transparent; }
+  .ctl:not(.ctl2) > .sbtn { min-width:46px; height:46px; padding:0; border-radius:50%; background:var(--card); border:1px solid var(--line); }
+  .ctl:not(.ctl2) > .sbtn.act { color:var(--b); background:color-mix(in srgb,var(--a) 18%,transparent); border-color:color-mix(in srgb,var(--a) 45%,transparent); }
+  .viz { height:26px; margin-bottom:10px; opacity:.6; }
+  .now { height:18px; margin-bottom:8px; opacity:.72; }
+  .qinfo { margin:8px 0 4px; }
 </style>
 
 <div class="wrap">
@@ -398,6 +413,7 @@
             </div>
             <div class="grp">
               <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Pilihan</h3>
+            <div class="row sw-row"><span>Putar otomatis<small>Lanjut ke lagu berikutnya, dan cari lagu serupa saat antrean habis</small></span><button class="sw on" id="sw-auto" aria-label="Putar otomatis"></button></div>
             <div class="row sw-row"><span>Ulangi lagu<small>Putar ulang lagu ini terus-menerus</small></span><button class="sw" id="sw-loop" aria-label="Ulangi lagu"></button></div>
             <div class="row sw-row"><span>Fade-in saat putar<small>Volume naik pelan saat lagu mulai</small></span><button class="sw" id="sw-fade" aria-label="Fade-in"></button></div>
             <div class="row sw-row"><span>Audio murni<small>Tanpa efek, lebih stabil di aplikasi</small></span><button class="sw" id="sw-pure" aria-label="Audio murni"></button></div>
@@ -1071,6 +1087,7 @@
   $('btn-fw').addEventListener('click', function() { seekTo(pos() + 10); });
   $('btn-loop').addEventListener('click', function() { post({ type: 'alya-ui', act: 'mode' }); });
   $('sw-loop').addEventListener('click', function() { setLoop(!loop); });
+  $('sw-auto').addEventListener('click', function() { post({ type: 'alya-ui', act: 'auto' }); });
   $('sw-viz').addEventListener('click', function() { setViz(!vizOn); });
   $('sw-fade').addEventListener('click', function() {
     fadeIn = !fadeIn;
@@ -1555,6 +1572,7 @@
     else if (d.type === 'alya-accent' && /^#[0-9a-f]{6}$/i.test(d.a) && /^#[0-9a-f]{6}$/i.test(d.b)) { THEMES[0].a = d.a; THEMES[0].b = d.b; if (SW[0]) SW[0].style.background = 'linear-gradient(135deg,' + d.a + ',' + d.b + ')'; if (curTheme === 0) setTheme(0); }
     else if (d.type === 'alya-dl' && d.d && typeof d.d === 'object') window.alyaDl(d.d);
     else if (d.type === 'alya-mode') setModeUi(d.m);
+    else if (d.type === 'alya-auto') $('sw-auto').classList.toggle('on', !!d.on);
     else if (d.type === 'alya-q') setQInfo(d);
     else if (d.type === 'alya-cmd') {
       if (d.cmd === 'toggle') { if (playing) pause(); else startAt(null, true); }

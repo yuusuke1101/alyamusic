@@ -269,8 +269,8 @@ button:active{transform:scale(.96)}
 
 /* ===== v13: bilah atas layar pemutar muat di layar kecil ===== */
 .sh{gap:4px;justify-content:space-between}
-.sh .shl{display:none}
-.sh .tg{padding:6px 9px;font-size:11px}
+.sh .shl{display:block;flex:1;padding-left:6px;font-size:12.5px;letter-spacing:.02em}
+.sh .tg{display:none!important}
 .sh .ib{width:38px;height:38px;flex:none}
 
 /* ===== v14: penanda unduhan dan antrean unduh ===== */
@@ -385,7 +385,10 @@ button:active{transform:scale(.96)}
 .card.ar .ct,.card.ar .ca{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card.ar .ct{margin-top:10px}
 .mini{border-color:color-mix(in srgb,var(--a) 50%,var(--line))}
-.mini #m-prev{display:none}
+.mini{gap:0}
+.mini .ib{width:36px;height:36px}
+.mini .main-b{width:44px;height:44px;margin:0 2px}
+.mini .mo{margin-right:6px}
 .mbar{position:absolute;left:20px;right:20px;bottom:0;height:2.5px;border-radius:2px;background:linear-gradient(90deg,var(--a),var(--b));transform-origin:left;transform:scaleX(0);transition:transform .45s linear;pointer-events:none}
 </style>
 </head>
@@ -667,13 +670,13 @@ frame.addEventListener('load', () => { ph.className = 'ph hide'; frame.hidden = 
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
   const d = e.data; if (!d || typeof d !== 'object') return;
-  if (d.type === 'alya-hello') { fstate = 2; sendAccent(); sendMode(); sendQ(); }
+  if (d.type === 'alya-hello') { fstate = 2; sendAccent(); sendMode(); sendAuto(); sendQ(); }
   else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; else saveResume(media.pos, media.dur, true); setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
   else if (d.type === 'alya-pos') {
     if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + (pendingSeek.exact ? 0 : 2500), d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; saveResume(media.pos, media.dur); media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
   else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
   else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
-  else if (d.type === 'alya-ui') { const t0 = queue[qi]; if (t0 && d.act === 'more') trackMenu(t0, {}); else if (d.act === 'mode') cycleMode(); else if (d.act === 'queue') openQueue(); }
+  else if (d.type === 'alya-ui') { const t0 = queue[qi]; if (t0 && d.act === 'more') trackMenu(t0, {}); else if (d.act === 'mode') cycleMode(); else if (d.act === 'queue') openQueue(); else if (d.act === 'auto') toggleAuto(); }
   else if (d.type === 'alya-near') { if (upNext < 0 && DB.prefs.auto && radioOn()) radioMore(); const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
   else if (d.type === 'alya-blocked') openSheet();
   else if (d.type === 'alya-error') { errStreak++; if (DB.prefs.auto && errStreak < 3) setTimeout(next, 1500); }
@@ -691,6 +694,8 @@ function paintLikes() {
   document.querySelectorAll('.like').forEach(b => b.classList.toggle('on', isLiked(b.dataset.lk)));
   const t = queue[qi], s = $('s-like'); s.classList.toggle('on', !!t && isLiked(t.id));
 }
+function toggleAuto() { DB.prefs.auto = !DB.prefs.auto; save(); paintToggles(); upNext = pickNext(); toast(DB.prefs.auto ? 'Putar otomatis: nyala' : 'Putar otomatis: mati'); }
+function sendAuto() { toFrame({ type: 'alya-auto', on: !!DB.prefs.auto }); }
 function modeNow() { const rp = DB.prefs.rep || 0; return rp === 2 ? 3 : DB.prefs.shuffle ? 1 : rp === 1 ? 2 : 0; }
 function cycleMode() {
   const n = (modeNow() + 1) % 4;
@@ -706,7 +711,7 @@ function pushMode() { try { if (window.AlyaApp && AlyaApp.setMode) AlyaApp.setMo
 function paintToggles() {
   const rp = DB.prefs.rep || 0;
   $('t-auto').classList.toggle('on', DB.prefs.auto); $('t-shuf').classList.toggle('on', DB.prefs.shuffle);
-  const tr = $('t-rep'); tr.classList.toggle('on', rp > 0); tr.textContent = rp === 2 ? 'Ulangi 1' : 'Ulangi'; pushMode(); sendMode();
+  const tr = $('t-rep'); tr.classList.toggle('on', rp > 0); tr.textContent = rp === 2 ? 'Ulangi 1' : 'Ulangi'; pushMode(); sendMode(); sendAuto();
 }
 ['auto', 'shuf', 'rep'].forEach(k => $('t-' + k).addEventListener('click', () => {
   if (k === 'rep') cycleRep(); else { const key = { auto: 'auto', shuf: 'shuffle' }[k]; DB.prefs[key] = !DB.prefs[key]; } save(); paintToggles(); upNext = pickNext();
