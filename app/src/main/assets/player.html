@@ -22,7 +22,7 @@
   .panel.on { display:block; }
 
   /* ---- Putar ---- */
-  .disc { position:relative; width:164px; height:164px; margin:4px auto 12px; border-radius:50%; padding:12px; background:conic-gradient(from 0deg,#15151f,#2b2b3f,#15151f,#2b2b3f,#15151f); box-shadow:0 20px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08), 0 0 56px var(--a); animation:spin 14s linear infinite; animation-play-state:paused; }
+  .disc { position:relative; width:164px; height:164px; margin:4px auto 12px; border-radius:50%; padding:12px; background:conic-gradient(from 0deg,#15151f,#2b2b3f,#15151f,#2b2b3f,#15151f); box-shadow:0 20px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08), 0 0 44px color-mix(in srgb,var(--a) 28%,transparent); animation:spin 18s linear infinite; animation-play-state:paused; }
   .disc.spin { animation-play-state:running; }
   .disc img { width:100%; height:100%; border-radius:50%; object-fit:cover; display:block; }
   .disc::after { content:''; position:absolute; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; background:var(--bg); border:3px solid rgba(255,255,255,.16); }
@@ -75,7 +75,7 @@
   /* ---- Lirik ---- */
   .lyrics { position:relative; height:clamp(250px, calc(100vh - 246px), 740px); overflow-x:hidden; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; overscroll-behavior:contain; -webkit-mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); }
   .lyrics::-webkit-scrollbar { display:none; }
-  .lyrics-text { width:100%; padding:120px 6px; display:flex; flex-direction:column; gap:14px; text-align:center; }
+  .lyrics-text { width:100%; padding:110px 14px; display:flex; flex-direction:column; gap:14px; text-align:center; }
   .ly { font-size:var(--lf); color:rgba(255,255,255,.32); line-height:1.4; font-weight:600; cursor:pointer; transition:color .3s ease, transform .3s ease; overflow-wrap:anywhere; }
   .ly.on { color:#fff; font-weight:800; transform:scale(1.12); }
   .ly-empty { font-size:12px; color:var(--muted); padding:20px 0; }
@@ -110,10 +110,10 @@
   .title { font-size:21px; }
   .artist { font-size:14px; }
   .tags:empty { display:none; }
-  html:not(.cv-disc) .disc { width:min(66vw,214px); height:min(66vw,214px); padding:0; margin:12px auto 14px; border-radius:24px; background:none; animation:none; box-shadow:0 22px 44px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08); }
-  html:not(.cv-disc) .disc::after { display:none; }
-  html:not(.cv-disc) .disc img { border-radius:24px; }
-  @media (max-height:700px) { html:not(.cv-disc) .disc { width:150px; height:150px; margin:8px auto 10px; } }
+  html.cv-sq .disc { width:min(66vw,214px); height:min(66vw,214px); padding:0; margin:12px auto 14px; border-radius:24px; background:none; animation:none; box-shadow:0 22px 44px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08); }
+  html.cv-sq .disc::after { display:none; }
+  html.cv-sq .disc img { border-radius:24px; }
+  @media (max-height:700px) { html.cv-sq .disc { width:150px; height:150px; margin:8px auto 10px; } }
   .acts2 { display:flex; justify-content:center; gap:10px; margin:4px 0 12px; }
   .ab { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:78px; padding:8px 10px; border-radius:14px; background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:11px; font-weight:600; cursor:pointer; }
   .ab svg { width:20px; height:20px; }
@@ -151,6 +151,90 @@
   html.kon .lysync.mini { display:block; }
   .lysync.mini .lsc { gap:6px; }
   .lysync.mini .lsb, .lysync.mini .lsv { padding:5px 11px; font-size:11.5px; min-width:0; border-radius:10px; }
+
+  /* ===== v16: penyempurnaan premium ===== */
+  :root { --r1:20px; --r2:14px; --r3:12px; --e:cubic-bezier(.2,.8,.2,1); }
+  button { transition:background-color .2s var(--e), color .2s var(--e), border-color .2s var(--e), transform .15s var(--e), opacity .2s; }
+  .panel.on { animation:pin .26s var(--e); }
+  @keyframes pin { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  @keyframes pop { 0% { transform:scale(.92); } 60% { transform:scale(1.06); } 100% { transform:scale(1); } }
+  .chip.on { animation:pop .3s var(--e); }
+  .nav button { position:relative; transition:color .2s var(--e); }
+  .nav button.on::before { content:''; position:absolute; top:-1px; left:32%; right:32%; height:2px; border-radius:2px; background:linear-gradient(90deg,var(--a),var(--b)); }
+
+  /* -- Putar -- */
+  .disc { width:min(58vw,188px); height:min(58vw,188px); margin:6px auto 16px; backface-visibility:hidden; transform:translateZ(0); }
+  .disc::before { content:''; position:absolute; inset:0; border-radius:50%; pointer-events:none; background:repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.06) 0 1px, transparent 1px 3px); -webkit-mask:radial-gradient(circle closest-side, transparent calc(100% - 14px), #000 calc(100% - 13px)); mask:radial-gradient(circle closest-side, transparent calc(100% - 14px), #000 calc(100% - 13px)); }
+  html.cv-sq .disc::before { display:none; }
+  .title { font-size:21px; font-weight:700; letter-spacing:-.015em; line-height:1.25; }
+  .artist { font-size:14px; font-weight:500; margin:3px 0 12px; }
+  .acts2 { gap:8px; margin:2px 0 14px; }
+  .ab { min-width:64px; padding:9px 8px; border-radius:var(--r2); }
+  .viz { height:34px; margin-bottom:10px; opacity:.9; }
+  .bar { height:6px; border-radius:6px; background:rgba(255,255,255,.14); }
+  .bar__fill { border-radius:6px; }
+  .bar__dot { width:14px; height:14px; box-shadow:0 0 0 5px rgba(255,255,255,.14), 0 2px 6px rgba(0,0,0,.4); transition:transform .15s var(--e); }
+  .bar:active .bar__dot { transform:translate(-50%,-50%) scale(1.2); }
+  .time { font-size:11.5px; margin-bottom:14px; }
+  .sbtn { min-width:42px; height:42px; border-radius:var(--r2); font-weight:700; }
+  .ctrl { width:46px; height:46px; border-radius:50%; color:var(--ink); }
+  .ctrl:active { background:var(--card); }
+  .play { width:68px; height:68px; border-radius:24px; box-shadow:0 10px 24px color-mix(in srgb,var(--a) 38%,transparent); }
+  #btn-loop { position:relative; }
+  #btn-loop .mb { position:absolute; right:6px; bottom:5px; font-size:9px; font-style:normal; font-weight:800; line-height:1; }
+  .qinfo { display:flex; align-items:center; gap:10px; width:100%; margin:14px 0 6px; padding:10px 12px; border-radius:var(--r2); background:var(--card); border:1px solid var(--line); color:var(--ink); cursor:pointer; text-align:left; }
+  .qinfo[hidden] { display:none; }
+  .qinfo .qi { width:18px; height:18px; flex:none; color:var(--b); }
+  .qinfo .qt { min-width:0; flex:1; }
+  .qinfo .ql { display:block; font-size:10.5px; font-weight:700; color:var(--muted); }
+  .qinfo b { display:block; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .qinfo .qn { flex:none; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  /* -- Lirik -- */
+  .lyrics-text { gap:16px; }
+  .ly { font-size:var(--lf); font-weight:700; line-height:1.4; color:#fff; opacity:.38; transform:scale(1); transition:opacity .35s var(--e), transform .35s var(--e); will-change:opacity,transform; }
+  .ly.n1 { opacity:.66; }
+  .ly.on { color:#fff; opacity:1; font-weight:700; transform:scale(1.06); }
+  .ph { margin:4px 0 12px; }
+  .ph > span:first-child { font-size:15px; font-weight:700; color:var(--ink); }
+  .mini { gap:6px; align-items:center; }
+  .mini .chip { padding:0; min-width:34px; height:34px; justify-content:center; font-size:13px; font-weight:700; border-radius:var(--r3); }
+  .mini .chip#ly-follow { padding:0 12px; font-size:12px; }
+  .lybtns { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .lybtns .btn { margin:0 !important; }
+
+  /* -- Kartu kelompok (Efek, Atur, Info) -- */
+  .grp { background:var(--card); border:1px solid var(--line); border-radius:var(--r1); padding:14px 14px 4px; margin-bottom:12px; }
+  .grp > h3 { display:flex; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; font-weight:700; color:var(--ink); }
+  .grp > h3 .ri { width:16px; height:16px; color:var(--b); flex:none; }
+  .grp .sec { margin-bottom:14px; }
+  .grp .row:last-child { border-bottom:none; }
+  .grp > .btn { margin:2px 0 12px; }
+  .row { align-items:center; }
+  .row > span:first-child { display:flex; align-items:center; gap:9px; }
+  .row .ri { width:16px; height:16px; flex:none; color:var(--b); opacity:.9; }
+  .row.sw-row > span:first-child { display:block; line-height:1.35; }
+  .row.sw-row small { display:block; margin-top:2px; font-size:11px; font-weight:400; color:var(--muted); }
+  .sw { transition:background-color .2s var(--e); }
+  .sw::after { transition:transform .22s var(--e); }
+  .btn.ghost { background:transparent; border-style:dashed; color:var(--muted); }
+  .pregrp + .pregrp { margin-top:12px; }
+  .pregrp .pl { margin:0 0 7px 2px; font-size:11px; font-weight:700; color:var(--muted); }
+  .fxnow { display:flex; justify-content:space-between; align-items:center; margin:2px 2px 12px; font-size:12px; color:var(--muted); }
+  .fxnow b { padding:4px 11px; border-radius:99px; color:#fff; font-size:12px; background:linear-gradient(135deg,var(--a),var(--b)); }
+  input[type=range] { -webkit-appearance:none; appearance:none; height:22px; background:transparent; --p:50%; }
+  input[type=range]::-webkit-slider-runnable-track { height:6px; border-radius:6px; background-image:linear-gradient(90deg,var(--a),var(--b)), linear-gradient(rgba(255,255,255,.16),rgba(255,255,255,.16)); background-size:var(--p) 100%, 100% 100%; background-repeat:no-repeat; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; margin-top:-7px; border-radius:50%; background:#fff; box-shadow:0 0 0 4px rgba(255,255,255,.14), 0 2px 6px rgba(0,0,0,.4); }
+
+  /* -- Info -- */
+  .mk { display:flex; align-items:center; gap:10px; margin-bottom:8px; padding:10px 12px; border-radius:var(--r2); background:var(--card); border:1px solid var(--line); }
+  .mk .mt { flex:none; padding:4px 10px; border-radius:99px; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:#fff; background:linear-gradient(135deg,var(--a),var(--b)); cursor:pointer; }
+  .mk .mx { flex:1; min-width:0; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .mk .md { flex:none; padding:6px; font-size:11px; color:var(--muted); cursor:pointer; }
+  .grp .ly-empty { padding:6px 0 14px; }
+
+  @media (max-height:700px) { .disc { width:132px; height:132px; margin-bottom:10px; } .acts2 { margin-bottom:10px; } }
+  @media (prefers-reduced-motion:reduce) { .panel.on, .chip.on { animation:none; } .ly, .bar__dot, button { transition:none; } }
 </style>
 
 <div class="wrap">
@@ -188,9 +272,7 @@
           </div>
           <div class="time"><span id="cur">0:00</span><span id="dur" style="cursor:pointer" title="Ketuk untuk lihat sisa waktu">0:00</span></div>
           <div class="ctl">
-            <button class="sbtn" id="btn-loop" aria-label="Ulangi lagu">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
-            </button>
+            <button class="sbtn" id="btn-loop" aria-label="Mode putar: urut (ketuk untuk ganti)" title="Urut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M4 12h14M13 6l6 6-6 6"/></svg></button>
             <button class="ctrl" id="btn-prev" aria-label="Lagu sebelumnya">
               <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>
             </button>
@@ -217,6 +299,7 @@
             <button class="sbtn" id="btn-mute" aria-label="Bisukan">Suara</button>
           </div>
           </details>
+          <button class="qinfo" id="qinfo" hidden aria-label="Buka antrean"><svg class="qi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h14"/></svg><span class="qt"><span class="ql">Berikutnya</span><b id="q-next"></b></span><span class="qn" id="q-pos"></span></button>
         </div>
 
         <!-- LIRIK -->
@@ -232,8 +315,7 @@
             </span>
           </div>
           <div class="lyrics" id="lyrics"><div class="lyrics-text" id="lyrics-text"></div></div>
-          <button class="btn" id="ly-copy">Salin lirik</button>
-          <button class="btn" id="ly-refresh" style="margin-top:8px">Segarkan lirik</button>
+          <div class="lybtns"><button class="btn" id="ly-copy">Salin lirik</button><button class="btn" id="ly-refresh">Segarkan lirik</button></div>
           <div class="lysync">
             <span class="lsl">Sinkron lirik</span>
             <div class="lsc"><button class="btn lsb" data-lsd="-0.5" aria-label="Lirik lebih lambat">&minus; 0,5</button><button class="lsv" data-lsd="0" aria-label="Atur ulang sinkron">0,0 dtk</button><button class="btn lsb" data-lsd="0.5" aria-label="Lirik lebih awal">+ 0,5</button></div>
@@ -244,114 +326,119 @@
         <!-- EFEK -->
         <div class="panel" id="p-fx">
           <div class="scroll">
-            <div class="sec">
-              <h4><span>Preset suara</span></h4>
-              <div class="chips" id="chips-pre">
-                <button class="chip on" data-pre="normal">Normal</button>
-                <button class="chip" data-pre="bass">Bass boost</button>
-                <button class="chip" data-pre="vocal">Vokal jelas</button>
-                <button class="chip" data-pre="treble">Treble</button>
-                <button class="chip" data-pre="night">Nightcore</button>
-                <button class="chip" data-pre="slow">Slowed + reverb</button>
-                <button class="chip" data-pre="8d">8D</button>
+            <div class="fxnow"><span>Preset aktif</span><b id="fx-now">Normal</b></div>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/></svg>Preset suara</h3>
+              <div id="chips-pre">
+                <div class="pregrp"><div class="pl">Dasar</div><div class="chips">
+                  <button class="chip on" data-pre="normal">Normal</button>
+                  <button class="chip" data-pre="bass">Bass boost</button>
+                  <button class="chip" data-pre="vocal">Vokal jelas</button>
+                  <button class="chip" data-pre="treble">Treble</button>
+                </div></div>
+                <div class="pregrp"><div class="pl">Kreatif</div><div class="chips">
+                  <button class="chip" data-pre="night">Nightcore</button>
+                  <button class="chip" data-pre="slow">Slowed + reverb</button>
+                  <button class="chip" data-pre="8d">8D</button>
+                </div></div>
               </div>
             </div>
-            <div class="sec">
-              <h4><span>Bass</span><b id="v-bass">0 dB</b></h4>
-              <input type="range" id="sl-bass" min="-12" max="12" step="1" value="0">
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20v-6M9 20V8M14 20v-9M19 20V4"/></svg>Equalizer</h3>
+              <div class="sec"><h4><span>Bass</span><b id="v-bass">0 dB</b></h4><input type="range" id="sl-bass" min="-12" max="12" step="1" value="0"></div>
+              <div class="sec"><h4><span>Vokal</span><b id="v-mid">0 dB</b></h4><input type="range" id="sl-mid" min="-12" max="12" step="1" value="0"></div>
+              <div class="sec"><h4><span>Treble</span><b id="v-treble">0 dB</b></h4><input type="range" id="sl-treble" min="-12" max="12" step="1" value="0"></div>
             </div>
-            <div class="sec">
-              <h4><span>Vokal</span><b id="v-mid">0 dB</b></h4>
-              <input type="range" id="sl-mid" min="-12" max="12" step="1" value="0">
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h3l2-6 3 12 3-9 2 5 2-2h5"/></svg>Ruang &amp; gema</h3>
+              <div class="sec"><h4><span>Reverb</span><b id="v-rev">0%</b></h4><input type="range" id="sl-rev" min="0" max="100" step="1" value="0"></div>
+              <div class="sec"><h4><span>Echo</span><b id="v-echo">0%</b></h4><input type="range" id="sl-echo" min="0" max="100" step="1" value="0"></div>
             </div>
-            <div class="sec">
-              <h4><span>Treble</span><b id="v-treble">0 dB</b></h4>
-              <input type="range" id="sl-treble" min="-12" max="12" step="1" value="0">
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="15" width="4" height="6" rx="1.5"/><rect x="17" y="15" width="4" height="6" rx="1.5"/></svg>Stereo &amp; karakter</h3>
+              <div class="sec"><h4><span>Keseimbangan kiri / kanan</span><b id="v-pan">Tengah</b></h4><input type="range" id="sl-pan" min="-100" max="100" step="5" value="0"></div>
+            <div class="row sw-row"><span>Audio 8D<small>Suara berputar di sekitar kepala</small></span><button class="sw" id="sw-8d" aria-label="Audio 8D"></button></div>
+            <div class="row sw-row"><span>Loudness<small>Suara lebih padat dan bertenaga</small></span><button class="sw" id="sw-loud" aria-label="Loudness"></button></div>
             </div>
-            <div class="sec">
-              <h4><span>Reverb</span><b id="v-rev">0%</b></h4>
-              <input type="range" id="sl-rev" min="0" max="100" step="1" value="0">
-            </div>
-            <div class="sec">
-              <h4><span>Echo</span><b id="v-echo">0%</b></h4>
-              <input type="range" id="sl-echo" min="0" max="100" step="1" value="0">
-            </div>
-            <div class="sec">
-              <h4><span>Keseimbangan kiri / kanan</span><b id="v-pan">Tengah</b></h4>
-              <input type="range" id="sl-pan" min="-100" max="100" step="5" value="0">
-            </div>
-            <div class="row sw-row"><span>Audio 8D (berputar)</span><button class="sw" id="sw-8d" aria-label="Audio 8D"></button></div>
-            <div class="row sw-row"><span>Loudness (suara lebih padat)</span><button class="sw" id="sw-loud" aria-label="Loudness"></button></div>
-            <button class="btn" id="fx-reset">Reset semua efek</button>
+            <button class="btn ghost" id="fx-reset">Reset semua efek</button>
           </div>
         </div>
 
         <!-- ATUR -->
         <div class="panel" id="p-set">
           <div class="scroll">
-            <div class="sec">
-              <h4><span>Tema warna</span></h4>
-              <div class="chips" id="chips-theme"></div>
-            </div>
-            <div class="sec">
-              <h4><span>Gaya sampul</span></h4>
-              <div class="chips" id="chips-cover">
-                <button class="chip" data-cv="sq">Sampul</button>
-                <button class="chip" data-cv="disc">Piringan</button>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.5-1.8-.3-1 .3-2 1.4-2H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15" cy="8" r="1"/></svg>Tampilan</h3>
+              <div class="sec"><h4><span>Tema warna</span></h4><div class="chips" id="chips-theme"></div></div>
+              <div class="sec"><h4><span>Gaya sampul</span></h4>
+                <div class="chips" id="chips-cover"><button class="chip" data-cv="disc">Piringan</button><button class="chip" data-cv="sq">Sampul</button></div>
               </div>
             </div>
-            <div class="sec">
-              <h4><span>Kecepatan</span><b id="v-rate">1x</b></h4>
-              <div class="chips" id="chips-rate">
-                <button class="chip" data-rate="0.75">0.75x</button>
-                <button class="chip on" data-rate="1">1x</button>
-                <button class="chip" data-rate="1.25">1.25x</button>
-                <button class="chip" data-rate="1.5">1.5x</button>
-                <button class="chip" data-rate="2">2x</button>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l11 7-11 7z"/></svg>Pemutaran</h3>
+              <div class="sec"><h4><span>Kecepatan</span><b id="v-rate">1x</b></h4>
+                <div class="chips" id="chips-rate">
+                  <button class="chip" data-rate="0.75">0.75x</button>
+                  <button class="chip on" data-rate="1">1x</button>
+                  <button class="chip" data-rate="1.25">1.25x</button>
+                  <button class="chip" data-rate="1.5">1.5x</button>
+                  <button class="chip" data-rate="2">2x</button>
+                </div>
+              </div>
+              <div class="sec"><h4><span>Volume</span><b id="v-vol">100%</b></h4><input type="range" id="vol" min="0" max="100" value="100"></div>
+              <div class="sec"><h4><span>Sleep timer</span><b id="sleep-left"></b></h4>
+                <div class="chips" id="chips-sleep">
+                  <button class="chip on" data-sleep="0">Mati</button>
+                  <button class="chip" data-sleep="5">5 mnt</button>
+                  <button class="chip" data-sleep="10">10 mnt</button>
+                  <button class="chip" data-sleep="15">15 mnt</button>
+                  <button class="chip" data-sleep="30">30 mnt</button>
+                </div>
               </div>
             </div>
-            <div class="sec">
-              <h4><span>Volume</span><b id="v-vol">100%</b></h4>
-              <input type="range" id="vol" min="0" max="100" value="100">
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Pilihan</h3>
+            <div class="row sw-row"><span>Ulangi lagu<small>Putar ulang lagu ini terus-menerus</small></span><button class="sw" id="sw-loop" aria-label="Ulangi lagu"></button></div>
+            <div class="row sw-row"><span>Fade-in saat putar<small>Volume naik pelan saat lagu mulai</small></span><button class="sw" id="sw-fade" aria-label="Fade-in"></button></div>
+            <div class="row sw-row"><span>Audio murni<small>Tanpa efek, lebih stabil di aplikasi</small></span><button class="sw" id="sw-pure" aria-label="Audio murni"></button></div>
+            <div class="row sw-row"><span>Mode karaoke<small>Lirik besar menggantikan sampul</small></span><button class="sw" id="sw-kar" aria-label="Mode karaoke"></button></div>
+            <div class="row sw-row"><span>Visualizer<small>Animasi batang yang mengikuti suara</small></span><button class="sw on" id="sw-viz" aria-label="Visualizer"></button></div>
             </div>
-            <div class="sec">
-              <h4><span>Sleep timer</span><b id="sleep-left"></b></h4>
-              <div class="chips" id="chips-sleep">
-                <button class="chip on" data-sleep="0">Mati</button>
-                <button class="chip" data-sleep="5">5 mnt</button>
-                <button class="chip" data-sleep="10">10 mnt</button>
-                <button class="chip" data-sleep="15">15 mnt</button>
-                <button class="chip" data-sleep="30">30 mnt</button>
-              </div>
-            </div>
-            <div class="row sw-row"><span>Ulangi lagu</span><button class="sw" id="sw-loop" aria-label="Ulangi lagu"></button></div>
-            <div class="row sw-row"><span>Fade-in saat putar</span><button class="sw" id="sw-fade" aria-label="Fade-in"></button></div>
-            <div class="row sw-row"><span>Audio murni (tanpa efek, stabil di aplikasi)</span><button class="sw" id="sw-pure" aria-label="Audio murni"></button></div>
-            <div class="row sw-row"><span>Mode karaoke (lirik besar)</span><button class="sw" id="sw-kar" aria-label="Mode karaoke"></button></div>
-            <div class="row sw-row"><span>Visualizer</span><button class="sw on" id="sw-viz" aria-label="Visualizer"></button></div>
           </div>
         </div>
 
         <!-- INFO -->
         <div class="panel" id="p-info">
           <div class="scroll">
-            <div class="ph"><span>Info lagu</span></div>
-            <div class="row"><span>Judul</span><span id="i-title">Memuat lagu...</span></div>
-            <div class="row"><span>Artis</span><span id="i-artist"></span></div>
-            <div class="row"><span>Durasi asli</span><span id="i-orig">-</span></div>
-            <div class="row"><span>Durasi diputar</span><span id="i-dur">-</span></div>
-            <div class="row"><span>Mode</span><span>Penuh</span></div>
-            <div class="row"><span>Lirik</span><span id="i-ly">-</span></div>
-            <div class="row"><span>Efek aktif</span><span id="i-fx">Normal</span></div>
-            <div class="row"><span>Sumber</span><span>YouTube</span></div>
-            <div class="row"><span>Waktu dengar</span><span id="i-listen">0:00</span></div>
-            <div class="row"><span>Jumlah putar</span><span id="i-plays">0</span></div>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Lagu</h3>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Judul</span><span id="i-title">Memuat lagu...</span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Artis</span><span id="i-artist"></span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Durasi asli</span><span id="i-orig">-</span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Durasi diputar</span><span id="i-dur">-</span></div>
+            </div>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>Pemutaran</h3>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>Mode</span><span>Penuh</span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h14"/></svg>Lirik</span><span id="i-ly">-</span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Efek aktif</span><span id="i-fx">Normal</span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Sumber</span><span>YouTube</span></div>
+            </div>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="15" width="4" height="6" rx="1.5"/><rect x="17" y="15" width="4" height="6" rx="1.5"/></svg>Statistik</h3>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="15" width="4" height="6" rx="1.5"/><rect x="17" y="15" width="4" height="6" rx="1.5"/></svg>Waktu dengar</span><span id="i-listen">0:00</span></div>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>Jumlah putar</span><span id="i-plays">0</span></div>
+            </div>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9H7z"/></svg>Offline</h3>
+              <div class="row"><span><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Status unduhan</span><span id="dl-state">-</span></div>
+              <button class="btn" id="dl-btn">Unduh untuk offline</button>
+            </div>
+            <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Penanda posisi<span id="mk-count" style="margin-left:auto;font-weight:500;color:var(--muted)"></span></h3>
+              <div id="marks"><div class="ly-empty">Belum ada. Tekan "+ Tandai" di tab Putar untuk menyimpan bagian favorit.</div></div>
+            </div>
             <div class="hint">Pintasan keyboard: Spasi putar/jeda, panah kiri/kanan geser 10 detik, L ulangi, M bisukan, K karaoke.</div>
-            <div class="ph" style="margin-top:16px"><span>Offline</span></div>
-            <div class="row"><span>Status unduhan</span><span id="dl-state">-</span></div>
-            <button class="btn" id="dl-btn">Unduh untuk offline</button>
-            <div class="ph" style="margin-top:16px"><span>Penanda posisi</span><span id="mk-count"></span></div>
-            <div id="marks"><div class="ly-empty">Belum ada. Tekan "+ Tandai" di tab Putar untuk menyimpan bagian favorit.</div></div>
           </div>
         </div>
 
@@ -500,7 +587,9 @@
     updKar(idx);
     kFill(t);
     for (var i = 0; i < lyEls.length; i++) {
-      if (i === idx) lyEls[i].classList.add('on'); else lyEls[i].classList.remove('on');
+      var dd = i - idx;
+      if (dd === 0) lyEls[i].classList.add('on'); else lyEls[i].classList.remove('on');
+      if (dd === 1 || dd === -1) lyEls[i].classList.add('n1'); else lyEls[i].classList.remove('n1');
     }
     nowEl.textContent = idx >= 0 ? (LY[idx].text || '♪') : '♪';
     if (!lyBox.clientHeight) { lyActive = -2; return; }
@@ -723,6 +812,7 @@
   document.addEventListener('visibilitychange', function() { applyRoute(); if (!document.hidden && playing) kickViz(); });
   function refreshFxInfo() {
     var parts = [];
+    var fxn = $('fx-now'); if (fxn) fxn.textContent = presetName;
     if (Number($('sl-bass').value) !== 0) parts.push('Bass');
     if (Number($('sl-mid').value) !== 0) parts.push('Vokal');
     if (Number($('sl-treble').value) !== 0) parts.push('Treble');
@@ -755,7 +845,7 @@
     set8D(p.d8);
     $('sl-echo').value = 0; setEcho(0);
     $('sl-pan').value = 0; setPan(0);
-    var ch = $('chips-pre').children;
+    var ch = document.querySelectorAll('#chips-pre .chip');
     for (var i = 0; i < ch.length; i++) {
       if (ch[i].getAttribute('data-pre') === key) ch[i].classList.add('on'); else ch[i].classList.remove('on');
     }
@@ -764,7 +854,7 @@
   function manualFx() {
     if (!graph) st.textContent = 'Efek tidak aktif. Matikan "Audio murni" di tab Atur.';
     presetName = 'Kustom';
-    var ch = $('chips-pre').children;
+    var ch = document.querySelectorAll('#chips-pre .chip');
     for (var i = 0; i < ch.length; i++) ch[i].classList.remove('on');
     refreshFxInfo();
   }
@@ -784,8 +874,7 @@
   }
   function setLoop(v) {
     loop = !!v; au.loop = loop;
-    if (loop) { $('btn-loop').classList.add('act'); $('sw-loop').classList.add('on'); }
-    else { $('btn-loop').classList.remove('act'); $('sw-loop').classList.remove('on'); }
+    if (loop) $('sw-loop').classList.add('on'); else $('sw-loop').classList.remove('on');
   }
   function setViz(v) {
     vizOn = !!v;
@@ -946,23 +1035,19 @@
     }
     for (var i = 0; i < marks.length; i++) {
       var r = document.createElement('div');
-      r.className = 'row';
-      var l = document.createElement('span');
-      l.style.cursor = 'pointer';
-      l.style.color = 'var(--ink)';
-      l.textContent = fmt(marks[i].t) + '  ' + (marks[i].text || '');
-      var x = document.createElement('span');
-      x.style.cursor = 'pointer';
-      x.style.color = 'var(--muted)';
-      x.textContent = 'Hapus';
+      r.className = 'mk';
+      var tm = document.createElement('span'); tm.className = 'mt'; tm.textContent = fmt(marks[i].t);
+      var l = document.createElement('span'); l.className = 'mx'; l.textContent = marks[i].text || 'Tanpa teks lirik';
+      var x = document.createElement('span'); x.className = 'md'; x.textContent = 'Hapus';
       (function(m) {
-        l.addEventListener('click', function() { seekTo(m.t); showTab('p-play'); });
+        function go() { seekTo(m.t); showTab('p-play'); }
+        tm.addEventListener('click', go); l.addEventListener('click', go);
         x.addEventListener('click', function() {
           marks = marks.filter(function(q) { return q !== m; });
           renderMarks();
         });
       })(marks[i]);
-      r.appendChild(l); r.appendChild(x);
+      r.appendChild(tm); r.appendChild(l); r.appendChild(x);
       box.appendChild(r);
     }
   }
@@ -984,7 +1069,7 @@
   });
   $('btn-rw').addEventListener('click', function() { seekTo(pos() - 10); });
   $('btn-fw').addEventListener('click', function() { seekTo(pos() + 10); });
-  $('btn-loop').addEventListener('click', function() { setLoop(!loop); });
+  $('btn-loop').addEventListener('click', function() { post({ type: 'alya-ui', act: 'mode' }); });
   $('sw-loop').addEventListener('click', function() { setLoop(!loop); });
   $('sw-viz').addEventListener('click', function() { setViz(!vizOn); });
   $('sw-fade').addEventListener('click', function() {
@@ -1026,7 +1111,7 @@
   });
 
   // efek
-  var pc = $('chips-pre').children;
+  var pc = document.querySelectorAll('#chips-pre .chip');
   for (var q = 0; q < pc.length; q++) {
     pc[q].addEventListener('click', function() { applyPreset(this.getAttribute('data-pre')); });
   }
@@ -1097,6 +1182,7 @@
   // ===== Tab =====
   var navBtns = $('nav').children;
   function showTab(id) {
+    paintRanges();
     var panels = document.querySelectorAll('.panel');
     for (var i = 0; i < panels.length; i++) {
       if (panels[i].id === id) panels[i].classList.add('on'); else panels[i].classList.remove('on');
@@ -1395,9 +1481,9 @@
   $('ac-more').addEventListener('click', function() { post({ type: 'alya-ui', act: 'more' }); });
   $('btn-prev').addEventListener('click', function() { post({ type: 'alya-nav', dir: -1 }); });
   $('btn-next').addEventListener('click', function() { post({ type: 'alya-nav', dir: 1 }); });
-  var coverPref = 'sq'; try { coverPref = localStorage.getItem('alya_cover') || 'sq'; } catch (e) {}
+  var coverPref = 'disc'; try { coverPref = localStorage.getItem('alya_cover') || 'disc'; } catch (e) {}
   function applyCover() {
-    document.documentElement.classList.toggle('cv-disc', coverPref === 'disc');
+    document.documentElement.classList.toggle('cv-sq', coverPref === 'sq');
     var cs = document.querySelectorAll('#chips-cover .chip');
     for (var i = 0; i < cs.length; i++) cs[i].classList.toggle('on', cs[i].dataset.cv === coverPref);
   }
@@ -1405,6 +1491,41 @@
   for (var ci = 0; ci < cvs.length; ci++) cvs[ci].addEventListener('click', function() { coverPref = this.dataset.cv; try { localStorage.setItem('alya_cover', coverPref); } catch (e) {} applyCover(); });
   applyCover();
   try { if (localStorage.getItem('alya_kar') === '1') setKaraoke(true); } catch (e) {}
+  // ===== v16: tombol mode putar (urut / acak / ulangi semua / ulangi satu), info antrean, isian slider =====
+  var MODE_PATHS = [
+    '<path d="M4 12h14M13 6l6 6-6 6"/>',
+    '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+    '<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+    '<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>'
+  ];
+  var MODE_LBL = ['Urut', 'Acak', 'Ulangi semua', 'Ulangi satu'];
+  function setModeUi(m) {
+    m = Number(m); if (!(m >= 0 && m <= 3)) m = 0;
+    var b = $('btn-loop');
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">' + MODE_PATHS[m] + '</svg>' + (m === 3 ? '<i class="mb">1</i>' : '');
+    b.classList.toggle('act', m > 0);
+    b.setAttribute('aria-label', 'Mode putar: ' + MODE_LBL[m].toLowerCase() + ' (ketuk untuk ganti)');
+    b.title = MODE_LBL[m];
+  }
+  function setQInfo(d) {
+    var q = $('qinfo'); if (!q) return;
+    if (!d || !(d.n > 0)) { q.hidden = true; return; }
+    q.hidden = false;
+    $('q-next').textContent = d.next ? String(d.next).slice(0, 90) : 'Akhir antrean';
+    $('q-pos').textContent = d.i + '/' + d.n;
+  }
+  $('qinfo').addEventListener('click', function() { post({ type: 'alya-ui', act: 'queue' }); });
+  function paintRanges() {
+    var rs = document.querySelectorAll('input[type=range]');
+    for (var i = 0; i < rs.length; i++) {
+      var r = rs[i], mn = Number(r.min) || 0, mx = Number(r.max) || 100, v = Number(r.value);
+      r.style.setProperty('--p', (mx > mn ? (v - mn) / (mx - mn) * 100 : 0).toFixed(1) + '%');
+    }
+  }
+  document.addEventListener('input', paintRanges);
+  $('p-fx').addEventListener('click', function() { setTimeout(paintRanges, 0); });
+  $('p-set').addEventListener('click', function() { setTimeout(paintRanges, 0); });
+  paintRanges();
   try { localStorage.removeItem('alya_ly_undefined'); } catch (e) {}
   $('ly-refresh').addEventListener('click', function() {
     if (!curTrackId) return;
@@ -1433,6 +1554,8 @@
     if (d.type === 'alya-load' && typeof d.id === 'string' && d.id.length === 11 && /^[A-Za-z0-9_-]+$/.test(d.id)) fetchTrack(d.id, !!d.auto);
     else if (d.type === 'alya-accent' && /^#[0-9a-f]{6}$/i.test(d.a) && /^#[0-9a-f]{6}$/i.test(d.b)) { THEMES[0].a = d.a; THEMES[0].b = d.b; if (SW[0]) SW[0].style.background = 'linear-gradient(135deg,' + d.a + ',' + d.b + ')'; if (curTheme === 0) setTheme(0); }
     else if (d.type === 'alya-dl' && d.d && typeof d.d === 'object') window.alyaDl(d.d);
+    else if (d.type === 'alya-mode') setModeUi(d.m);
+    else if (d.type === 'alya-q') setQInfo(d);
     else if (d.type === 'alya-cmd') {
       if (d.cmd === 'toggle') { if (playing) pause(); else startAt(null, true); }
       else if (d.cmd === 'play') { if (!playing) startAt(null, true); }

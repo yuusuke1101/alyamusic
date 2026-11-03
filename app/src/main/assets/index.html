@@ -385,6 +385,7 @@ button:active{transform:scale(.96)}
 .card.ar .ct,.card.ar .ca{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card.ar .ct{margin-top:10px}
 .mini{border-color:color-mix(in srgb,var(--a) 50%,var(--line))}
+.mini #m-prev{display:none}
 .mbar{position:absolute;left:20px;right:20px;bottom:0;height:2.5px;border-radius:2px;background:linear-gradient(90deg,var(--a),var(--b));transform-origin:left;transform:scaleX(0);transition:transform .45s linear;pointer-events:none}
 </style>
 </head>
@@ -419,6 +420,7 @@ button:active{transform:scale(.96)}
   <button class="ib" id="m-prev" aria-label="Sebelumnya"></button>
   <button class="ib main-b" id="m-play" aria-label="Putar atau jeda"></button>
   <button class="ib" id="m-next" aria-label="Berikutnya"></button>
+  <button class="ib" id="m-q" aria-label="Antrean"></button>
   <i class="mbar" id="m-bar"></i>
 </div>
 <div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
@@ -665,13 +667,13 @@ frame.addEventListener('load', () => { ph.className = 'ph hide'; frame.hidden = 
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== frame.contentWindow) return;
   const d = e.data; if (!d || typeof d !== 'object') return;
-  if (d.type === 'alya-hello') { fstate = 2; sendAccent(); }
+  if (d.type === 'alya-hello') { fstate = 2; sendAccent(); sendMode(); sendQ(); }
   else if (d.type === 'alya-state') { playing = !!d.playing; media.playing = playing; if (playing) errStreak = 0; else saveResume(media.pos, media.dur, true); setIc($('m-play'), playing ? 'pause' : 'play'); pushMedia(); }
   else if (d.type === 'alya-pos') {
     if (pendingSeek && d.dur > 0 && queue[qi] && queue[qi].id === pendingSeek.id) { const ms = Math.min(pendingSeek.ms + (pendingSeek.exact ? 0 : 2500), d.dur * 1000 - 3000); pendingSeek = null; if (ms > 3000) cmdPlayer({ cmd: 'seek', ms }); } media.pos = d.pos || 0; media.dur = d.dur || 0; saveResume(media.pos, media.dur); media.rate = d.rate || 1; media.playing = !!d.playing; pushMedia(); }
   else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
   else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
-  else if (d.type === 'alya-ui') { const t0 = queue[qi]; if (t0 && d.act === 'more') trackMenu(t0, {}); }
+  else if (d.type === 'alya-ui') { const t0 = queue[qi]; if (t0 && d.act === 'more') trackMenu(t0, {}); else if (d.act === 'mode') cycleMode(); else if (d.act === 'queue') openQueue(); }
   else if (d.type === 'alya-near') { if (upNext < 0 && DB.prefs.auto && radioOn()) radioMore(); const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
   else if (d.type === 'alya-blocked') openSheet();
   else if (d.type === 'alya-error') { errStreak++; if (DB.prefs.auto && errStreak < 3) setTimeout(next, 1500); }
@@ -685,15 +687,26 @@ function markNow() {
   document.querySelectorAll('[data-id]').forEach(n => n.classList.toggle('now', n.dataset.id === id));
 }
 function paintLikes() {
+  sendQ();
   document.querySelectorAll('.like').forEach(b => b.classList.toggle('on', isLiked(b.dataset.lk)));
   const t = queue[qi], s = $('s-like'); s.classList.toggle('on', !!t && isLiked(t.id));
 }
+function modeNow() { const rp = DB.prefs.rep || 0; return rp === 2 ? 3 : DB.prefs.shuffle ? 1 : rp === 1 ? 2 : 0; }
+function cycleMode() {
+  const n = (modeNow() + 1) % 4;
+  DB.prefs.shuffle = n === 1; DB.prefs.rep = n === 2 ? 1 : n === 3 ? 2 : 0; DB.prefs.repeat = DB.prefs.rep > 0;
+  save(); paintToggles(); upNext = pickNext(); sendQ();
+  toast(['Putar berurutan', 'Acak: nyala', 'Ulangi semua lagu', 'Ulangi 1 lagu'][n]);
+}
+function toFrame(m) { try { if (fstate === 2) frame.contentWindow.postMessage(m, location.origin); } catch (e) {} }
+function sendMode() { toFrame({ type: 'alya-mode', m: modeNow() }); }
+function sendQ() { const t = queue[upNext]; toFrame({ type: 'alya-q', i: queue.length ? qi + 1 : 0, n: queue.length, next: t ? t.title : '' }); }
 function cycleRep() { DB.prefs.rep = ((DB.prefs.rep || 0) + 1) % 3; DB.prefs.repeat = DB.prefs.rep > 0; toast(['Ulangi: mati', 'Ulangi semua lagu', 'Ulangi 1 lagu'][DB.prefs.rep]); }
 function pushMode() { try { if (window.AlyaApp && AlyaApp.setMode) AlyaApp.setMode(!!DB.prefs.shuffle, DB.prefs.rep || 0); } catch (e) {} }
 function paintToggles() {
   const rp = DB.prefs.rep || 0;
   $('t-auto').classList.toggle('on', DB.prefs.auto); $('t-shuf').classList.toggle('on', DB.prefs.shuffle);
-  const tr = $('t-rep'); tr.classList.toggle('on', rp > 0); tr.textContent = rp === 2 ? 'Ulangi 1' : 'Ulangi'; pushMode();
+  const tr = $('t-rep'); tr.classList.toggle('on', rp > 0); tr.textContent = rp === 2 ? 'Ulangi 1' : 'Ulangi'; pushMode(); sendMode();
 }
 ['auto', 'shuf', 'rep'].forEach(k => $('t-' + k).addEventListener('click', () => {
   if (k === 'rep') cycleRep(); else { const key = { auto: 'auto', shuf: 'shuffle' }[k]; DB.prefs[key] = !DB.prefs[key]; } save(); paintToggles(); upNext = pickNext();
@@ -723,7 +736,7 @@ window.addEventListener('popstate', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSheet(); } });
 $('close').addEventListener('click', closeSheet); setIc($('close'), 'down');
 $('m-open').addEventListener('click', openSheet);
-setIc($('m-prev'), 'prev'); setIc($('m-next'), 'next'); setIc($('m-play'), 'play'); setIc($('s-like'), 'heart');
+setIc($('m-prev'), 'prev'); setIc($('m-next'), 'next'); setIc($('m-play'), 'play'); setIc($('s-like'), 'heart'); setIc($('m-q'), 'list'); $('m-q').addEventListener('click', openQueue);
 $('m-prev').addEventListener('click', prev); $('m-next').addEventListener('click', next);
 $('m-play').addEventListener('click', () => { if (fstate === 2) frame.contentWindow.postMessage({ type: 'alya-cmd', cmd: 'toggle' }, location.origin); else openSheet(); });
 
@@ -964,6 +977,19 @@ const HERO_ART = `<svg class="hwave" viewBox="0 0 400 120" preserveAspectRatio="
 `<circle cx="112" cy="102" r="108" fill="url(#hg)"/><g class="hvin"><circle cx="118" cy="108" r="84" fill="url(#hv)" stroke="rgba(167,139,250,.35)" stroke-width="1.5"/><g fill="none" stroke="rgba(255,255,255,.07)"><circle cx="118" cy="108" r="74"/><circle cx="118" cy="108" r="65"/><circle cx="118" cy="108" r="56"/><circle cx="118" cy="108" r="47"/></g><path d="M118 108V24A84 84 0 0 1 186 58Z" fill="rgba(255,255,255,.06)"/><circle cx="118" cy="108" r="26" fill="url(#hl)"/><circle cx="118" cy="108" r="5" fill="#0a0720"/></g>` +
 `<g class="hhp"><path d="M58 124C54 34 182 34 178 124" fill="none" stroke="url(#hb)" stroke-width="13" stroke-linecap="round"/><path d="M64 120C61 46 175 46 172 120" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2" stroke-linecap="round"/><rect x="38" y="100" width="42" height="74" rx="21" fill="url(#hc)"/><rect x="156" y="100" width="42" height="74" rx="21" fill="url(#hc)"/><rect x="47" y="112" width="28" height="50" rx="14" fill="#1a1050" opacity=".75"/><rect x="161" y="112" width="28" height="50" rx="14" fill="#1a1050" opacity=".75"/><path d="M45 120Q43 137 45 154M158 120Q156 137 158 154" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2.5" stroke-linecap="round"/></g>` +
 `<path d="M30 40V24l9-2v13" fill="none" stroke="#c4b5fd" stroke-width="2.4" stroke-linecap="round"/><g fill="#c4b5fd"><circle cx="26" cy="40" r="4"/><circle cx="35" cy="35" r="4"/></g><g fill="#e9e3ff"><path d="M196 36l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/><path d="M16 96l1.5 4.5 4.5 1.5-4.5 1.5L16 108l-1.5-4.5L10 102l4.5-1.5z" opacity=".7"/></g></svg>`;
+// ---------- Paket 7: hindari lagu/judul yang sama di beberapa rail Beranda ----------
+let homeSeen = null;
+const tkey = t => String(t.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 5).join(' ');   // 5 kata pertama: menangkap judul kembar yang ekornya beda
+function fresh(list, n) {
+  list = Array.isArray(list) ? list : [];
+  if (!homeSeen) return list.slice(0, n);
+  const local = new Set();
+  const ok = t => { const k = tkey(t), ks = [t.id].concat(k.length >= 12 ? [k] : []); if (ks.some(x => homeSeen.has(x) || local.has(x))) return false; ks.forEach(x => local.add(x)); return true; };
+  let out = list.filter(t => t && ok(t)).slice(0, n);
+  if (out.length < 3) out = list.slice(0, n);   // jangan sampai rail nyaris kosong: lebih baik tampil sama daripada hilang
+  out.forEach(t => { homeSeen.add(t.id); const k = tkey(t); if (k.length >= 12) homeSeen.add(k); });
+  return out;
+}
 function homeHead(m, g) {
   const hd = h('div', 'hhd');
   const ab = h('button', 'abtn'); ab.type = 'button'; ab.setAttribute('aria-label', 'Akun');
@@ -1037,7 +1063,7 @@ function trendList(m) {
     if (!box.isConnected) return;
     return cached('lagu viral trending').then(d => {
       if (!box.isConnected) return;
-      const items = (Array.isArray(d) ? d : []).slice(0, 5);
+      const items = fresh(d, 5);
       if (!items.length) { s.remove(); box.remove(); return; }
       box.replaceChildren(...items.map((t, i) => {
         const r = h('button', 'trow'); r.type = 'button'; r.dataset.id = t.id;
@@ -1050,7 +1076,7 @@ function trendList(m) {
   });
 }
 function rHome(m0) {
-  const m = h('div', 'home'); m0.appendChild(m);
+  const m = h('div', 'home'); m0.appendChild(m); homeSeen = new Set();
   const hr = new Date().getHours();
   const g = hr < 4 ? 'Selamat malam' : hr < 11 ? 'Selamat pagi' : hr < 15 ? 'Selamat siang' : hr < 18 ? 'Selamat sore' : 'Selamat malam';
   homeHead(m, g);
@@ -1098,7 +1124,7 @@ function rHome(m0) {
 }
 let loadQ = Promise.resolve();
 function lazyLoad(slot, q) {
-  const go = () => { loadQ = loadQ.then(() => cached(q).then(d => { if (!slot.isConnected) return; slot.replaceWith(rail(d.slice(0, 10))); markNow(); }).catch(() => { if (slot.isConnected) slot.replaceWith(h('div', 'mut', 'Gagal memuat. Periksa koneksi.')); })); };
+  const go = () => { loadQ = loadQ.then(() => cached(q).then(d => { if (!slot.isConnected) return; slot.replaceWith(rail(fresh(d, 10))); markNow(); }).catch(() => { if (slot.isConnected) slot.replaceWith(h('div', 'mut', 'Gagal memuat. Periksa koneksi.')); })); };
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(es => { if (es[0].isIntersecting) { io.disconnect(); go(); } }, { rootMargin: '200px' }); io.observe(slot);
   } else go();
