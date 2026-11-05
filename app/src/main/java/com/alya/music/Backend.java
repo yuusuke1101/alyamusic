@@ -784,6 +784,45 @@ final class Backend {
 
     // Lagu yang sudah dicari tapi liriknya memang tidak ada dicatat 7 hari, supaya tidak dicari ulang tiap diputar.
     // Hanya dicatat kalau layanan lirik benar-benar menjawab (bukan karena jaringan putus).
+    // ---------- pencocokan hasil lrclib: judul + artis + durasi ----------
+    // false = kembali ke cara lama (hanya durasi terdekat, maks. 20 dtk, tanpa memeriksa judul/artis)
+    private static final boolean LY_STRICT = true;
+
+    private static String normL(String s) {
+        if (s == null) return "";
+        String x = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKD).replaceAll("\\p{M}+", "").toLowerCase(java.util.Locale.ROOT);
+        return x.replace("'", "").replace("\u2019", "").replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+    }
+
+    private static java.util.Set<String> tokL(String s) {
+        java.util.Set<String> o = new java.util.HashSet<>();
+        for (String w : normL(s).split(" ")) if (!w.isEmpty()) o.add(w);
+        return o;
+    }
+
+    private static double overlapL(String a, String b) {
+        java.util.Set<String> A = tokL(a), B = tokL(b);
+        if (A.isEmpty() || B.isEmpty()) return 0;
+        int n = 0;
+        for (String w : A) if (B.contains(w)) n++;
+        return n / (double) Math.min(A.size(), B.size());
+    }
+
+    // 0 = tidak cocok; makin besar makin cocok
+    private static double matchScore(JSONObject x, List<String> titles, List<String> artists, double seconds) {
+        double dur = x.optDouble("duration", 0), d = seconds > 0 && dur > 0 ? Math.abs(dur - seconds) : -1;
+        if (!LY_STRICT) return d < 0 ? 1.0 : d <= 20 ? 1.0 / (1 + d) : 0;
+        String name = x.optString("trackName", x.optString("name", "")), art = x.optString("artistName", "");
+        double ti = 0, ar = 0;
+        for (String w : titles) ti = Math.max(ti, overlapL(w, name));
+        for (String w : artists) ar = Math.max(ar, overlapL(w, art));
+        if (ti < 0.6) return 0;
+        if (ar < 0.5 && !(d >= 0 && d <= 3)) return 0;
+        double score = ti * 3 + ar * 2 + (!synced(x).trim().isEmpty() ? 1 : 0);
+        if (d >= 0) score += d <= 2 ? 1.5 : d <= 8 ? 0.5 : -1;
+        return Math.max(score, 0.01);
+    }
+
     private static final long LY_NONE_MS = 7L * 24 * 3600 * 1000;
     private static final String LY_NONE_MSG = "tidak ditemukan, dicari ulang tiap 7 hari";
 
@@ -863,7 +902,7 @@ final class Backend {
                 cands.add(new String[]{b, a});
             }
             if (!ch.isEmpty()) cands.add(new String[]{ch, i > 0 ? ti.substring(i + 3).trim() : ti});
-            String synced = "", plain = "";
+            String synced = "", plain = "", weak = "";
             for (String[] c : cands) {
                 if (c[0].isEmpty() || c[1].isEmpty()) continue;
                 if (System.currentTimeMillis() > dl) break;
@@ -871,14 +910,20 @@ final class Backend {
                 Object o = lrc("get?track_name=" + enc(c[1]) + "&artist_name=" + enc(c[0]));
                 if (o instanceof JSONObject) {
                     JSONObject j = (JSONObject) o;
-                    if (!synced(j).trim().isEmpty()) { synced = synced(j); break; }
+                    double gd = t.seconds > 0 && j.optDouble("duration", 0) > 0 ? Math.abs(j.optDouble("duration", 0) - t.seconds) : -1;
+                    if (!synced(j).trim().isEmpty()) {
+                        if (!LY_STRICT || gd < 0 || gd <= 8) { synced = synced(j); break; }
+                        if (weak.isEmpty()) weak = synced(j); // durasi beda jauh (mungkin versi live/panjang): cadangan terakhir
+                    }
                     if (plain.isEmpty()) plain = plainOf(j);
                 }
             }
             if (synced.isEmpty()) {
                 String[] qs = {(i > 0 ? ti.replace(" - ", " ") : ch + " " + ti).trim(), ti};
                 JSONObject bestS = null, bestP = null;
-                double dS = 1e9, dP = 1e9;
+                double scS = 0, scP = 0;
+                List<String> wantT = new ArrayList<>(), wantA = new ArrayList<>();
+                for (String[] c : cands) { if (!wantA.contains(c[0])) wantA.add(c[0]); if (!wantT.contains(c[1])) wantT.add(c[1]); }
                 for (String q : new LinkedHashSet<>(Arrays.asList(qs))) {
                     if (System.currentTimeMillis() > dl) break;
                     sr++;
@@ -888,23 +933,19 @@ final class Backend {
                     JSONArray arr = (JSONArray) o;
                     for (int k = 0; k < arr.length(); k++) {
                         JSONObject x = arr.optJSONObject(k);
-                        if (x == null) continue;
-                        double d = t.seconds > 0 ? Math.abs(x.optDouble("duration", 0) - t.seconds) : 0;
-                        if (d > 20) continue;
-                        if (!synced(x).trim().isEmpty() && d < dS) { bestS = x; dS = d; }
-                        if (!plainOf(x).isEmpty() && d < dP) { bestP = x; dP = d; }
+                        if (x == null || x.optBoolean("instrumental", false)) continue;
+                        double sc = matchScore(x, wantT, wantA, t.seconds);
+                        if (sc <= 0) continue;
+                        if (!synced(x).trim().isEmpty() && sc > scS) { bestS = x; scS = sc; }
+                        if (!plainOf(x).isEmpty() && sc > scP) { bestP = x; scP = sc; }
                     }
                     if (bestS != null) break;
                 }
                 if (bestS != null) synced = synced(bestS);
+                else if (!weak.isEmpty()) synced = weak;
                 else if (plain.isEmpty() && bestP != null) plain = plainOf(bestP);
             }
-            if (!synced.isEmpty()) {
-                out = parseLrc(synced);
-                // Paket 13: kalau ketemu lirik tersinkron, coba tempel waktu kata asli dari NetEase (opsional,
-                // gagal diam-diam kalau gak ketemu/gak cocok — lirik & karaoke tebakan tetap jalan seperti biasa)
-                if (out.length() > 0) neEnrich(out, t.title, t.artist, t.seconds);
-            }
+            if (!synced.isEmpty()) out = parseLrc(synced);
             else if (!plain.isEmpty()) { out = fromPlain(plain, t.seconds); kind = "plain"; }
             if (out.length() == 0 && t.subUrl != null) {
                 byte[] b = bytes(t.subUrl, FF);
@@ -919,12 +960,10 @@ final class Backend {
 
     private static String plainOf(JSONObject o) { return o.isNull("plainLyrics") ? "" : o.optString("plainLyrics", "").trim(); }
 
-    // Tag waktu per-kata di LRC "enhanced": <mm:ss.xx>kata <mm:ss.xx>kata ...
-    private static final Pattern WRE = Pattern.compile("<(\\d+):(\\d+(?:\\.\\d+)?)>");
-
     private static JSONArray parseLrc(String raw) throws Exception {
         Pattern re = Pattern.compile("\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?\\]");
-        List<Object[]> rows = new ArrayList<>(); // {Double time, String text, List<Double> wStart, List<String> wText}
+        Pattern wre = Pattern.compile("<(\\d{1,3}):(\\d{2}(?:\\.\\d+)?)>"); // LRC "enhanced": waktu di depan tiap kata
+        List<Object[]> rows = new ArrayList<>();
         for (String line : raw.split("\\r?\\n")) {
             Matcher m = re.matcher(line);
             List<Double> times = new ArrayList<>();
@@ -932,299 +971,51 @@ final class Backend {
                 double f = m.group(3) != null ? Double.parseDouble("0." + m.group(3)) : 0;
                 times.add(Integer.parseInt(m.group(1)) * 60 + Integer.parseInt(m.group(2)) + f);
             }
-            String rest = re.matcher(line).replaceAll("").trim();
-            if (times.isEmpty() || rest.isEmpty()) continue;
-            // Kata berwaktu cuma dipakai kalau baris ini punya persis 1 waktu (baris berulang/reff jarang dan rumit kalau dicampur)
-            List<Double> wStart = null; List<String> wText = null;
-            if (times.size() == 1) {
-                Matcher wm = WRE.matcher(rest);
-                List<Integer> starts = new ArrayList<>(), ends = new ArrayList<>(); List<Double> wt = new ArrayList<>();
-                while (wm.find()) {
-                    wt.add(Integer.parseInt(wm.group(1)) * 60 + Double.parseDouble(wm.group(2)));
-                    starts.add(wm.start()); ends.add(wm.end());
-                }
-                if (!wt.isEmpty()) {
-                    wStart = new ArrayList<>(); wText = new ArrayList<>();
-                    for (int wi = 0; wi < ends.size(); wi++) {
-                        int from = ends.get(wi), to = wi + 1 < ends.size() ? starts.get(wi + 1) : rest.length();
-                        String wtxt = rest.substring(from, to).trim();
-                        if (!wtxt.isEmpty()) { wStart.add(wt.get(wi)); wText.add(wtxt); }
+            String text = re.matcher(line).replaceAll("").trim();
+            List<Object[]> segs = null;
+            if (text.indexOf('<') >= 0) {
+                Matcher wm = wre.matcher(text);
+                List<double[]> pos = new ArrayList<>(); // {waktu, awal tag, akhir tag}
+                while (wm.find()) pos.add(new double[]{Integer.parseInt(wm.group(1)) * 60 + Double.parseDouble(wm.group(2)), wm.start(), wm.end()});
+                if (!pos.isEmpty() && times.size() == 1) {
+                    segs = new ArrayList<>();
+                    String lead = text.substring(0, (int) pos.get(0)[1]).trim(); // teks sebelum tag pertama: mulai dari awal baris
+                    if (!lead.isEmpty()) segs.add(new Object[]{times.get(0), lead});
+                    for (int q = 0; q < pos.size(); q++) {
+                        int from = (int) pos.get(q)[2], to = q + 1 < pos.size() ? (int) pos.get(q + 1)[1] : text.length();
+                        String seg = wre.matcher(text.substring(from, to)).replaceAll("").trim();
+                        if (!seg.isEmpty()) segs.add(new Object[]{pos.get(q)[0], seg});
                     }
                 }
+                text = wre.matcher(text).replaceAll("").replaceAll("\\s+", " ").trim();
             }
-            String text = WRE.matcher(rest).replaceAll("").trim();
-            if (text.isEmpty()) continue;
-            if (text.length() > 120) text = text.substring(0, 120);
-            for (double d : times) rows.add(new Object[]{d, text, wStart, wText});
+            if (times.isEmpty() || text.isEmpty()) continue;
+            if (text.length() > 120) { text = text.substring(0, 120); segs = null; }
+            for (double d : times) rows.add(new Object[]{d, text, segs});
         }
         Collections.sort(rows, (a, b) -> Double.compare((Double) a[0], (Double) b[0]));
         JSONArray out = new JSONArray();
         for (int ri = 0; ri < rows.size(); ri++) {
             Object[] r = rows.get(ri);
-            JSONObject row = new JSONObject().put("time", (Double) r[0]).put("text", (String) r[1]);
-            @SuppressWarnings("unchecked") List<Double> wS = (List<Double>) r[2];
-            @SuppressWarnings("unchecked") List<String> wT = (List<String>) r[3];
-            if (wS != null && !wS.isEmpty()) {
-                double lineEnd = ri + 1 < rows.size() ? (Double) rows.get(ri + 1)[0] : wS.get(wS.size() - 1) + 3;
-                JSONArray words = new JSONArray();
-                for (int wi = 0; wi < wS.size(); wi++) {
-                    double s = wS.get(wi);
-                    double e = wi + 1 < wS.size() ? wS.get(wi + 1) : Math.max(s + 0.2, lineEnd);
-                    words.put(new JSONObject().put("s", s).put("e", e).put("t", wT.get(wi)));
-                }
-                row.put("words", words);
-            }
-            out.put(row);
-        }
-        return out;
-    }
-
-    // ===== Paket 13: kata-per-kata asli dari NetEase (YRC), ditempel ke lirik lrclib yang sedang tampil =====
-    // Hati-hati: ini satu-satunya bagian di berkas ini yang BELUM pernah diuji ke API aslinya.
-    // Algoritmanya dikonfirmasi dari implementasi independen yang stabil, tapi tetap ada risiko kalau NetEase ubah sesuatu.
-    private static final String NE_EAPI_KEY = "e82ckenh8dichen8";
-    private static final Pattern NE_CJK = Pattern.compile("[\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7A3]");
-    private static final Pattern NE_LINE_RE = Pattern.compile("^\\[(\\d+),(\\d+)\\](.*)$");
-    private static final Pattern NE_WORD_RE = Pattern.compile("\\((\\d+),(\\d+)(?:,\\d+)?\\)([^(]*)");
-
-    private static String neHex(byte[] b) {
-        StringBuilder sb = new StringBuilder(b.length * 2);
-        for (byte x : b) { sb.append(Character.forDigit((x >> 4) & 0xF, 16)); sb.append(Character.forDigit(x & 0xF, 16)); }
-        return sb.toString();
-    }
-    private static byte[] neAesEcb(String key, byte[] data) throws Exception {
-        javax.crypto.Cipher c = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding");
-        c.init(javax.crypto.Cipher.ENCRYPT_MODE, new javax.crypto.spec.SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES"));
-        return c.doFinal(data);
-    }
-    private static String neEapiParams(String path, String json) throws Exception {
-        String digest = neHex(java.security.MessageDigest.getInstance("MD5").digest(("nobody" + path + "use" + json + "md5forencrypt").getBytes(StandardCharsets.UTF_8)));
-        String msg = path + "-36cd479b6b5-" + json + "-36cd479b6b5-" + digest;
-        return neHex(neAesEcb(NE_EAPI_KEY, msg.getBytes(StandardCharsets.UTF_8))).toUpperCase();
-    }
-    private static byte[] nePostEapi(String apiPath, String json, int ms) {
-        try {
-            String params = neEapiParams(apiPath, json);
-            byte[] bb = ("params=" + params).getBytes(StandardCharsets.UTF_8);
-            HttpURLConnection c = (HttpURLConnection) new URL("https://interface3.music.163.com" + apiPath.replaceFirst("^/api/", "/eapi/")).openConnection();
-            c.setConnectTimeout(ms); c.setReadTimeout(ms);
-            c.setRequestMethod("POST"); c.setDoOutput(true);
-            c.setRequestProperty("User-Agent", FF);
-            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            c.setRequestProperty("Referer", "https://music.163.com/");
-            c.setRequestProperty("Cookie", "os=pc; appver=8.9.70");
-            c.setFixedLengthStreamingMode(bb.length);
-            try (java.io.OutputStream os = c.getOutputStream()) { os.write(bb); }
-            if (c.getResponseCode() != 200) return null;
-            try (InputStream in = c.getInputStream()) { return readAll(in); }
-        } catch (Throwable e) { return null; }
-    }
-
-    private static JSONArray neSearch(String q, int ms) {
-        try {
-            byte[] b = bytes("http://music.163.com/api/search/get/web?s=" + enc(q) + "&type=1&offset=0&limit=8", FF, ms);
-            if (b == null) return null;
-            Object o = new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
-            JSONObject result = o instanceof JSONObject ? ((JSONObject) o).optJSONObject("result") : null;
-            return result == null ? null : result.optJSONArray("songs");
-        } catch (Throwable e) { return null; }
-    }
-
-    private static String neSimple(String s) {
-        if (s == null) return "";
-        String n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKD);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < n.length(); i++) {
-            char c = n.charAt(i);
-            if (Character.getType(c) == Character.NON_SPACING_MARK) continue;
-            if (Character.isLetterOrDigit(c)) sb.append(Character.toLowerCase(c));
-        }
-        return sb.toString();
-    }
-    private static boolean neOverlaps(String a, String b) { return !a.isEmpty() && !b.isEmpty() && (a.equals(b) || a.contains(b) || b.contains(a)); }
-
-    private static long nePickSongId(JSONArray songs, String title, String artist, long durSec) {
-        if (songs == null) return -1;
-        String t = neSimple(title);
-        String[] artists = artist == null || artist.isEmpty() ? new String[0] : artist.split("\\s*(?:,|&|/|\\+|\\bx\\b|\\band\\b|\\bfeat\\.?|\\bft\\.?)\\s*");
-        for (int i = 0; i < songs.length(); i++) {
-            JSONObject s = songs.optJSONObject(i);
-            if (s == null) continue;
-            long len = s.optLong("duration", 0) / 1000;
-            if (durSec > 0 && len > 0 && Math.abs(len - durSec) > 3) continue;
-            if (!neOverlaps(neSimple(s.optString("name", "")), t)) continue;
-            JSONArray ar = s.optJSONArray("artists");
-            boolean artistOk = artists.length == 0 || ar == null;
-            if (!artistOk) {
-                for (int ai = 0; ai < ar.length() && !artistOk; ai++) {
-                    JSONObject one = ar.optJSONObject(ai);
-                    String cand = neSimple(one == null ? "" : one.optString("name", ""));
-                    for (String a : artists) if (neOverlaps(neSimple(a), cand)) { artistOk = true; break; }
-                }
-            }
-            if (!artistOk) continue;
-            return s.optLong("id", -1);
-        }
-        return -1;
-    }
-
-    private static class NeWord { String text; double start, end; }
-    private static class NeLine { String text; double start, end; List<NeWord> words = new ArrayList<>(); }
-
-    private static NeWord neFlush(NeWord w, List<NeWord> out) {
-        if (w != null) { w.text = w.text.trim(); if (!w.text.isEmpty()) out.add(w); }
-        return null;
-    }
-    private static List<NeWord> neParseWords(String rest) {
-        List<NeWord> out = new ArrayList<>();
-        Matcher m = NE_WORD_RE.matcher(rest);
-        NeWord cur = null;
-        while (m.find()) {
-            double start = Double.parseDouble(m.group(1)) / 1000.0;
-            double end = (Double.parseDouble(m.group(1)) + Double.parseDouble(m.group(2))) / 1000.0;
-            String piece = m.group(3);
-            boolean isCjk = NE_CJK.matcher(piece).find();
-            if (cur != null && (isCjk || NE_CJK.matcher(cur.text).find())) cur = neFlush(cur, out);
-            if (cur == null) { cur = new NeWord(); cur.text = piece; cur.start = start; cur.end = end; }
-            else { cur.text += piece; cur.end = Math.max(cur.end, end); }
-            if (Pattern.compile("\\s").matcher(piece).find() || isCjk) cur = neFlush(cur, out);
-        }
-        neFlush(cur, out);
-        return out;
-    }
-    private static List<NeLine> neParseYrc(String text) {
-        List<NeLine> lines = new ArrayList<>();
-        if (text == null) return lines;
-        Pattern credit = Pattern.compile("^(作词|作曲|编曲|制作人|混音|母带|和声|吉他|贝斯|鼓|录音|监制|出品|发行)\\s*[:：]");
-        for (String raw : text.split("\n")) {
-            Matcher m = NE_LINE_RE.matcher(raw.trim());
-            if (!m.find()) continue;
-            List<NeWord> words = neParseWords(m.group(3));
-            if (words.isEmpty()) continue;
-            StringBuilder full = new StringBuilder();
-            for (NeWord w : words) { if (full.length() > 0) full.append(' '); full.append(w.text); }
-            String ft = full.toString().replaceAll("\\s+", " ").trim();
-            if (ft.isEmpty() || credit.matcher(ft).find()) continue;
-            NeLine ln = new NeLine();
-            ln.start = Double.parseDouble(m.group(1)) / 1000.0;
-            ln.end = (Double.parseDouble(m.group(1)) + Double.parseDouble(m.group(2))) / 1000.0;
-            ln.text = ft; ln.words = words;
-            lines.add(ln);
-        }
-        return lines;
-    }
-    private static boolean neSameWord(String a, String b) { return a.equals(b) || (a.length() >= 4 && b.length() >= 4 && (a.startsWith(b) || b.startsWith(a))); }
-    private static List<String> neLineTokens(String text) {
-        List<String> out = new ArrayList<>();
-        String clean = text == null ? "" : text.replaceAll("<[^>]+>", "").trim();
-        if (clean.isEmpty()) return out;
-        for (String w : clean.split("\\s+")) {
-            if (w.isEmpty()) continue;
-            if (NE_CJK.matcher(w).find()) {
-                w.codePoints().forEach(cp -> { String ch = new String(Character.toChars(cp)); if (!neSimple(ch).isEmpty()) out.add(ch); });
-            } else out.add(w);
-        }
-        return out;
-    }
-    private static class NePoolWord { String n; double start, end; }
-
-    private static void neAlignWordTimings(JSONArray rows, List<NeLine> neLines) {
-        try {
-            int n = rows.length();
-            List<Integer> shown = new ArrayList<>();
-            for (int i = 0; i < n; i++) {
-                JSONObject row = rows.optJSONObject(i);
-                if (row == null || row.has("words")) continue;
-                if (!row.optString("text", "").isEmpty()) shown.add(i);
-            }
-            List<NePoolWord> pool = new ArrayList<>();
-            for (NeLine wl : neLines) for (NeWord w : wl.words) {
-                String ns = neSimple(w.text);
-                if (!ns.isEmpty()) { NePoolWord pw = new NePoolWord(); pw.n = ns; pw.start = w.start; pw.end = w.end; pool.add(pw); }
-            }
-            if (shown.isEmpty() || pool.isEmpty()) return;
-
-            List<Object[]> matches = new ArrayList<>();
-            int p = 0;
-            for (int k = 0; k < shown.size(); k++) {
-                int i = shown.get(k);
-                JSONObject row = rows.getJSONObject(i);
-                double time = row.optDouble("time", 0);
-                String text = row.optString("text", "");
-                double next = k + 1 < shown.size() ? rows.getJSONObject(shown.get(k + 1)).optDouble("time", time + 8) : time + 8;
-                List<String> toks = neLineTokens(text);
-                if (toks.isEmpty()) continue;
-                NePoolWord[] hit = new NePoolWord[toks.size()];
-                int found = 0;
-                while (p < pool.size() && pool.get(p).start < time - 2.5) p++;
-                int q = p;
-                for (int j = 0; j < toks.size(); j++) {
-                    String ns = neSimple(toks.get(j));
-                    for (int c = q; c < pool.size() && pool.get(c).start <= next + 2.5; c++) {
-                        if (!ns.isEmpty() && neSameWord(pool.get(c).n, ns)) { hit[j] = pool.get(c); q = c + 1; found++; break; }
+            JSONObject o = new JSONObject().put("time", (Double) r[0]).put("text", (String) r[1]);
+            @SuppressWarnings("unchecked") List<Object[]> sg = (List<Object[]>) r[2];
+            if (sg != null && !sg.isEmpty()) {
+                double t0 = (Double) r[0], lineEnd = ri + 1 < rows.size() ? (Double) rows.get(ri + 1)[0] : t0 + 4;
+                JSONArray ws = new JSONArray();
+                for (int u = 0; u < sg.size(); u++) {
+                    double st = (Double) sg.get(u)[0];
+                    double en = u + 1 < sg.size() ? (Double) sg.get(u + 1)[0] : Math.max(st + 0.3, Math.min(lineEnd, st + 4));
+                    String[] toks = ((String) sg.get(u)[1]).split("\\s+");
+                    for (int k = 0; k < toks.length; k++) {
+                        double a0 = st + (en - st) * k / toks.length, a1 = st + (en - st) * (k + 1) / toks.length;
+                        ws.put(new JSONObject().put("text", toks[k]).put("start", Math.round(a0 * 1000) / 1000.0).put("end", Math.round(a1 * 1000) / 1000.0));
                     }
                 }
-                if ((double) found / toks.size() < 0.7) continue;
-                p = q;
-                matches.add(new Object[]{i, next, toks, hit});
+                o.put("words", ws);
             }
-            if (matches.isEmpty() || (double) matches.size() / shown.size() < 0.6) return;
-
-            List<Double> gaps = new ArrayList<>();
-            for (Object[] mm : matches) {
-                NePoolWord[] hit = (NePoolWord[]) mm[3];
-                if (hit.length > 0 && hit[0] != null) gaps.add(rows.getJSONObject((Integer) mm[0]).optDouble("time", 0) - hit[0].start);
-            }
-            Collections.sort(gaps);
-            double median = gaps.isEmpty() ? 0 : gaps.get(gaps.size() / 2);
-            double shift = Math.abs(median) > 0.25 ? median : 0;
-
-            for (Object[] mm : matches) {
-                int i = (Integer) mm[0];
-                double next = (Double) mm[1];
-                @SuppressWarnings("unchecked") List<String> toks = (List<String>) mm[2];
-                NePoolWord[] hit = (NePoolWord[]) mm[3];
-                double time = rows.getJSONObject(i).optDouble("time", 0);
-                int m = toks.size();
-                Double[] ws = new Double[m], we = new Double[m];
-                for (int j = 0; j < m; j++) if (hit[j] != null) { ws[j] = hit[j].start + shift; we[j] = hit[j].end + shift; }
-                int j = 0;
-                while (j < m) {
-                    if (ws[j] != null) { j++; continue; }
-                    int e = j; while (e < m && ws[e] == null) e++;
-                    double from = j > 0 ? we[j - 1] : Math.min(time, e < m ? ws[e] : time);
-                    double to = e < m ? ws[e] : Math.max(from + 0.3 * (e - j), Math.min(next, from + 0.6 * (e - j)));
-                    double step = Math.max(0, to - from) / (e - j);
-                    for (int m2 = j; m2 < e; m2++) { ws[m2] = from + step * (m2 - j); we[m2] = from + step * (m2 - j + 1); }
-                    j = e;
-                }
-                JSONArray words = new JSONArray();
-                for (int j2 = 0; j2 < m; j2++) words.put(new JSONObject().put("s", Math.round(ws[j2] * 1000) / 1000.0).put("e", Math.round(we[j2] * 1000) / 1000.0).put("t", toks.get(j2)));
-                rows.getJSONObject(i).put("words", words);
-            }
-        } catch (Throwable e) { /* penyelarasan opsional, gagal diam-diam */ }
-    }
-
-    private static void neEnrich(JSONArray out, String title, String artist, long durSec) {
-        String dbg = (title == null ? "?" : title) + " – " + (artist == null ? "?" : artist);
-        try {
-            String q = (cleanArtist(artist) + " " + cleanTitle(title)).trim();
-            if (q.isEmpty()) return;
-            JSONArray songs = neSearch(q, 4000);
-            if (songs == null) return;
-            long id = nePickSongId(songs, cleanTitle(title), artist, durSec);
-            if (id <= 0) return;
-            String json = "{\"id\":" + id + ",\"cp\":false,\"tv\":0,\"lv\":0,\"rv\":0,\"kv\":0,\"yv\":0,\"ytv\":0,\"yrv\":0}";
-            byte[] b = nePostEapi("/api/song/lyric/v1", json, 4000);
-            if (b == null) return;
-            Object o = new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
-            JSONObject yrcObj = o instanceof JSONObject ? ((JSONObject) o).optJSONObject("yrc") : null;
-            String yrcText = yrcObj == null ? "" : yrcObj.optString("lyric", "");
-            if (yrcText.trim().isEmpty()) return;
-            List<NeLine> neLines = neParseYrc(yrcText);
-            if (neLines.isEmpty()) return;
-            neAlignWordTimings(out, neLines);
-        } catch (Throwable e) { logErr("lirik-ne", dbg + " · error tak terduga: " + e); }
+            out.put(o);
+        }
+        return out;
     }
 
     // Teks biasa tanpa waktu: baris dibagi rata sepanjang lagu (perkiraan)
@@ -1311,9 +1102,11 @@ final class Backend {
 
     static String cleanTitle(String t) {
         if (t == null) return "";
-        return t.replaceAll("(?i)[\\(\\[\\{][^\\)\\]\\}]*(official|video|audio|lyric|lyrics|lirik|mv|m/v|visualizer|hd|hq|4k|remaster|clip)[^\\)\\]\\}]*[\\)\\]\\}]", "")
+        return t.replaceAll("(?i)[\\(\\[\\{][^\\)\\]\\}]*(official|video|audio|lyric|lyrics|lirik|terjemahan|resmi|klip|subtitle|mv|m/v|visualizer|hd|hq|4k|remaster|clip)[^\\)\\]\\}]*[\\)\\]\\}]", "")
                 .replaceAll("(?i)\\s*[\\(\\[]?\\s*(feat\\.?|ft\\.?)\\s[^\\)\\]]*[\\)\\]]?", "")
                 .replaceAll("\\s*\\|.*$", "")
+                .replaceAll("(?i)\\s+(lirik|lyrics?)(\\s+(dan|&)\\s+terjemahan(\\s+indonesia)?)?\\s*$", "")
+                .replaceAll("(?i)\\s+(terjemahan|translation)(\\s+indonesia)?\\s*$", "")
                 .replaceAll("\\s{2,}", " ")
                 .trim();
     }

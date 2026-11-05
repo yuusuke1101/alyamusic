@@ -250,6 +250,15 @@
   .viz { height:26px; margin-bottom:10px; opacity:.6; }
   .now { height:18px; margin-bottom:8px; opacity:.72; }
   .qinfo { margin:8px 0 4px; }
+
+  /* v17: isi warna per kata di tab Lirik */
+  .ly.on .lw { color:transparent; -webkit-background-clip:text; background-clip:text; background-image:linear-gradient(90deg,var(--b),var(--a)), linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.5)); background-repeat:no-repeat; background-size:0% 100%,100% 100%; background-position:left center; transition:background-size .26s linear; }
+  .lspace .chips { justify-content:center; margin-top:2px; }
+  @media (prefers-reduced-motion:reduce) { .ly.on .lw { transition:none; } }
+
+  /* v18: baris kanan-ke-kiri mengisi dari kanan */
+  .ly[dir=rtl] .lw { background-image:linear-gradient(270deg,var(--b),var(--a)), linear-gradient(rgba(255,255,255,.5),rgba(255,255,255,.5)); background-position:right center; }
+  #k1[dir=rtl] .kw { background-image:linear-gradient(270deg,var(--b),var(--a)), linear-gradient(rgba(255,255,255,.4),rgba(255,255,255,.4)); background-position:right center; }
 </style>
 
 <div class="wrap">
@@ -335,6 +344,11 @@
             <span class="lsl">Sinkron lirik</span>
             <div class="lsc"><button class="btn lsb" data-lsd="-0.5" aria-label="Lirik lebih lambat">&minus; 0,5</button><button class="lsv" data-lsd="0" aria-label="Atur ulang sinkron">0,0 dtk</button><button class="btn lsb" data-lsd="0.5" aria-label="Lirik lebih awal">+ 0,5</button></div>
             <div class="lsh">+ lirik muncul lebih awal &middot; &minus; lebih lambat</div>
+          </div>
+          <div class="lysync lspace">
+            <span class="lsl">Kecepatan isi warna</span>
+            <div class="chips" id="chips-pace"><button class="chip" data-pace="0.75">Cepat</button><button class="chip on" data-pace="1">Pas</button><button class="chip" data-pace="1.1">Lambat</button></div>
+            <div class="lsh">Ubah kalau warna selesai lebih dulu atau lebih lambat dari vokal</div>
           </div>
         </div>
 
@@ -598,10 +612,12 @@
   function updLyrics(t, instant) {
     if (!LY.length) return;
     var idx = lyFind(t);
-    if (idx === lyActive && !instant) { kFill(t); return; }
+    if (idx === lyActive && !instant) { kFill(t); lyFill(t); return; }
     lyActive = idx;
     updKar(idx);
     kFill(t);
+    if (idx !== lwIdx || instant) buildLyLine(idx);
+    lyFill(t);
     for (var i = 0; i < lyEls.length; i++) {
       var dd = i - idx;
       if (dd === 0) lyEls[i].classList.add('on'); else lyEls[i].classList.remove('on');
@@ -980,31 +996,22 @@
   var LYKIND = 'synced', kWords = [], kStart = 0, kDur = 1, kIdx = -2;
   function kClamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
   function buildKLine(idx) {
-    var el = $('k1'), text = idx >= 0 ? (LY[idx].text || '\u266A') : '\u266A', parts = text.split(/(\s+)/), total = 0, acc = 0, i;
-    el.innerHTML = ''; kWords = []; kIdx = idx;
-    for (i = 0; i < parts.length; i++) if (parts[i] && !/^\s+$/.test(parts[i])) total += parts[i].length;
-    var timed = idx >= 0 && LYKIND !== 'plain';
-    for (i = 0; i < parts.length; i++) {
-      var w = parts[i]; if (!w) continue;
-      if (/^\s+$/.test(w)) { el.appendChild(document.createTextNode(' ')); continue; }
-      var sp = document.createElement('span'); sp.className = 'kw'; sp.textContent = w;
-      if (!timed) sp.style.backgroundSize = '100% 100%, 100% 100%';
-      el.appendChild(sp);
-      if (timed) kWords.push({ el: sp, a: acc / total, b: (acc + w.length) / total });
-      acc += w.length;
-    }
-    if (idx >= 0) {
-      kStart = Number(LY[idx].time) || 0;
-      var nxt = idx + 1 < LY.length ? Number(LY[idx + 1].time) : kStart + 6, gap = Math.max(0.5, nxt - kStart);
-      kDur = Math.min(gap * 0.92, Math.max(1.2, total * 0.075));
-    }
+    var el = $('k1'), r = wordSpans(el, 'kw', idx, idx >= 0 && LYKIND !== 'plain');
+    kWords = r.words; kReal = r.real; kIdx = idx;
+    if (idx >= 0 && isRtl(LY[idx].text)) el.dir = 'rtl'; else el.removeAttribute('dir');
+    if (idx >= 0 && !r.real) { var ls0 = lineSpan(idx, r.chars); kStart = ls0.start; kDur = ls0.dur; }
     el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
   }
   function kFill(t) {
     if (!karaoke || !kWords.length) return;
-    var p = kClamp((t + lyOff - kStart) / kDur);
-    for (var i = 0; i < kWords.length; i++) {
-      var w = kWords[i];
+    var tt = t + lyOff, i, w;
+    if (kReal) {
+      for (i = 0; i < kWords.length; i++) { w = kWords[i]; w.el.style.backgroundSize = (kClamp((tt - w.s) / (w.e - w.s)) * 100).toFixed(1) + '% 100%, 100% 100%'; }
+      return;
+    }
+    var p = kClamp((tt - kStart) / kDur);
+    for (i = 0; i < kWords.length; i++) {
+      w = kWords[i];
       w.el.style.backgroundSize = (kClamp((p - w.a) / Math.max(0.001, w.b - w.a)) * 100).toFixed(1) + '% 100%, 100% 100%';
     }
   }
@@ -1024,6 +1031,95 @@
     else { $('sw-kar').classList.remove('on'); $('kar').classList.remove('on'); disc.style.display = ''; }
     if (typeof paintAcKar === 'function') paintAcKar();
   }
+  // ===== Isi warna per kata (tab Lirik + karaoke): PERKIRAAN dari waktu baris =====
+  var KPACE = 1; try { KPACE = parseFloat(localStorage.getItem('alya_kpace')) || 1; } catch (e) {}
+  var lwIdx = -2, lwWords = [], lwStart = 0, lwDur = 1;
+  // Lama sebuah baris dinyanyikan. Jeda normal (<= 7 dtk): hampir sepanjang jeda. Jeda panjang (interlude): dibatasi
+  // perkiraan dari panjang teks supaya warna tidak merayap berdetik-detik. Baris terakhir: dari panjang teks saja.
+  function lineSpan(idx, chars) {
+    var start = Number(LY[idx].time) || 0, est = Math.max(1.2, chars * 0.12), gap, base;
+    if (idx + 1 < LY.length) {
+      gap = Math.max(0.5, Number(LY[idx + 1].time) - start);
+      base = gap <= 7 ? gap * 0.9 : Math.min(gap * 0.9, Math.max(est, 4));
+    } else { gap = est + 1.5; base = est + 1; }
+    return { start: start, dur: Math.max(0.6, Math.min(gap * 0.98, base * KPACE)) };
+  }
+  var kReal = false, lwReal = false;
+  // Teks kanan-ke-kiri (Arab, Ibrani, ...): huruf pertama menentukan arah
+  function isRtl(text) {
+    var rr = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/, lr = /\p{L}/u, c = String(text || '').replace(/<[^>]*>/g, '');
+    for (var i = 0; i < c.length; i++) { var ch = c.charAt(i); if (!lr.test(ch)) continue; return rr.test(ch); }
+    return false;
+  }
+  // Waktu kata ASLI untuk satu baris (LY[idx].words = [{text,start,end}], mis. dari LRC "enhanced"), atau null
+  function realWords(idx) {
+    var ws = LY[idx] && LY[idx].words;
+    if (!Array.isArray(ws) || !ws.length) return null;
+    var own = String(LY[idx].text || '').trim().split(/\s+/).filter(Boolean), out = [], i;
+    for (i = 0; i < ws.length; i++) {
+      var s = Number(ws[i].start), e = Number(ws[i].end);
+      if (!isFinite(s) || !isFinite(e)) return null;
+      out.push({ text: String(ws[i].text || ''), start: s, end: Math.max(e, s + 0.05) });
+    }
+    if (own.length === out.length) { for (i = 0; i < out.length; i++) out[i].text = own[i]; return out; }
+    var nm = function(x) { return String(x).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''); };
+    return nm(own.join('')) === nm(out.map(function(w) { return w.text; }).join('')) ? out : null; // beda pemisahan kata tapi teks sama
+  }
+  // Satu <span> per kata di dalam `el`. Waktu asli bila ada ({el,s,e}); kalau tidak, perkiraan ({el,a,b}) dari panjang kata.
+  function wordSpans(el, cls, idx, timedOk) {
+    var text = LY[idx] ? (LY[idx].text || '\u266A') : '\u266A', rw = timedOk ? realWords(idx) : null, out = [], i, sp;
+    el.textContent = '';
+    if (rw) {
+      var sep = /\s/.test(text) ? ' ' : '';
+      for (i = 0; i < rw.length; i++) {
+        if (i && sep) el.appendChild(document.createTextNode(sep));
+        sp = document.createElement('span'); sp.className = cls; sp.textContent = rw[i].text; el.appendChild(sp);
+        out.push({ el: sp, s: rw[i].start, e: rw[i].end });
+      }
+      return { words: out, real: true, chars: 0 };
+    }
+    var parts = text.split(/(\s+)/), total = 0, acc = 0;
+    for (i = 0; i < parts.length; i++) if (parts[i] && !/^\s+$/.test(parts[i])) total += parts[i].length;
+    for (i = 0; i < parts.length; i++) {
+      var w = parts[i]; if (!w) continue;
+      if (/^\s+$/.test(w)) { el.appendChild(document.createTextNode(' ')); continue; }
+      sp = document.createElement('span'); sp.className = cls; sp.textContent = w; el.appendChild(sp);
+      if (timedOk) out.push({ el: sp, a: acc / total, b: (acc + w.length) / total });
+      else sp.style.backgroundSize = '100% 100%, 100% 100%';
+      acc += w.length;
+    }
+    return { words: out, real: false, chars: total };
+  }
+  function buildLyLine(idx) {
+    if (lwIdx >= 0 && lyEls[lwIdx]) lyEls[lwIdx].textContent = LY[lwIdx].text || '\u266A';
+    lwIdx = idx; lwWords = []; lwReal = false;
+    if (idx < 0 || !lyEls[idx] || LYKIND === 'plain') return;
+    var r = wordSpans(lyEls[idx], 'lw', idx, true);
+    lwWords = r.words; lwReal = r.real;
+    if (!r.real) { var s2 = lineSpan(idx, r.chars); lwStart = s2.start; lwDur = s2.dur; }
+  }
+  function lyFill(t) {
+    if (!lwWords.length) return;
+    var tt = t + lyOff, i, w;
+    if (lwReal) {
+      for (i = 0; i < lwWords.length; i++) { w = lwWords[i]; w.el.style.backgroundSize = (kClamp((tt - w.s) / (w.e - w.s)) * 100).toFixed(1) + '% 100%, 100% 100%'; }
+      return;
+    }
+    var p = kClamp((tt - lwStart) / lwDur);
+    for (i = 0; i < lwWords.length; i++) {
+      w = lwWords[i];
+      w.el.style.backgroundSize = (kClamp((p - w.a) / Math.max(0.001, w.b - w.a)) * 100).toFixed(1) + '% 100%, 100% 100%';
+    }
+  }
+  var paceBtns = document.querySelectorAll('#chips-pace .chip');
+  function paintPace() { for (var i = 0; i < paceBtns.length; i++) paceBtns[i].classList.toggle('on', parseFloat(paceBtns[i].dataset.pace) === KPACE); }
+  for (var pi = 0; pi < paceBtns.length; pi++) paceBtns[pi].addEventListener('click', function() {
+    KPACE = parseFloat(this.dataset.pace) || 1;
+    try { localStorage.setItem('alya_kpace', String(KPACE)); } catch (e) {}
+    paintPace(); lyActive = -2; kIdx = -2;
+    if (LY.length) { updLyrics(pos(), true); kFill(pos()); }
+  });
+  paintPace();
   function lyJump(dir) {
     if (!LY.length || !ready) return;
     var p = pos(), i = lyFind(p), t;
@@ -1315,7 +1411,7 @@
     lyText.style.paddingBottom = pd;
   }
   function setLyrics(arr) {
-    LY = Array.isArray(arr) ? arr : []; kIdx = -2;
+    LY = Array.isArray(arr) ? arr : []; kIdx = -2; lwIdx = -2; lwWords = [];
     lyEls = [];
     lyText.innerHTML = '';
     lyActive = -2;
@@ -1328,6 +1424,7 @@
         var dv = document.createElement('div');
         dv.className = 'ly';
         dv.textContent = LY[j2].text || '♪';
+        if (isRtl(LY[j2].text)) dv.dir = 'rtl';
         dv.addEventListener('click', mkLine(LY[j2].time));
         lyText.appendChild(dv);
         lyEls.push(dv);

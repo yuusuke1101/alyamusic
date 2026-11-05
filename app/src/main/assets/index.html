@@ -390,6 +390,15 @@ button:active{transform:scale(.96)}
 .mini .main-b{width:44px;height:44px;margin:0 2px}
 .mini .mo{margin-right:6px}
 .mbar{position:absolute;left:20px;right:20px;bottom:0;height:2.5px;border-radius:2px;background:linear-gradient(90deg,var(--a),var(--b));transform-origin:left;transform:scaleX(0);transition:transform .45s linear;pointer-events:none}
+
+/* ===== Paket 10: Cari ===== */
+.srch .sec{margin:24px 0 12px;align-items:center}
+.srch .sec h2{font-size:19px;font-weight:800;display:flex;align-items:center;gap:10px}
+.srch .sec h2::before,.srch .hh span::before{content:"";flex:none;width:4px;height:20px;border-radius:3px;background:linear-gradient(180deg,var(--a),var(--b))}
+.srch .hh span{display:inline-flex;align-items:center;gap:10px;font-size:19px}
+.srch .list:not(.sg){gap:10px}
+.srch .row{background:var(--card);border:1px solid var(--line);border-radius:18px}
+.srch .row.now{border-color:color-mix(in srgb,var(--a) 70%,transparent)}
 </style>
 </head>
 <body>
@@ -915,7 +924,7 @@ function rRemote(m) {
 }
 function chipsRow(m) {
   const c = h('div', 'chips mood');
-  MOODS.forEach(([l, q]) => { const b = h('button', 'chip', l); b.type = 'button'; b.onclick = () => runSearch(q, true); c.appendChild(b); });
+  MOODS.forEach(([l, q]) => { const b = h('button', 'chip hic'); b.type = 'button'; const ic = h('span', 'ic'); setIc(ic, MOOD_IC[l] || 'music', 16); b.append(ic, h('span', '', l)); b.onclick = () => runSearch(q, true); c.appendChild(b); });
   m.appendChild(c);
 }
 
@@ -1135,7 +1144,8 @@ function lazyLoad(slot, q) {
   } else go();
 }
 addEventListener('scroll', () => { const f = document.querySelector('.sform'); if (f) f.classList.toggle('stuck', (window.pageYOffset || document.documentElement.scrollTop) > 6); }, { passive: true });
-function rSearch(m) {
+function rSearch(m0) {
+  const m = h('div', 'srch'); m0.appendChild(m);
   const f = h('form', 'sform'); const i = h('input'); i.type = 'search'; i.placeholder = 'Judul lagu atau artis'; i.value = lastQ; i.autocomplete = 'off'; i.enterKeyHint = 'search';
   const sin = h('label', 'sin'), sic = h('span', 'ic'); setIc(sic, 'search', 20); sin.append(sic, i);
   const b = h('button', '', 'Cari'); b.type = 'submit'; f.append(sin, b);
@@ -1156,7 +1166,7 @@ function rSearch(m) {
     }
     clearTimeout(sgT); sgT = setTimeout(() => fetch('/api/suggest?q=' + encodeURIComponent(v)).then(x => x.json()).then(d => { if (i.value.trim() !== v) return; sg.innerHTML = ''; (d[1] || []).slice(0, 6).forEach(q => addS(String(q), false)); }).catch(() => {}), 250);
   };
-  i.addEventListener('input', paintSg); paintSg();
+  i.addEventListener('input', paintSg); if (!lastQ) paintSg();
   if (!lastQ) { sec(m, 'Coba cari'); chipsRow(m); genreGrid(m); const r = DB.recent; if (r.length) { sec(m, 'Terakhir diputar'); const l = h('div', 'list'); r.slice(0, 8).forEach((t, k) => l.appendChild(row(t, r, k))); m.appendChild(l); } return; }
   const tb = h('div', 'chips');
   [['songs', 'Lagu'], ['artists', 'Artis'], ['albums', 'Album'], ['playlists', 'Playlist']].forEach(([k, l]) => { const b = h('button', 'chip' + (stype === k ? ' on' : ''), l); b.type = 'button'; b.onclick = () => runKind(k); tb.appendChild(b); });
