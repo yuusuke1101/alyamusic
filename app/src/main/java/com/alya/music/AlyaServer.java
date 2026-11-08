@@ -49,6 +49,10 @@ public class AlyaServer extends NanoHTTPD {
             if (uri.equals("/")) return asset("index.html", "text/html; charset=utf-8");
             if (uri.startsWith("/player/")) return asset("player.html", "text/html; charset=utf-8");
             if (uri.equals("/icon-192.png") || uri.equals("/mascot.png")) return asset(uri.substring(1), "image/png");
+            // Paket 20: pustaka hls.js (buat mutar lagu SoundCloud yang cuma nawarin HLS) dibundel lokal sebagai
+            // aset, bukan dari internet — path absolut (bukan relatif) karena player.html dilayani di /player/<id>.
+            if (uri.equals("/hls.min.js")) return asset("hls.min.js", "application/javascript; charset=utf-8");
+            if (uri.startsWith("/hlsproxy/")) return hlsproxy(last);
             
             // Rute API Update baru
             if ("/api/update".equals(uri)) {
@@ -76,6 +80,10 @@ public class AlyaServer extends NanoHTTPD {
                 String q = s.getParms().get("q");
                 String type = s.getParms().get("type");
                 String qq = q == null ? "" : q.trim();
+                // Paket 17: dua mode terpisah (bukan digabung) — ?src=soundcloud buat cari di SoundCloud,
+                // default/lainnya tetap YouTube seperti semula. Filter jenis (artis/album/playlist) cuma
+                // berlaku di mode YouTube; SoundCloud belum punya pemisahan jenis semacam itu.
+                if ("soundcloud".equals(s.getParms().get("src"))) return json(Backend.searchSoundCloud(qq, 12).toString());
                 return json((type == null || type.isEmpty() ? Backend.search(qq) : Backend.searchKind(qq, type)).toString());
             }
             if (uri.startsWith("/api/track/") && Backend.validId(last)) {
@@ -149,10 +157,28 @@ public class AlyaServer extends NanoHTTPD {
                 return r0;
             } catch (IOException e) { /* lanjut ke jaringan */ }
         }
-        byte[] b = Backend.bytes("https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", Backend.FF);
+        // Paket 17: URL sampul bisa dari YouTube (pola tetap) ATAU SoundCloud (disimpan pas pencarian, lihat
+        // Backend.scThumbs) — Backend.thumbUrl(id) yang mutusin, bukan dibangun manual di sini lagi.
+        String thumbUrl = Backend.thumbUrl(id);
+        if (thumbUrl == null) return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "-");
+        byte[] b = Backend.bytes(thumbUrl, Backend.FF);
         if (b == null) return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "-");
         Response r = newFixedLengthResponse(Response.Status.OK, "image/jpeg", new ByteArrayInputStream(b), b.length);
         r.addHeader("Cache-Control", "max-age=86400");
+        return r;
+    }
+
+    // Paket 20: proxy manifest/segmen HLS (lagu SoundCloud yang cuma nawarin HLS) — lihat Backend.hlsProxy buat
+    // alasan kenapa diproksi (bukan hls.js langsung ke CDN).
+    private Response hlsproxy(String encodedUrl) {
+        String[] mime = new String[1];
+        byte[] b = Backend.hlsProxy(encodedUrl, mime);
+        if (b == null) return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "-");
+        Response r = newFixedLengthResponse(Response.Status.OK, mime[0], new ByteArrayInputStream(b), b.length);
+        r.addHeader("Cache-Control", "no-store");
+        // CORS longgar buat permintaan hls.js dari halaman player.html (beda path, bukan beda origin — tapi
+        // sebagian browser/WebView tetap pilih-pilih buat permintaan XHR semacam ini).
+        r.addHeader("Access-Control-Allow-Origin", "*");
         return r;
     }
 

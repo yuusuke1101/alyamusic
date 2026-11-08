@@ -487,6 +487,9 @@
   </div>
 </div>
 
+<!-- Paket 20: hls.js dibundel lokal (app/src/main/assets/hls.min.js, build "light" dari paket npm resmi),
+     dipakai cuma buat lagu SoundCloud yang cuma nawarin HLS (.m3u8) — lihat setAudioSrc(). -->
+<script src="/hls.min.js"></script>
 <script>
 (function() {
   'use strict';
@@ -571,6 +574,7 @@
 
   var lyEls = [];
   var lyActive = -2;
+  var notifLyIdx = -2; // baris lirik terakhir yang dikirim ke notifikasi/layar kunci (lihat notifLyricTick)
   function mkLine(t) { return function() { seekTo(Math.max(0, (Number(t) || 0) - lyOff)); }; }
   if (!LY.length) {
     lyText.innerHTML = '<div class="ly-empty">Lirik belum tersedia untuk lagu ini.</div>';
@@ -1311,6 +1315,16 @@
   }
 
   setInterval(function() { if (!document.hidden) render(); }, 250);
+  // Baris lirik buat notifikasi/layar kunci: SENGAJA bukan bagian dari render() di atas (yang berhenti saat
+  // layar mati/app di-background), biar lirik tetap ikut jalan di notifikasi walau app gak kelihatan. Ringan
+  // (cuma pencarian biner + banding, bukan kerjaan UI) dan cuma kirim pesan kalau barisnya beneran ganti.
+  setInterval(function() {
+    if (!LY.length || !playing) return;
+    var idx = lyFind(pos());
+    if (idx === notifLyIdx) return;
+    notifLyIdx = idx;
+    post({ type: 'alya-lyric', text: idx >= 0 ? (LY[idx].text || '') : '' });
+  }, 1000);
 
   // ===== Audio (streaming lewat elemen <audio>) =====
   try { au.preservesPitch = false; au.mozPreservesPitch = false; au.webkitPreservesPitch = false; } catch (e) {}
@@ -1358,7 +1372,7 @@
   if (AUDIO_URL) au.src = AUDIO_URL;
   else {
     var pp = location.pathname.split('/');
-    if (pp[1] === 'player' && pp[2] && pp[2].length === 11) fetchTrack(pp[2], AUTO);
+    if (pp[1] === 'player' && pp[2] && isTrackId(pp[2])) fetchTrack(pp[2], AUTO);
     else st.textContent = 'Pilih lagu dari daftar';
   }
 
@@ -1414,7 +1428,7 @@
     LY = Array.isArray(arr) ? arr : []; kIdx = -2; lwIdx = -2; lwWords = [];
     lyEls = [];
     lyText.innerHTML = '';
-    lyActive = -2;
+    lyActive = -2; notifLyIdx = -2;
     if (!LY.length) {
       lyText.innerHTML = '<div class="ly-empty">Lirik belum tersedia untuk lagu ini.</div>';
       nowEl.textContent = 'Lirik belum tersedia';
@@ -1483,7 +1497,7 @@
     nearSent = false;
     AUTO = !!auto;
     st.textContent = 'Menyiapkan audio...';
-    au.src = m.audioUrl;
+    setAudioSrc(m.audioUrl, !!m.hls);
     setMedia(m);
     coverTheme();
     if (needLy) {
@@ -1528,6 +1542,17 @@
       });
   }
   var curTrackId = '';
+  var hlsInst = null; // Paket 20: instance hls.js yang lagi aktif, kalau ada (lagu HLS) — dihancurkan tiap ganti lagu
+  function setAudioSrc(url, isHls) {
+    if (hlsInst) { try { hlsInst.destroy(); } catch (e) {} hlsInst = null; }
+    if (isHls && window.Hls && Hls.isSupported()) { hlsInst = new Hls(); hlsInst.loadSource(url); hlsInst.attachMedia(au); }
+    else if (isHls && au.canPlayType('application/vnd.apple.mpegurl')) au.src = url; // dukungan HLS native (jarang di Android)
+    else au.src = url;
+  }
+  // Paket 19: id valid itu ID YouTube 11 karakter ATAU id SoundCloud yang di-encode (awalan "sc", lihat
+  // Backend.isSoundCloud). Sebelumnya beberapa tempat cuma ngecek ".length === 11" doang — itu yang bikin
+  // lagu SoundCloud gak pernah sampai ke fetchTrack() sama sekali (diam-diam ditolak, gak ada galat apa pun).
+  function isTrackId(x) { return typeof x === 'string' && (/^[A-Za-z0-9_-]{11}$/.test(x) || /^sc[A-Za-z0-9_-]{4,500}$/.test(x)); }
   // ===== Unduhan offline =====
   function refreshDlUi() {
     if (!dlBtn) return;
@@ -1586,7 +1611,10 @@
   });
   $('ac-share').addEventListener('click', function() {
     if (!curTrackId) return;
-    var t = ($('t-title').textContent || '') + ' - ' + ($('t-artist').textContent || '') + ' https://youtu.be/' + curTrackId;
+    // Link youtu.be cuma masuk akal buat id YouTube; id SoundCloud gak dikasih link (linknya yang asli gak
+    // disimpan di sisi klien) — daripada kirim link yang salah/rusak.
+    var isYt = /^[A-Za-z0-9_-]{11}$/.test(curTrackId);
+    var t = ($('t-title').textContent || '') + ' - ' + ($('t-artist').textContent || '') + (isYt ? ' https://youtu.be/' + curTrackId : '');
     try { if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.share) navigator.share({ text: t }); } catch (e) {}
   });
   var acKar = $('ac-kar');
@@ -1665,7 +1693,7 @@
     if (e.origin !== location.origin) return;
     var d = e.data;
     if (!d || typeof d !== 'object') return;
-    if (d.type === 'alya-load' && typeof d.id === 'string' && d.id.length === 11 && /^[A-Za-z0-9_-]+$/.test(d.id)) fetchTrack(d.id, !!d.auto);
+    if (d.type === 'alya-load' && isTrackId(d.id)) fetchTrack(d.id, !!d.auto);
     else if (d.type === 'alya-accent' && /^#[0-9a-f]{6}$/i.test(d.a) && /^#[0-9a-f]{6}$/i.test(d.b)) { THEMES[0].a = d.a; THEMES[0].b = d.b; if (SW[0]) SW[0].style.background = 'linear-gradient(135deg,' + d.a + ',' + d.b + ')'; if (curTheme === 0) setTheme(0); }
     else if (d.type === 'alya-dl' && d.d && typeof d.d === 'object') window.alyaDl(d.d);
     else if (d.type === 'alya-mode') setModeUi(d.m);

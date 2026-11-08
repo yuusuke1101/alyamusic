@@ -115,7 +115,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
     class Bridge {
         // Dipanggil pemutar: info lagu + status untuk notifikasi dan layar kunci
         @JavascriptInterface
-        public void setMedia(String title, String artist, String id, boolean playing, double dur, double pos, double rate) {
+        public void setMedia(String title, String artist, String id, boolean playing, double dur, double pos, double rate, String lyric) {
             try {
                 Intent i = new Intent(MainActivity.this, PlaybackService.class);
                 i.setAction(PlaybackService.A_META);
@@ -126,6 +126,7 @@ public class MainActivity extends androidx.activity.ComponentActivity {
                 i.putExtra("dur", (long) dur);
                 i.putExtra("pos", (long) pos);
                 i.putExtra("rate", (float) rate);
+                i.putExtra("lyric", lyric);
                 startService(i);
             } catch (Exception e) { }
         }

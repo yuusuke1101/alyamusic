@@ -70,6 +70,9 @@ h2{font-size:17px;letter-spacing:-.01em}
 .msg{color:var(--mut);font-size:13px;padding:26px 6px;text-align:center;line-height:1.6}
 /* cari */
 .sform{display:flex;gap:8px;position:sticky;top:0;z-index:5;padding:10px 0 12px;background:linear-gradient(var(--bg) 80%,transparent)}
+.srcmode{display:flex;gap:6px;margin:-4px 0 14px}
+.srcmode .ib{width:36px;height:36px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+.srcmode .ib.on{border-color:#ff5d8f}
 .sform input{flex:1;min-width:0;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--surf);color:var(--ink);font-size:16px}
 .sform input:focus{outline:2px solid var(--b);outline-offset:1px}
 .sform button{padding:0 20px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;font-weight:700}
@@ -294,7 +297,6 @@ button:active{transform:scale(.96)}
 .pcard>:last-child{margin-bottom:0}
 .fr{gap:10px}
 .fr .ib{width:38px;height:38px}
-.fr .rs{white-space:normal;overflow:visible;text-overflow:clip}
 
 .ob{position:fixed;inset:0;z-index:80;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 24px calc(20px + var(--sb))}
 .ob[hidden]{display:none}
@@ -399,6 +401,12 @@ button:active{transform:scale(.96)}
 .srch .list:not(.sg){gap:10px}
 .srch .row{background:var(--card);border:1px solid var(--line);border-radius:18px}
 .srch .row.now{border-color:color-mix(in srgb,var(--a) 70%,transparent)}
+
+/* ===== Paket 11: Teman ===== */
+.fteman .sec{margin:24px 0 12px;align-items:center}
+.fteman .sec h2{font-size:19px;font-weight:800;display:flex;align-items:center;gap:10px}
+.fteman .sec h2::before{content:"";flex:none;width:4px;height:20px;border-radius:3px;background:linear-gradient(180deg,var(--a),var(--b))}
+.fr .rs{white-space:normal;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 </style>
 </head>
 <body>
@@ -474,7 +482,8 @@ const P = {
   sliders: '<path d="M4 6h8M19 6h1M4 12h3M13 12h7M4 18h9M19 18h1"/><circle cx="15" cy="6" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="16" cy="18" r="2.5"/>',
   cloud: '<path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9H7z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
-  dlo: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>'
+  dlo: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
+  video: '<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.3v5.4l5-2.7z" fill="currentColor"/>'
 };
 const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
 const svg = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="' + (FILL[n] ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + P[n] + '</svg>';
@@ -504,7 +513,11 @@ if (DB.prefs.rep == null) DB.prefs.rep = DB.prefs.repeat ? 1 : 0;
 if (!DB.hist) DB.hist = []; if (!DB.log) DB.log = []; if (!DB.histN) DB.histN = {};
 ['lagu viral trending', 'lagu baru rilis minggu ini'].forEach(q => { DB.hist = DB.hist.filter(x => x !== q); delete DB.histN[q]; });
 const save = n => { try { localStorage.setItem('alya_v2', JSON.stringify(DB)); } catch (e) {} if (!n) queueSync(); };
-const thumb = id => 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
+// Paket 19: ini penyebab ASLI sampul SoundCloud kosong (bukan yang diduga di Paket 18) — fungsi ini selalu
+// bikin URL i.ytimg.com langsung dari id (jalan pintas buat YouTube, lewatin server sama sekali), gak pernah
+// baca field "thumb" dari hasil pencarian/`Backend.thumbUrl`. Sampul SoundCloud gak bisa ditebak polanya kayak
+// YouTube, jadi utk id SoundCloud HARUS lewat /thumb/<id> (yang sudah ngerti dua-duanya sejak Paket 18).
+const thumb = id => /^sc[A-Za-z0-9_-]{4,500}$/.test(id || '') ? '/thumb/' + id : 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg';
 const isLiked = id => DB.likes.some(t => t.id === id);
 const uid = () => Math.random().toString(36).slice(2, 9);
 // Daftar "Unduhan" bersifat virtual: dihitung dari lagu yang benar-benar tersimpan di perangkat, tidak masuk DB.lists.
@@ -635,7 +648,7 @@ function mosaic(tracks, cls) {
 
 // ---------- pemutaran ----------
 let queue = [], qi = -1, upNext = -1, fstate = 0, playing = false, errStreak = 0;
-const media = { pos: 0, dur: 0, rate: 1, playing: false };
+const media = { pos: 0, dur: 0, rate: 1, playing: false, lyric: '' };
 const frame = $('frame'), ph = $('ph');
 const SPIN = '<div><div class="spin"></div>Menyiapkan lagu...</div>';
 function pickNext() {
@@ -686,6 +699,7 @@ window.addEventListener('message', e => {
   else if (d.type === 'alya-ended') { if (DB.prefs.rep === 2) go(qi); else if (DB.prefs.auto) next(); }
   else if (d.type === 'alya-nav') { if (d.dir < 0) prev(); else next(); }
   else if (d.type === 'alya-ui') { const t0 = queue[qi]; if (t0 && d.act === 'more') trackMenu(t0, {}); else if (d.act === 'mode') cycleMode(); else if (d.act === 'queue') openQueue(); else if (d.act === 'auto') toggleAuto(); }
+  else if (d.type === 'alya-lyric') { media.lyric = d.text || ''; pushMedia(); }
   else if (d.type === 'alya-near') { if (upNext < 0 && DB.prefs.auto && radioOn()) radioMore(); const n = queue[upNext]; if (n && DB.prefs.auto) fetch('/api/prefetch/' + encodeURIComponent(n.id)).catch(() => {}); }
   else if (d.type === 'alya-blocked') openSheet();
   else if (d.type === 'alya-error') { errStreak++; if (DB.prefs.auto && errStreak < 3) setTimeout(next, 1500); }
@@ -804,9 +818,11 @@ function sec(m, title, label, fn) {
 const rail = items => { const r = h('div', 'rail'); items.forEach((t, i) => r.appendChild(card(t, items, i))); return r; };
 
 // ---------- pencarian ----------
-const api = q => fetch('/api/search?q=' + encodeURIComponent(q)).then(r => { if (!r.ok) throw 0; return r.json(); });
+let searchSrc = 'youtube'; // Paket 17: mode pencarian aktif ('youtube' atau 'soundcloud'), lihat tombol di rSearch
+const api = q => fetch('/api/search?q=' + encodeURIComponent(q) + (searchSrc === 'soundcloud' ? '&src=soundcloud' : '')).then(r => { if (!r.ok) throw 0; return r.json(); });
+function switchSrc(src) { if (searchSrc === src) return; searchSrc = src; if (lastQ) runSearch(lastQ, true); else render(); }
 function cached(q) {
-  const k = 'alya_c_' + q;
+  const k = 'alya_c_' + searchSrc + '_' + q;
   try { const c = JSON.parse(localStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < 216e5) return Promise.resolve(c.d); } catch (e) {}
   return api(q).then(d => { try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), d: d.map(slim) })); } catch (e) {} return d; });
 }
@@ -937,7 +953,10 @@ const POOL = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi
   ['Pop Barat', 'top pop songs'], ['Indie Indonesia', 'indie indonesia'], ['Throwback 2000an', 'lagu 2000an'], ['Galau', 'lagu galau'], ['Workout', 'workout music'], ['Nasyid & religi', 'lagu religi'], ['Film & game OST', 'epic ost']];
 function daily(a, n) { let s = Math.floor(Date.now() / 864e5), x = a.slice(); for (let i = x.length - 1; i > 0; i--) { s = (s * 9301 + 49297) % 233280; const j = Math.floor(s / 233280 * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x.slice(0, n); }
 function shufflePlay() { const p = DB.likes.concat(DB.recent); if (!p.length) { toast('Putar atau sukai lagu dulu'); return; } DB.prefs.shuffle = true; save(); paintToggles(); playFrom(p, Math.floor(Math.random() * p.length)); }
-const okId = x => /^[A-Za-z0-9_-]{11}$/.test(x || '');
+// Paket 19: id valid itu ID YouTube 11 karakter ATAU id SoundCloud yang di-encode (awalan "sc"+base64url,
+// lihat Backend.isSoundCloud). okId dipakai buat nyaring hampir semua tempat (playlist, unduhan, riwayat,
+// berbagi ke teman) — sebelumnya cuma terima 11 karakter, jadi lagu SoundCloud diam-diam kebuang dari semua itu.
+const okId = x => /^[A-Za-z0-9_-]{11}$/.test(x || '') || /^sc[A-Za-z0-9_-]{4,500}$/.test(x || '');
 function av(name, photo, sz) {
   let e;
   if (photo && photo.indexOf('https://lh3.googleusercontent.com/') === 0) { e = h('img', 'av'); e.src = photo; e.alt = ''; e.referrerPolicy = 'no-referrer'; } else { e = h('div', 'av', (name || '?').trim().charAt(0).toUpperCase()); }
@@ -1152,6 +1171,13 @@ function rSearch(m0) {
   f.classList.toggle('stuck', (window.pageYOffset || 0) > 6);
   f.onsubmit = e => { e.preventDefault(); const q = i.value.trim(); if (q) { i.blur(); runSearch(q); } };
   m.appendChild(f);
+  // Paket 17: 2 mode sumber pencarian, tombol ikon doang (bukan teks) — YouTube (ikon video generik) / SoundCloud (ikon awan)
+  const srcRow = h('div', 'srcmode');
+  srcRow.append(
+    ib('video', 'Cari di YouTube', () => switchSrc('youtube'), 'srcbtn' + (searchSrc === 'youtube' ? ' on' : '')),
+    ib('cloud', 'Cari di SoundCloud', () => switchSrc('soundcloud'), 'srcbtn' + (searchSrc === 'soundcloud' ? ' on' : ''))
+  );
+  m.appendChild(srcRow);
   const sg = h('div', 'list sg'); m.appendChild(sg); let sgT;
   const addS = (q, hist) => { const b = h('button', 'act'); b.type = 'button'; const ic = h('span', 'ic'); setIc(ic, hist ? 'clock' : 'search', 18); b.append(ic, h('span', '', q)); b.onclick = () => { i.value = q; i.blur(); runSearch(q); }; sg.appendChild(b); };
   const paintSg = () => {
@@ -1268,7 +1294,7 @@ function pushMedia() {
   clearTimeout(pmT);
   pmT = setTimeout(() => {
     const t = queue[qi]; if (!t) return;
-    try { AlyaApp.setMedia(t.title, t.author || '', t.id, !!media.playing, (media.dur || 0) * 1000, (media.pos || 0) * 1000, media.rate || 1); } catch (e) {}
+    try { AlyaApp.setMedia(t.title, t.author || '', t.id, !!media.playing, (media.dur || 0) * 1000, (media.pos || 0) * 1000, media.rate || 1, media.lyric || ''); } catch (e) {}
   }, 60);
 }
 // Kabar progres unduhan dari native; pemutar ada di iframe, jadi diteruskan lewat postMessage.
@@ -1632,7 +1658,8 @@ async function acceptReq(q) {
   await fs('/reqs/' + q.id, 'DELETE'); await gLoad();
 }
 async function dropFriend(uid) { await fs('/users/' + G.u.uid + '/friends/' + uid, 'DELETE'); await fs('/users/' + uid + '/friends/' + G.u.uid, 'DELETE').catch(() => {}); await gLoad(); }
-function rFriends(m) {
+function rFriends(m0) {
+  const m = h('div', 'fteman'); m0.appendChild(m);
   m.appendChild(h('h1', '', 'Teman'));
   if (!G.u) {
     const pr = h('div', 'promo'); pr.append(h('b', '', 'Masuk dulu untuk berteman'), h('div', 'mut', 'Dengan akun Google kamu punya kode teman, bisa menambah teman, dan melihat lagu yang sedang mereka dengar.'));

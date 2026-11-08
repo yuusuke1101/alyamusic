@@ -32,7 +32,7 @@ public class PlaybackService extends Service {
     private MediaSession session;
     private BroadcastReceiver noisy;
     private Thread updater;
-    private String title = "Alya Music", artist = "Siap memutar", artId = "";
+    private String title = "Alya Music", artist = "Siap memutar", artId = "", lyric = "";
     private boolean playing, shuffle;
     private int rep;
     private long dur, pos;
@@ -91,6 +91,7 @@ public class PlaybackService extends Service {
             dur = in.getLongExtra("dur", 0);
             pos = in.getLongExtra("pos", 0);
             rate = in.getFloatExtra("rate", 1f);
+            lyric = nz(in.getStringExtra("lyric"), "");
             String id = nz(in.getStringExtra("id"), "");
             if (!id.equals(artId)) { artId = id; art = null; loadArt(id); }
         }
@@ -142,9 +143,14 @@ public class PlaybackService extends Service {
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification.Builder nb = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
+        // Baris lirik yang lagi diputar ditaruh di teks utama notifikasi/layar kunci kalau ada; nama artis
+        // pindah ke setSubText (baris kecil ketiga) biar gak hilang. Kalau lirik lagi kosong (baris instrumental,
+        // lagu belum/gak punya lirik tersinkron, dll), balik ke tampilan biasa (artis di teks utama).
+        boolean hasLyric = !lyric.isEmpty();
         nb.setSmallIcon(android.R.drawable.stat_sys_headset)
                 .setContentTitle(title)
-                .setContentText(artist)
+                .setContentText(hasLyric ? lyric : artist)
+                .setSubText(hasLyric ? artist : null)
                 .setContentIntent(pi)
                 .setOngoing(true)
                 .setShowWhen(false)

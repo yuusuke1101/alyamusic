@@ -26,10 +26,12 @@ import org.schabi.newpipe.extractor.stream.SubtitlesStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,6 +41,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
 
 // Pengganti server.js: pencarian, info lagu, alamat audio (NewPipeExtractor), dan lirik (lrclib).
 final class Backend {
@@ -73,6 +77,7 @@ final class Backend {
         String title, artist, url, mime, subUrl, kind, src = "";
         int kbps;
         boolean subAuto;
+        boolean hls; // Paket 20: true kalau "url" itu manifest HLS (.m3u8), bukan file audio progresif langsung
         JSONArray lyr;
         long seconds, exp, touched;
     }
@@ -81,7 +86,117 @@ final class Backend {
         if (!ready) { NewPipe.init(new Dl()); ready = true; }
     }
 
-    static boolean validId(String id) { return id != null && id.matches("[A-Za-z0-9_-]{11}"); }
+    static boolean validId(String id) { return id != null && (id.matches("[A-Za-z0-9_-]{11}") || isSoundCloud(id)); }
+
+    // ===== Paket 17: SoundCloud (Tahap 1 — cari & putar saja, BELUM bisa diunduh/offline) =====
+    // NewPipeExtractor sudah punya dukungan SoundCloud bawaan (ServiceList.SoundCloud) — bukan scraper baru dari
+    // nol kayak JOOX/NetEase, tinggal dipakai bareng ServiceList.YouTube yang sudah ada.
+    //
+    // Masalah utama: "id lagu" dipakai di MANA-MANA di app ini (unduhan, cache lirik, Firestore, berbagi ke
+    // teman, widget, notifikasi) dan SELALU diasumsikan ID video YouTube 11 karakter. SoundCloud gak punya ID
+    // pendek semacam itu — lagunya diidentifikasi lewat URL penuh. Supaya tetap AMAN dipakai buat nama file
+    // (cache/unduhan dibangun langsung dari id, mis. `new File(dir, id + ".json")` — bisa jadi celah path
+    // traversal kalau sampai ada "/" atau ".." di id), URL SoundCloud di-encode base64url TANPA padding dan
+    // diberi awalan "sc". Hasilnya CUMA berisi huruf/angka/"-"/"_" — sama amannya dengan ID YouTube.
+    private static final Pattern SC_ID_RE = Pattern.compile("^sc[A-Za-z0-9_-]{4,500}$");
+
+    // true kalau "id" ini sebenarnya track SoundCloud yang di-encode (awalan "sc" + base64url URL aslinya)
+    static boolean isSoundCloud(String id) { return id != null && SC_ID_RE.matcher(id).matches(); }
+
+    // Base64url tanpa padding, dipakai buat nyimpen URL di dalam id/path yang aman buat nama file & jalur HTTP
+    // (cuma huruf/angka/"-"/"_", gak ada "/" yang bisa disalahartikan sebagai pemisah folder).
+    private static String b64uEnc(String s) {
+        return android.util.Base64.encodeToString(s.getBytes(StandardCharsets.UTF_8),
+                android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING);
+    }
+    private static String b64uDec(String s) throws IllegalArgumentException {
+        return new String(android.util.Base64.decode(s, android.util.Base64.URL_SAFE | android.util.Base64.NO_WRAP | android.util.Base64.NO_PADDING), StandardCharsets.UTF_8);
+    }
+    private static String scEncode(String url) { return "sc" + b64uEnc(url); }
+    // Kebalikan scEncode: dari id yang disimpan/dikirim client, balikin lagi jadi URL SoundCloud asli.
+    // Null kalau bukan format SoundCloud atau gagal didecode (jangan sampai dipakai nyasar).
+    private static String scDecode(String id) {
+        if (!isSoundCloud(id)) return null;
+        try { return b64uDec(id.substring(2)); } catch (Throwable e) { return null; }
+    }
+    // ===== Paket 20: proxy manifest/segmen HLS =====
+    // Kenapa diproksi (bukan hls.js langsung ambil dari CDN SoundCloud): alur audio YouTube yang sudah ada
+    // (/audio/<id>) juga diproksi lewat server ini, kemungkinan karena CDN-nya butuh header tertentu (User-Agent
+    // dkk) yang gak bisa diset dari JS di WebView (User-Agent itu "forbidden header" buat fetch/XHR browser).
+    // Daripada nebak CDN SoundCloud butuh header sama atau nggak, semua request HLS (manifest MAUPUN tiap
+    // segmen/sub-manifest di dalamnya) dilewatkan proxy ini juga, pakai header yang sama (`FF`) seperti unduhan
+    // lain di app ini — lebih aman walau sedikit lebih berat di server.
+    static byte[] hlsProxy(String encodedUrl, String[] outMime) {
+        try {
+            String url = b64uDec(encodedUrl);
+            byte[] b = bytes(url, FF);
+            if (b == null) return null;
+            String path = url.toLowerCase(java.util.Locale.ROOT);
+            int q = path.indexOf('?'); if (q >= 0) path = path.substring(0, q);
+            if (!path.endsWith(".m3u8")) {
+                // Segmen (.ts/.aac/.mp4/dll) atau apa pun yang bukan manifest teks: teruskan apa adanya.
+                outMime[0] = path.endsWith(".ts") ? "video/mp2t" : "application/octet-stream";
+                return b;
+            }
+            // Manifest: tulis ulang tiap baris non-komentar (URL segmen ATAU sub-manifest, variant stream dkk)
+            // supaya ikut lewat proxy ini juga — relatif terhadap URL manifest ini sendiri kalau bukan URL penuh.
+            outMime[0] = "application/vnd.apple.mpegurl";
+            String text = new String(b, StandardCharsets.UTF_8);
+            StringBuilder out = new StringBuilder();
+            String[] lines = text.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                String raw = lines[i], t = raw.trim();
+                if (t.isEmpty() || t.startsWith("#")) { out.append(raw); if (i < lines.length - 1) out.append('\n'); continue; }
+                String abs;
+                try { abs = new java.net.URL(new java.net.URL(url), t).toString(); } catch (Throwable e) { abs = t; }
+                out.append("/hlsproxy/").append(b64uEnc(abs));
+                if (i < lines.length - 1) out.append('\n');
+            }
+            return out.toString().getBytes(StandardCharsets.UTF_8);
+        } catch (Throwable e) { logErr("hls", "proxy gagal: " + e); return null; }
+    }
+
+    // URL sampul SoundCloud gak bisa ditebak dari id-nya (beda sama YouTube yang polanya tetap `i.ytimg.com/vi/<id>/...`),
+    // jadi disimpan di sini pas lagu itu muncul di hasil pencarian. Kalau server di-restart sebelum lagu diputar,
+    // sampulnya cuma gak nongol (aman, bukan error) — lihat catatan buat AlyaServer.java di bawah.
+    private static final Map<String, String> scThumbs = new ConcurrentHashMap<>();
+
+    // Dipakai AlyaServer.java di rute /thumb/<id> (PERLU DIUBAH MANUAL, lihat catatan Paket 17 di CLAUDE.md) buat
+    // tahu URL sampul mana yang harus diambil. Null kalau id SoundCloud yang sampulnya belum/gak diketahui
+    // (server baru nyala lagi, dll) — rute itu sebaiknya balas 404 kalau null, bukan nebak-nebak bikin URL sendiri.
+    static String thumbUrl(String id) {
+        if (isSoundCloud(id)) return scThumbs.get(id);
+        return id != null && id.matches("[A-Za-z0-9_-]{11}") ? "https://i.ytimg.com/vi/" + id + "/mqdefault.jpg" : null;
+    }
+
+    static JSONArray searchSoundCloud(String q, int limit) {
+        JSONArray out = new JSONArray();
+        try {
+            init();
+            StreamingService sc = ServiceList.SoundCloud;
+            SearchExtractor se = sc.getSearchExtractor(sc.getSearchQHFactory().fromQuery(q));
+            se.fetchPage();
+            for (InfoItem it : se.getInitialPage().getItems()) {
+                if (!(it instanceof StreamInfoItem)) continue;
+                StreamInfoItem s = (StreamInfoItem) it;
+                String url = s.getUrl();
+                if (url == null || url.isEmpty()) continue;
+                String id = scEncode(url);
+                String th = bestThumb(s.getThumbnails());
+                if (!th.isEmpty()) scThumbs.put(id, th);
+                JSONObject o = new JSONObject();
+                o.put("id", id);
+                o.put("title", s.getName());
+                o.put("author", cleanArtist(s.getUploaderName()));
+                o.put("duration", fmt(s.getDuration()));
+                o.put("thumb", th.isEmpty() ? "" : "/thumb/" + id);
+                o.put("source", "soundcloud");
+                out.put(o);
+                if (out.length() >= limit) break;
+            }
+        } catch (Throwable e) { logErr("soundcloud", q + " · pencarian SoundCloud gagal: " + e); }
+        return out;
+    }
 
     static String streamUa(String url) {
         if (url.contains("c=ANDROID")) return ANDROID_UA;
@@ -110,6 +225,7 @@ final class Backend {
             o.put("author", cleanArtist(s.getUploaderName()));
             o.put("duration", fmt(s.getDuration()));
             o.put("thumb", "/thumb/" + id);
+            o.put("source", "youtube");
             out.put(o);
             if (out.length() >= 12) break;
         }
@@ -213,7 +329,11 @@ final class Backend {
     static Track track(String id, boolean preferFallback) throws Exception {
         Track t = cache.get(id);
         if (!preferFallback && t != null && t.exp > System.currentTimeMillis()) { touch(t); return t; }
-        if (preferFallback) {
+        // Piped itu proxy YouTube-only (bukan NewPipeExtractor beneran, API situs lain), gak ada gunanya buat
+        // SoundCloud — langsung lewati ke NewPipeExtractor (yang memang sudah ngerti SoundCloud lewat
+        // ServiceList.SoundCloud), tanpa cadangan Piped kalau gagal.
+        boolean sc = isSoundCloud(id);
+        if (preferFallback && !sc) {
             try { t = fromPiped(id); cache.put(id, t); touch(t); return t; } catch (Exception e) { /* coba sumber utama */ }
         }
         try {
@@ -221,6 +341,7 @@ final class Backend {
         } catch (Exception primary) {
             npFail++; lastErr = primary.getClass().getSimpleName() + ": " + primary.getMessage();
             logErr("ekstraksi", id + " · NewPipe gagal: " + lastErr);
+            if (sc) throw primary;
             try { t = fromPiped(id); pipedUsed++; } catch (Exception backup) { logErr("piped", id + " · cadangan Piped gagal: " + backup.getMessage()); throw primary; }
         }
         cache.put(id, t);
@@ -244,16 +365,26 @@ final class Backend {
     private static Track fromNewPipe(String id) throws Exception {
         Track t;
         init();
-        StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=" + id);
-        AudioStream best = null;
+        String scUrl = scDecode(id);
+        StreamInfo info = scUrl != null
+                ? StreamInfo.getInfo(ServiceList.SoundCloud, scUrl)
+                : StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=" + id);
+        // Paket 17: lebih suka progresif (file langsung, lebih simpel/murah). Paket 20: kalau progresif gak
+        // ada sama sekali (umum buat SoundCloud terbaru/Go+), HLS dipakai sebagai cadangan — lewat hls.js +
+        // proxy manifest (lihat hlsProxy), bukan ditolak total kayak sebelumnya.
+        AudioStream best = null, bestHls = null;
         for (AudioStream s : info.getAudioStreams()) {
+            if (s.getDeliveryMethod() == DeliveryMethod.HLS) { if (bestHls == null || s.getAverageBitrate() > bestHls.getAverageBitrate()) bestHls = s; continue; }
             if (s.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP) continue;
             boolean m4a = s.getFormat() == MediaFormat.M4A;
             boolean bestM4a = best != null && best.getFormat() == MediaFormat.M4A;
             if (best == null || (m4a && !bestM4a) || (m4a == bestM4a && s.getAverageBitrate() > best.getAverageBitrate())) best = s;
         }
-        if (best == null) throw new Exception("Tidak ada aliran audio yang bisa diputar");
+        boolean useHls = best == null && bestHls != null;
+        if (best == null && bestHls == null) throw new Exception("Tidak ada aliran audio yang bisa diputar");
+        AudioStream chosen = useHls ? bestHls : best;
         t = new Track();
+        t.hls = useHls;
         try {
             SubtitlesStream bs = null;
             for (SubtitlesStream ss : info.getSubtitles()) {
@@ -262,13 +393,19 @@ final class Backend {
             }
             if (bs != null) { t.subUrl = bs.getContent(); t.subAuto = bs.isAutoGenerated(); }
         } catch (Throwable e) { /* subtitle opsional */ }
-        t.src = "NewPipe";
-        t.kbps = Math.max(0, best.getAverageBitrate());
+        // Paket 17 susulan: hasil pencarian SoundCloud kadang gak sertain sampul (listing ringkas), padahal info
+        // lengkap begini biasanya punya. Simpan/perbarui di sini juga, jaga-jaga, biar kesempatan kedua (lagu
+        // sudah pernah diputar) sampulnya kesimpan buat lain kali.
+        if (scUrl != null) {
+            try { String th = bestThumb(info.getThumbnails()); if (!th.isEmpty()) scThumbs.put(id, th); } catch (Throwable e) { /* opsional */ }
+        }
+        t.src = scUrl != null ? "SoundCloud" : "NewPipe";
+        t.kbps = Math.max(0, chosen.getAverageBitrate());
         t.title = info.getName();
         t.artist = info.getUploaderName();
         t.seconds = info.getDuration();
-        t.url = best.getContent();
-        t.mime = best.getFormat() != null ? best.getFormat().getMimeType() : "audio/mp4";
+        t.url = chosen.getContent();
+        t.mime = useHls ? "application/vnd.apple.mpegurl" : (chosen.getFormat() != null ? chosen.getFormat().getMimeType() : "audio/mp4");
         Matcher m = Pattern.compile("[?&]expire=(\\d+)").matcher(t.url);
         t.exp = m.find() ? Long.parseLong(m.group(1)) * 1000 - 600000 : System.currentTimeMillis() + 3600000;
         return t;
@@ -713,7 +850,12 @@ final class Backend {
         o.put("artist", artist.isEmpty() ? "YouTube" : artist);
         o.put("metaDur", fmt(t.seconds));
         o.put("previewNote", "");
-        o.put("audioUrl", "/audio/" + id);
+        // Paket 20: lagu HLS (manifest .m3u8) gak lewat /audio/<id> yang nge-proxy SATU file utuh dengan
+        // dukungan Range — manifest berisi RUJUKAN ke banyak file segmen terpisah, jadi perlu dikasih langsung
+        // ke hls.js lewat /hlsproxy/<url terenkode> (hls.js sendiri yang nanti ambilin tiap segmennya, juga
+        // lewat /hlsproxy/ karena sudah ditulis ulang begitu di dalam manifestnya — lihat hlsProxy()).
+        o.put("audioUrl", t.hls ? "/hlsproxy/" + b64uEnc(t.url) : "/audio/" + id);
+        o.put("hls", t.hls);
         o.put("imageSrc", "/thumb/" + id);
         // Lirik TIDAK dicari di sini (bisa belasan detik). Kalau sudah ada di cache dipakai langsung,
         // kalau belum pemutar mengambilnya terpisah lewat /api/lyrics/ setelah audio mulai.
@@ -892,69 +1034,86 @@ final class Backend {
         long dl = System.currentTimeMillis() + 12000;
         int g = 0, sr = 0;
         boolean reached = false;
+        String src = "lrclib";
         try {
             String ti = cleanTitle(t.title), ch = cleanArtist(t.artist);
-            List<String[]> cands = new ArrayList<>();
-            int i = ti.indexOf(" - ");
-            if (i > 0) {
-                String a = ti.substring(0, i).trim(), b = ti.substring(i + 3).trim();
-                cands.add(new String[]{a, b});
-                cands.add(new String[]{b, a});
-            }
-            if (!ch.isEmpty()) cands.add(new String[]{ch, i > 0 ? ti.substring(i + 3).trim() : ti});
-            String synced = "", plain = "", weak = "";
-            for (String[] c : cands) {
-                if (c[0].isEmpty() || c[1].isEmpty()) continue;
-                if (System.currentTimeMillis() > dl) break;
-                g++;
-                Object o = lrc("get?track_name=" + enc(c[1]) + "&artist_name=" + enc(c[0]));
-                if (o instanceof JSONObject) {
-                    JSONObject j = (JSONObject) o;
-                    double gd = t.seconds > 0 && j.optDouble("duration", 0) > 0 ? Math.abs(j.optDouble("duration", 0) - t.seconds) : -1;
-                    if (!synced(j).trim().isEmpty()) {
-                        if (!LY_STRICT || gd < 0 || gd <= 8) { synced = synced(j); break; }
-                        if (weak.isEmpty()) weak = synced(j); // durasi beda jauh (mungkin versi live/panjang): cadangan terakhir
-                    }
-                    if (plain.isEmpty()) plain = plainOf(j);
+            // Paket 15: JOOX sekarang jadi sumber UTAMA (dicoba duluan). Kalau ketemu, seluruh pencarian lrclib
+            // di bawah ini DILEWATI sama sekali (lebih cepat, gak buang permintaan jaringan yang gak kepakai).
+            // lrclib cuma jadi cadangan kalau JOOX gak ketemu/gak cocok buat lagu ini.
+            JSONArray jx = jxLyrics(t.title, t.artist, t.seconds);
+            if (jx != null && jx.length() > 0) { out = jx; src = "joox"; }
+            if (out.length() == 0) {
+                List<String[]> cands = new ArrayList<>();
+                int i = ti.indexOf(" - ");
+                if (i > 0) {
+                    String a = ti.substring(0, i).trim(), b = ti.substring(i + 3).trim();
+                    cands.add(new String[]{a, b});
+                    cands.add(new String[]{b, a});
                 }
-            }
-            if (synced.isEmpty()) {
-                String[] qs = {(i > 0 ? ti.replace(" - ", " ") : ch + " " + ti).trim(), ti};
-                JSONObject bestS = null, bestP = null;
-                double scS = 0, scP = 0;
-                List<String> wantT = new ArrayList<>(), wantA = new ArrayList<>();
-                for (String[] c : cands) { if (!wantA.contains(c[0])) wantA.add(c[0]); if (!wantT.contains(c[1])) wantT.add(c[1]); }
-                for (String q : new LinkedHashSet<>(Arrays.asList(qs))) {
+                if (!ch.isEmpty()) cands.add(new String[]{ch, i > 0 ? ti.substring(i + 3).trim() : ti});
+                String synced = "", plain = "", weak = "";
+                for (String[] c : cands) {
+                    if (c[0].isEmpty() || c[1].isEmpty()) continue;
                     if (System.currentTimeMillis() > dl) break;
-                    sr++;
-                    Object o = lrc("search?q=" + enc(q));
-                    if (!(o instanceof JSONArray)) continue;
-                    reached = true;
-                    JSONArray arr = (JSONArray) o;
-                    for (int k = 0; k < arr.length(); k++) {
-                        JSONObject x = arr.optJSONObject(k);
-                        if (x == null || x.optBoolean("instrumental", false)) continue;
-                        double sc = matchScore(x, wantT, wantA, t.seconds);
-                        if (sc <= 0) continue;
-                        if (!synced(x).trim().isEmpty() && sc > scS) { bestS = x; scS = sc; }
-                        if (!plainOf(x).isEmpty() && sc > scP) { bestP = x; scP = sc; }
+                    g++;
+                    Object o = lrc("get?track_name=" + enc(c[1]) + "&artist_name=" + enc(c[0]));
+                    if (o instanceof JSONObject) {
+                        JSONObject j = (JSONObject) o;
+                        double gd = t.seconds > 0 && j.optDouble("duration", 0) > 0 ? Math.abs(j.optDouble("duration", 0) - t.seconds) : -1;
+                        if (!synced(j).trim().isEmpty()) {
+                            if (!LY_STRICT || gd < 0 || gd <= 8) { synced = synced(j); break; }
+                            if (weak.isEmpty()) weak = synced(j); // durasi beda jauh (mungkin versi live/panjang): cadangan terakhir
+                        }
+                        if (plain.isEmpty()) plain = plainOf(j);
                     }
-                    if (bestS != null) break;
                 }
-                if (bestS != null) synced = synced(bestS);
-                else if (!weak.isEmpty()) synced = weak;
-                else if (plain.isEmpty() && bestP != null) plain = plainOf(bestP);
+                if (synced.isEmpty()) {
+                    String[] qs = {(i > 0 ? ti.replace(" - ", " ") : ch + " " + ti).trim(), ti};
+                    JSONObject bestS = null, bestP = null;
+                    double scS = 0, scP = 0;
+                    List<String> wantT = new ArrayList<>(), wantA = new ArrayList<>();
+                    for (String[] c : cands) { if (!wantA.contains(c[0])) wantA.add(c[0]); if (!wantT.contains(c[1])) wantT.add(c[1]); }
+                    for (String q : new LinkedHashSet<>(Arrays.asList(qs))) {
+                        if (System.currentTimeMillis() > dl) break;
+                        sr++;
+                        Object o = lrc("search?q=" + enc(q));
+                        if (!(o instanceof JSONArray)) continue;
+                        reached = true;
+                        JSONArray arr = (JSONArray) o;
+                        for (int k = 0; k < arr.length(); k++) {
+                            JSONObject x = arr.optJSONObject(k);
+                            if (x == null || x.optBoolean("instrumental", false)) continue;
+                            double sc = matchScore(x, wantT, wantA, t.seconds);
+                            if (sc <= 0) continue;
+                            if (!synced(x).trim().isEmpty() && sc > scS) { bestS = x; scS = sc; }
+                            if (!plainOf(x).isEmpty() && sc > scP) { bestP = x; scP = sc; }
+                        }
+                        if (bestS != null) break;
+                    }
+                    if (bestS != null) synced = synced(bestS);
+                    else if (!weak.isEmpty()) synced = weak;
+                    else if (plain.isEmpty() && bestP != null) plain = plainOf(bestP);
+                }
+                if (!synced.isEmpty()) out = parseLrc(synced);
+                else if (!plain.isEmpty()) { out = fromPlain(plain, t.seconds); kind = "plain"; src = "lrclib-plain"; }
             }
-            if (!synced.isEmpty()) out = parseLrc(synced);
-            else if (!plain.isEmpty()) { out = fromPlain(plain, t.seconds); kind = "plain"; }
+            // Tahap 3 (NetEase) — kalau ketemu lirik tersinkron (JOOX ATAU lrclib), coba tempel waktu kata ASLI.
+            // Opsional & diam-diam kalau gagal; `realWords`/`wordSpans` di player.html otomatis makai ini kalau
+            // tersedia, sama seperti LRC enhanced.
+            if (out.length() > 0 && "synced".equals(kind)) neEnrich(out, t.title, t.artist, t.seconds);
             if (out.length() == 0 && t.subUrl != null) {
                 byte[] b = bytes(t.subUrl, FF);
-                if (b != null) { out = parseVtt(new String(b, StandardCharsets.UTF_8), t.subAuto); kind = "caption"; }
+                if (b != null) { out = parseVtt(new String(b, StandardCharsets.UTF_8), t.subAuto); kind = "caption"; src = "subtitle"; }
             }
         } catch (Throwable e) { /* lirik opsional */ }
         if (out.length() > 0) { t.lyr = out; t.kind = kind; lySave(id, out, kind); }
         else if (reached) lyMarkNone(id);
         String d = "get " + g + "x, cari " + sr + "x, subtitle " + (t.subUrl != null ? "ada" : "tidak ada") + ", hasil " + out.length() + " baris";
+        // Catatan ringkas SELALU ditulis (apa pun hasilnya) biar kelihatan sumbernya dari mana dan apakah NetEase
+        // ("lirik-ne" lain) seharusnya ikut dicoba atau tidak.
+        logErr("lirik-ne", (t.title == null ? "?" : t.title) + " – " + (t.artist == null ? "?" : t.artist)
+            + " · ringkasan: sumber=" + src + ", kind=" + kind + ", " + out.length() + " baris"
+            + (out.length() > 0 && "synced".equals(kind) ? " → NetEase seharusnya dicoba (cek baris lirik-ne lain)" : " → NetEase TIDAK dicoba"));
         return new Object[]{out, kind, d};
     }
 
@@ -1019,6 +1178,374 @@ final class Backend {
     }
 
     // Teks biasa tanpa waktu: baris dibagi rata sepanjang lagu (perkiraan)
+    // ===== Paket 14: kata-per-kata asli dari NetEase (YRC), ditempel ke lirik lrclib/JOOX yang sedang tampil =====
+    // Ini "Tahap 3" yang ditunda di Paket 13 (lihat catatan Paket 13 — waktu itu menunggu keputusan pemilik soal
+    // API tidak resmi/hak cipta/lisensi). Pemilik sudah bilang lanjutkan di sesi lain; hasilnya ditempelkan ke
+    // sini. Format kata keluarannya SENGAJA dibuat sama persis dengan yang dipakai `parseLrc` ("words":
+    // [{"text":...,"start":...,"end":...}]) biar `realWords`/`wordSpans` di player.html otomatis mengenalinya
+    // tanpa perlu diubah sama sekali — dari sudut pandang pemutar, ini cuma "LRC enhanced dari sumber lain".
+    // Hati-hati: bagian ini BELUM pernah diuji ke API aslinya (lingkungan Claude gak bisa akses music.163.com).
+    // Algoritmanya dikonfirmasi dari banyak implementasi independen yang sudah lama stabil (weapi/eapi), tapi
+    // tetap ada risiko kalau NetEase ubah sesuatu — kalau gitu, semua fungsi di bawah ini diam-diam gagal
+    // (try/catch) dan karaoke/tab Lirik balik ke perkiraan `lineSpan`, aman.
+    private static final String NE_EAPI_KEY = "e82ckenh8dichen8";
+    private static final Pattern NE_CJK = Pattern.compile("[\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7A3]");
+    private static final Pattern NE_LINE_RE = Pattern.compile("^\\[(\\d+),(\\d+)\\](.*)$");
+    private static final Pattern NE_WORD_RE = Pattern.compile("\\((\\d+),(\\d+)(?:,\\d+)?\\)([^(]*)");
+
+    private static String neHex(byte[] b) {
+        StringBuilder sb = new StringBuilder(b.length * 2);
+        for (byte x : b) { sb.append(Character.forDigit((x >> 4) & 0xF, 16)); sb.append(Character.forDigit(x & 0xF, 16)); }
+        return sb.toString();
+    }
+    private static byte[] neAesEcb(String key, byte[] data) throws Exception {
+        Cipher c = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES"));
+        return c.doFinal(data);
+    }
+    // Skema "eapi" NetEase: digest = md5("nobody"+path+"use"+json+"md5forencrypt"), lalu AES-128-ECB atas
+    // path+"-36cd479b6b5-"+json+"-36cd479b6b5-"+digest, dikirim sebagai hex di field "params".
+    private static String neEapiParams(String path, String json) throws Exception {
+        String digest = neHex(MessageDigest.getInstance("MD5").digest(("nobody" + path + "use" + json + "md5forencrypt").getBytes(StandardCharsets.UTF_8)));
+        String msg = path + "-36cd479b6b5-" + json + "-36cd479b6b5-" + digest;
+        return neHex(neAesEcb(NE_EAPI_KEY, msg.getBytes(StandardCharsets.UTF_8))).toUpperCase();
+    }
+    private static byte[] nePostEapi(String apiPath, String json, int ms) {
+        try {
+            String params = neEapiParams(apiPath, json);
+            byte[] bb = ("params=" + params).getBytes(StandardCharsets.UTF_8);
+            HttpURLConnection c = (HttpURLConnection) new URL("https://interface3.music.163.com" + apiPath.replaceFirst("^/api/", "/eapi/")).openConnection();
+            c.setConnectTimeout(ms); c.setReadTimeout(ms);
+            c.setRequestMethod("POST"); c.setDoOutput(true);
+            c.setRequestProperty("User-Agent", FF);
+            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            c.setRequestProperty("Referer", "https://music.163.com/");
+            c.setRequestProperty("Cookie", "os=pc; appver=8.9.70");
+            c.setFixedLengthStreamingMode(bb.length);
+            try (OutputStream os = c.getOutputStream()) { os.write(bb); }
+            if (c.getResponseCode() != 200) return null;
+            try (InputStream in = c.getInputStream()) { return readAll(in); }
+        } catch (Throwable e) { return null; }
+    }
+
+    // Cari lagu di NetEase (endpoint pencarian lama, GET biasa, gak perlu enkripsi) buat dapet song id
+    private static JSONArray neSearch(String q, int ms) {
+        try {
+            byte[] b = bytes("http://music.163.com/api/search/get/web?s=" + enc(q) + "&type=1&offset=0&limit=8", FF, ms);
+            if (b == null) return null;
+            Object o = new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
+            JSONObject result = o instanceof JSONObject ? ((JSONObject) o).optJSONObject("result") : null;
+            return result == null ? null : result.optJSONArray("songs");
+        } catch (Throwable e) { return null; }
+    }
+    // "Disederhanakan" buat dibandingkan: huruf kecil, tanpa tanda baca/diakritik. Dipakai bersama NetEase & JOOX.
+    private static String neSimple(String s) {
+        if (s == null) return "";
+        String n = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKD);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n.length(); i++) {
+            char c = n.charAt(i);
+            if (Character.getType(c) == Character.NON_SPACING_MARK) continue;
+            if (Character.isLetterOrDigit(c)) sb.append(Character.toLowerCase(c));
+        }
+        return sb.toString();
+    }
+    private static boolean neOverlaps(String a, String b) { return !a.isEmpty() && !b.isEmpty() && (a.equals(b) || a.contains(b) || b.contains(a)); }
+    // Hasil pencarian NetEase yang paling cocok sama judul/artis/durasi lagu ini, atau -1 kalau gak ada yang cocok
+    private static long nePickSongId(JSONArray songs, String title, String artist, long durSec) {
+        if (songs == null) return -1;
+        String t = neSimple(title);
+        String[] artists = artist == null || artist.isEmpty() ? new String[0] : artist.split("\\s*(?:,|&|/|\\+|\\bx\\b|\\band\\b|\\bfeat\\.?|\\bft\\.?)\\s*");
+        for (int i = 0; i < songs.length(); i++) {
+            JSONObject s = songs.optJSONObject(i);
+            if (s == null) continue;
+            long len = s.optLong("duration", 0) / 1000;
+            if (durSec > 0 && len > 0 && Math.abs(len - durSec) > 3) continue;
+            if (!neOverlaps(neSimple(s.optString("name", "")), t)) continue;
+            JSONArray ar = s.optJSONArray("artists");
+            boolean artistOk = artists.length == 0 || ar == null;
+            if (!artistOk) {
+                for (int ai = 0; ai < ar.length() && !artistOk; ai++) {
+                    JSONObject one = ar.optJSONObject(ai);
+                    String cand = neSimple(one == null ? "" : one.optString("name", ""));
+                    for (String a : artists) if (neOverlaps(neSimple(a), cand)) { artistOk = true; break; }
+                }
+            }
+            if (!artistOk) continue;
+            return s.optLong("id", -1);
+        }
+        return -1;
+    }
+
+    private static class NeWord { String text; double start, end; }
+    private static class NeLine { String text; double start, end; List<NeWord> words = new ArrayList<>(); }
+
+    private static NeWord neFlush(NeWord w, List<NeWord> out) {
+        if (w != null) { w.text = w.text.trim(); if (!w.text.isEmpty()) out.add(w); }
+        return null;
+    }
+    // "(mulaiMs,durasiMs,0)kata (mulaiMs,durasiMs,0)kata ..." -> daftar kata berwaktu; potongan Latin disambung
+    // sampai ketemu spasi, potongan CJK berdiri sendiri (karakter per karakter biasanya 1 tag per karakter)
+    private static List<NeWord> neParseWords(String rest) {
+        List<NeWord> out = new ArrayList<>();
+        Matcher m = NE_WORD_RE.matcher(rest);
+        NeWord cur = null;
+        while (m.find()) {
+            double start = Double.parseDouble(m.group(1)) / 1000.0;
+            double end = (Double.parseDouble(m.group(1)) + Double.parseDouble(m.group(2))) / 1000.0;
+            String piece = m.group(3);
+            boolean isCjk = NE_CJK.matcher(piece).find();
+            if (cur != null && (isCjk || NE_CJK.matcher(cur.text).find())) cur = neFlush(cur, out);
+            if (cur == null) { cur = new NeWord(); cur.text = piece; cur.start = start; cur.end = end; }
+            else { cur.text += piece; cur.end = Math.max(cur.end, end); }
+            if (Pattern.compile("\\s").matcher(piece).find() || isCjk) cur = neFlush(cur, out);
+        }
+        neFlush(cur, out);
+        return out;
+    }
+    // Format YRC NetEase: "[awalMs,durasiMs]" diikuti tag kata per kata; baris kredit (penulis/produser dkk) dibuang
+    private static List<NeLine> neParseYrc(String text) {
+        List<NeLine> lines = new ArrayList<>();
+        if (text == null) return lines;
+        Pattern credit = Pattern.compile("^(\u4f5c\u8bcd|\u4f5c\u66f2|\u7f16\u66f2|\u5236\u4f5c\u4eba|\u6df7\u97f3|\u6bcd\u5e26|\u548c\u58f0|\u5409\u4ed6|\u8d1d\u65af|\u9f13|\u5f55\u97f3|\u76d1\u5236|\u51fa\u54c1|\u53d1\u884c)\\s*[:\uff1a]");
+        for (String raw : text.split("\n")) {
+            Matcher m = NE_LINE_RE.matcher(raw.trim());
+            if (!m.find()) continue;
+            List<NeWord> words = neParseWords(m.group(3));
+            if (words.isEmpty()) continue;
+            StringBuilder full = new StringBuilder();
+            for (NeWord w : words) { if (full.length() > 0) full.append(' '); full.append(w.text); }
+            String ft = full.toString().replaceAll("\\s+", " ").trim();
+            if (ft.isEmpty() || credit.matcher(ft).find()) continue;
+            NeLine ln = new NeLine();
+            ln.start = Double.parseDouble(m.group(1)) / 1000.0;
+            ln.end = (Double.parseDouble(m.group(1)) + Double.parseDouble(m.group(2))) / 1000.0;
+            ln.text = ft; ln.words = words;
+            lines.add(ln);
+        }
+        return lines;
+    }
+    private static boolean neSameWord(String a, String b) { return a.equals(b) || (a.length() >= 4 && b.length() >= 4 && (a.startsWith(b) || b.startsWith(a))); }
+    private static List<String> neLineTokens(String text) {
+        List<String> out = new ArrayList<>();
+        String clean = text == null ? "" : text.replaceAll("<[^>]+>", "").trim();
+        if (clean.isEmpty()) return out;
+        for (String w : clean.split("\\s+")) {
+            if (w.isEmpty()) continue;
+            if (NE_CJK.matcher(w).find()) {
+                w.codePoints().forEach(cp -> { String ch = new String(Character.toChars(cp)); if (!neSimple(ch).isEmpty()) out.add(ch); });
+            } else out.add(w);
+        }
+        return out;
+    }
+    private static class NePoolWord { String n; double start, end; }
+
+    // Tempel waktu kata asli NetEase (neLines) ke baris JSON lirik yang sedang ditampilkan (dari lrclib/JOOX),
+    // biar beda potongan baris pun tetap bisa disambung. Baris yang SUDAH punya "words" (dari tag LRC enhanced)
+    // dilewati, tidak ditimpa. Kalau terlalu sedikit yang cocok, dibatalkan semua (lagunya mungkin beda).
+    // Field katanya memakai "text"/"start"/"end" — SAMA PERSIS dengan yang dipakai parseLrc (LRC enhanced) dan
+    // dibaca player.html (realWords/wordSpans), bukan nama singkatan — biar gak perlu ubah player.html sama sekali.
+    private static void neAlignWordTimings(JSONArray rows, List<NeLine> neLines) {
+        try {
+            int n = rows.length();
+            List<Integer> shown = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null || row.has("words")) continue;
+                if (!row.optString("text", "").isEmpty()) shown.add(i);
+            }
+            List<NePoolWord> pool = new ArrayList<>();
+            for (NeLine wl : neLines) for (NeWord w : wl.words) {
+                String ns = neSimple(w.text);
+                if (!ns.isEmpty()) { NePoolWord pw = new NePoolWord(); pw.n = ns; pw.start = w.start; pw.end = w.end; pool.add(pw); }
+            }
+            if (shown.isEmpty() || pool.isEmpty()) return;
+
+            List<Object[]> matches = new ArrayList<>(); // {Integer i, Double next, List<String> toks, NePoolWord[] hit}
+            int p = 0;
+            for (int k = 0; k < shown.size(); k++) {
+                int i = shown.get(k);
+                JSONObject row = rows.getJSONObject(i);
+                double time = row.optDouble("time", 0);
+                String text = row.optString("text", "");
+                double next = k + 1 < shown.size() ? rows.getJSONObject(shown.get(k + 1)).optDouble("time", time + 8) : time + 8;
+                List<String> toks = neLineTokens(text);
+                if (toks.isEmpty()) continue;
+                NePoolWord[] hit = new NePoolWord[toks.size()];
+                int found = 0;
+                while (p < pool.size() && pool.get(p).start < time - 2.5) p++;
+                int q = p;
+                for (int j = 0; j < toks.size(); j++) {
+                    String ns = neSimple(toks.get(j));
+                    for (int c = q; c < pool.size() && pool.get(c).start <= next + 2.5; c++) {
+                        if (!ns.isEmpty() && neSameWord(pool.get(c).n, ns)) { hit[j] = pool.get(c); q = c + 1; found++; break; }
+                    }
+                }
+                if ((double) found / toks.size() < 0.7) continue;
+                p = q;
+                matches.add(new Object[]{i, next, toks, hit});
+            }
+            if (matches.isEmpty() || (double) matches.size() / shown.size() < 0.6) return;
+
+            List<Double> gaps = new ArrayList<>();
+            for (Object[] mm : matches) {
+                NePoolWord[] hit = (NePoolWord[]) mm[3];
+                if (hit.length > 0 && hit[0] != null) gaps.add(rows.getJSONObject((Integer) mm[0]).optDouble("time", 0) - hit[0].start);
+            }
+            Collections.sort(gaps);
+            double median = gaps.isEmpty() ? 0 : gaps.get(gaps.size() / 2);
+            double shift = Math.abs(median) > 0.25 ? median : 0;
+
+            for (Object[] mm : matches) {
+                int i = (Integer) mm[0];
+                double next = (Double) mm[1];
+                @SuppressWarnings("unchecked") List<String> toks = (List<String>) mm[2];
+                NePoolWord[] hit = (NePoolWord[]) mm[3];
+                double time = rows.getJSONObject(i).optDouble("time", 0);
+                int m = toks.size();
+                Double[] ws = new Double[m], we = new Double[m];
+                for (int j = 0; j < m; j++) if (hit[j] != null) { ws[j] = hit[j].start + shift; we[j] = hit[j].end + shift; }
+                int j = 0;
+                while (j < m) {
+                    if (ws[j] != null) { j++; continue; }
+                    int e = j; while (e < m && ws[e] == null) e++;
+                    double from = j > 0 ? we[j - 1] : Math.min(time, e < m ? ws[e] : time);
+                    double to = e < m ? ws[e] : Math.max(from + 0.3 * (e - j), Math.min(next, from + 0.6 * (e - j)));
+                    double step = Math.max(0, to - from) / (e - j);
+                    for (int m2 = j; m2 < e; m2++) { ws[m2] = from + step * (m2 - j); we[m2] = from + step * (m2 - j + 1); }
+                    j = e;
+                }
+                JSONArray words = new JSONArray();
+                for (int j2 = 0; j2 < m; j2++) words.put(new JSONObject().put("text", toks.get(j2)).put("start", Math.round(ws[j2] * 1000) / 1000.0).put("end", Math.round(we[j2] * 1000) / 1000.0));
+                rows.getJSONObject(i).put("words", words);
+            }
+        } catch (Throwable e) { /* penyelarasan opsional, gagal diam-diam */ }
+    }
+
+    // Titik masuk: cari lagu ini di NetEase, ambil YRC-nya, tempelkan ke `out` kalau ketemu & cocok.
+    // Best-effort penuh — gagal di titik mana pun (gak ketemu, API berubah, timeout) dibiarkan diam-diam, tapi
+    // tetap dicatat ke Catatan galat (tag "lirik-ne") biar gampang didiagnosa pemilik.
+    private static void neEnrich(JSONArray out, String title, String artist, long durSec) {
+        String dbg = (title == null ? "?" : title) + " – " + (artist == null ? "?" : artist);
+        try {
+            String q = (cleanArtist(artist) + " " + cleanTitle(title)).trim();
+            if (q.isEmpty()) { logErr("lirik-ne", dbg + " · dibatalkan: judul/artis kosong setelah dibersihkan"); return; }
+            JSONArray songs = neSearch(q, 4000);
+            if (songs == null) { logErr("lirik-ne", dbg + " · pencarian NetEase gagal/kosong (query: " + q + ")"); return; }
+            long idv = nePickSongId(songs, cleanTitle(title), artist, durSec);
+            if (idv <= 0) { logErr("lirik-ne", dbg + " · " + songs.length() + " hasil pencarian, tak satu pun cocok judul/artis/durasi"); return; }
+            String json = "{\"id\":" + idv + ",\"cp\":false,\"tv\":0,\"lv\":0,\"rv\":0,\"kv\":0,\"yv\":0,\"ytv\":0,\"yrv\":0}";
+            byte[] b = nePostEapi("/api/song/lyric/v1", json, 4000);
+            if (b == null) { logErr("lirik-ne", dbg + " · lagu id=" + idv + " ketemu, tapi permintaan lirik eapi gagal (jaringan/HTTP)"); return; }
+            Object o = new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
+            JSONObject yrcObj = o instanceof JSONObject ? ((JSONObject) o).optJSONObject("yrc") : null;
+            String yrcText = yrcObj == null ? "" : yrcObj.optString("lyric", "");
+            if (yrcText.trim().isEmpty()) { logErr("lirik-ne", dbg + " · lagu id=" + idv + " ketemu, respons eapi jalan, tapi field \"yrc\" kosong/gak ada"); return; }
+            List<NeLine> neLines = neParseYrc(yrcText);
+            if (neLines.isEmpty()) { logErr("lirik-ne", dbg + " · data yrc ada tapi gagal diparsing jadi baris"); return; }
+            int before = countWords(out);
+            neAlignWordTimings(out, neLines);
+            int after = countWords(out);
+            if (after > before) logErr("lirik-ne", dbg + " · berhasil: " + (after - before) + "/" + out.length() + " baris dapat waktu kata asli dari NetEase");
+            else logErr("lirik-ne", dbg + " · " + neLines.size() + " baris yrc didapat, tapi penyelarasan ke lirik yang tampil gagal (kemungkinan beda versi/terjemahan)");
+        } catch (Throwable e) { logErr("lirik-ne", dbg + " · error tak terduga: " + e); }
+    }
+    private static int countWords(JSONArray rows) {
+        int n = 0;
+        for (int i = 0; i < rows.length(); i++) { JSONObject r = rows.optJSONObject(i); if (r != null && r.has("words")) n++; }
+        return n;
+    }
+
+    // ===== Paket 15: JOOX sebagai sumber lirik TERSINKRON tambahan (terutama lagu Indonesia yang gak ada di lrclib) =====
+    // Scraping situs pihak ketiga (bukan API resmi) — kalau JOOX ubah halamannya, ini akan diam-diam gagal.
+    private static final Pattern JX_NEXT_DATA = Pattern.compile("<script id=\"__NEXT_DATA__\"[^>]*>(.*?)</script>", Pattern.DOTALL);
+    private static final Pattern JX_LRC_LINE = Pattern.compile("^\\[(\\d{2}):(\\d{2}(?:\\.\\d+)?)\\](.*)$");
+
+    private static JSONObject jxNextData(String html) {
+        try {
+            Matcher m = JX_NEXT_DATA.matcher(html);
+            if (!m.find()) return null;
+            Object o = new JSONTokener(m.group(1)).nextValue();
+            return o instanceof JSONObject ? (JSONObject) o : null;
+        } catch (Throwable e) { return null; }
+    }
+    private static JSONObject jxPageProps(JSONObject nextData) {
+        JSONObject pp = nextData == null ? null : nextData.optJSONObject("props");
+        return pp == null ? null : pp.optJSONObject("pageProps");
+    }
+    private static JSONArray jxSearch(String keyword, String region) {
+        try {
+            byte[] b = bytes("https://www.joox.com/" + region + "/search/" + enc(keyword), FF, 6000);
+            if (b == null) return null;
+            JSONObject pp = jxPageProps(jxNextData(new String(b, StandardCharsets.UTF_8)));
+            JSONObject ss = pp == null ? null : pp.optJSONObject("searchSections");
+            JSONObject songs = ss == null ? null : ss.optJSONObject("songs");
+            return songs == null ? null : songs.optJSONArray("item_list");
+        } catch (Throwable e) { return null; }
+    }
+    // Dari hasil pencarian JOOX, pilih lagu yang judul/artis/durasinya paling cocok -> id lagu, atau null kalau gak ada yang pas
+    private static String jxPickId(JSONArray items, String title, String artist, long durSec) {
+        if (items == null) return null;
+        String t = neSimple(title);
+        String[] artists = artist == null || artist.isEmpty() ? new String[0] : artist.split("\\s*(?:,|&|/|\\+|\\bx\\b|\\band\\b|\\bfeat\\.?|\\bft\\.?)\\s*");
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            JSONArray songArr = item == null ? null : item.optJSONArray("song");
+            JSONObject song = songArr == null || songArr.length() == 0 ? null : songArr.optJSONObject(0);
+            JSONObject info = song == null ? null : song.optJSONObject("song_info");
+            if (info == null) continue;
+            long len = info.optLong("play_duration", 0);
+            if (durSec > 0 && len > 0 && Math.abs(len - durSec) > 3) continue;
+            if (!neOverlaps(neSimple(info.optString("name", "")), t)) continue;
+            JSONArray ar = info.optJSONArray("artist_list");
+            boolean artistOk = artists.length == 0 || ar == null;
+            if (!artistOk) {
+                for (int ai = 0; ai < ar.length() && !artistOk; ai++) {
+                    JSONObject one = ar.optJSONObject(ai);
+                    String cand = neSimple(one == null ? "" : one.optString("name", ""));
+                    for (String a : artists) if (neOverlaps(neSimple(a), cand)) { artistOk = true; break; }
+                }
+            }
+            if (!artistOk) continue;
+            String idv = info.optString("id", "");
+            if (!idv.isEmpty()) return idv;
+        }
+        return null;
+    }
+    // Ambil lirik tersinkron dari JOOX buat satu lagu (null kalau gak ketemu/gagal); catat prosesnya ke Catatan galat
+    private static JSONArray jxLyrics(String title, String artist, long durSec) {
+        String dbg = (title == null ? "?" : title) + " – " + (artist == null ? "?" : artist);
+        try {
+            String region = "id"; // katalog Indonesia; region lain JOOX gak dicoba di sini
+            String q = (cleanArtist(artist) + " " + cleanTitle(title)).trim();
+            if (q.isEmpty()) { logErr("lirik-jx", dbg + " · dibatalkan: judul/artis kosong setelah dibersihkan"); return null; }
+            JSONArray items = jxSearch(q, region);
+            if (items == null) { logErr("lirik-jx", dbg + " · pencarian JOOX gagal/kosong (query: " + q + ")"); return null; }
+            String idv = jxPickId(items, cleanTitle(title), artist, durSec);
+            if (idv == null) { logErr("lirik-jx", dbg + " · " + items.length() + " hasil pencarian, tak satu pun cocok judul/artis/durasi"); return null; }
+            byte[] b = bytes("https://www.joox.com/" + region + "/single/" + enc(idv), FF, 6000);
+            if (b == null) { logErr("lirik-jx", dbg + " · lagu id=" + idv + " ketemu, tapi gagal buka halaman lagunya"); return null; }
+            JSONObject pp = jxPageProps(jxNextData(new String(b, StandardCharsets.UTF_8)));
+            String b64 = pp == null ? "" : pp.optString("singleLyric", "");
+            if (b64.isEmpty()) { logErr("lirik-jx", dbg + " · lagu id=" + idv + " ketemu, tapi gak ada lirik (singleLyric kosong)"); return null; }
+            String decoded = new String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), StandardCharsets.UTF_8);
+            JSONArray out = new JSONArray();
+            for (String raw : decoded.split("\\r?\\n")) {
+                if (raw.trim().isEmpty()) continue;
+                Matcher m = JX_LRC_LINE.matcher(raw.trim());
+                if (!m.find()) continue;
+                double tm = Integer.parseInt(m.group(1)) * 60 + Double.parseDouble(m.group(2));
+                String text = m.group(3).trim();
+                if (text.isEmpty()) continue;
+                if (text.length() > 120) text = text.substring(0, 120);
+                out.put(new JSONObject().put("time", tm).put("text", text));
+            }
+            if (out.length() == 0) { logErr("lirik-jx", dbg + " · lirik JOOX ada tapi gagal diparsing jadi baris"); return null; }
+            logErr("lirik-jx", dbg + " · berhasil: " + out.length() + " baris tersinkron dari JOOX");
+            return out;
+        } catch (Throwable e) { logErr("lirik-jx", dbg + " · error tak terduga: " + e); return null; }
+    }
+
     private static JSONArray fromPlain(String plain, long sec) throws Exception {
         List<String> lines = new ArrayList<>();
         for (String l : plain.split("\\r?\\n")) { l = l.trim(); if (!l.isEmpty()) lines.add(l.length() > 120 ? l.substring(0, 120) : l); }
