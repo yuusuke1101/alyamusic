@@ -177,12 +177,6 @@ h1.gr{font-size:22px;margin:0 0 12px}
 .nb.on .ic{background:color-mix(in srgb,var(--a) 28%,transparent)}
 .side .nb .ic{padding:0}
 .pcard{position:relative;border-radius:22px;padding:20px 16px 14px;margin:4px 0 8px;background:var(--card);background:linear-gradient(135deg,color-mix(in srgb,var(--a) 38%,var(--surf)),color-mix(in srgb,var(--b) 24%,var(--surf)));border:1px solid var(--line)}
-.rmchat{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding:4px 2px;margin-bottom:10px}
-.rmmsg{font-size:13px;line-height:1.4;padding:8px 11px;border-radius:14px;background:var(--card);border:1px solid var(--line);max-width:88%;align-self:flex-start}
-.rmmsg.me{align-self:flex-end;background:color-mix(in srgb,var(--a) 22%,var(--card));border-color:transparent}
-.rmmsg b{display:block;font-size:11px;color:var(--b);margin-bottom:2px}
-.rmmsg.me b{color:var(--a)}
-.rmmsg span{word-break:break-word}
 .ptop{display:flex;align-items:center;gap:14px}.ptop h1{font-size:22px}
 .ptop>img{width:72px;height:72px;border-radius:50%;object-fit:cover;flex:none;border:2px solid var(--card2)}
 .pst{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
@@ -416,6 +410,15 @@ button:active{transform:scale(.96)}
 
 /* ===== Paket 23: galat sinkron room yang menetap di kartu (bukan cuma toast sekilas) ===== */
 .warn{font-size:12.5px;color:#ff7a8a;margin:4px 0 0}
+
+/* ===== Paket 24: jendela "Room dengar bareng" sendiri — pola sama kayak .stage (geser dari bawah),
+   tapi pakai tema terang/gelap normal app (bukan tema gelap khusus pemutar), dan z-index ditaruh di
+   ANTARA .stage (40) dan .modal (60) biar dialog konfirmasi (mis. "Tutup room ini?") tetap muncul di atasnya. */
+.roomwin{position:fixed;inset:0;z-index:45;background:var(--bg);display:flex;flex-direction:column;transform:translateY(105%);visibility:hidden;transition:transform .3s ease,visibility 0s .3s}
+body.roomopen .roomwin{transform:none;visibility:visible;transition:transform .3s ease}
+.rwhead{display:flex;align-items:center;gap:10px;padding:max(14px,env(safe-area-inset-top)) 16px 12px;flex:none}
+.rwtitle{font-weight:800;font-size:17px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rwframe{flex:1;width:100%;border:0;background:transparent;display:block}
 </style>
 </head>
 <body>
@@ -451,6 +454,17 @@ button:active{transform:scale(.96)}
   <button class="ib" id="m-next" aria-label="Berikutnya"></button>
   <button class="ib" id="m-q" aria-label="Antrean"></button>
   <i class="mbar" id="m-bar"></i>
+</div>
+<!-- Paket 24: jendela "Room dengar bareng" sendiri — elemen TETAP di luar #main (gak kena render() yang
+     nge-rebuild ulang tiap pindah tab/tick), jadi bisa dibuka-tutup & jalan terus di latar tanpa ke-reset.
+     Paket 25: isinya sekarang iframe ke berkas room.html sendiri (persis pola #frame/player.html di atas) —
+     bukan dibangun manual lewat h()/DOM di index.html lagi, biar index.html lebih ringan. -->
+<div class="roomwin" id="roomwin" hidden>
+  <div class="rwhead">
+    <button class="ib" id="rw-close" aria-label="Tutup jendela room"></button>
+    <div class="rwtitle" id="rw-title">Room dengar bareng</div>
+  </div>
+  <iframe id="roomFrame" class="rwframe" title="Room dengar bareng" hidden></iframe>
 </div>
 <div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
 <div class="toast" id="toast"></div>
@@ -771,7 +785,32 @@ window.addEventListener('popstate', e => {
   document.body.classList.toggle('sheet', !!s.sheet);
   if (s.v !== V.v || s.id !== V.id) { V = { v: s.v || 'home', id: s.id }; render(); }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSheet(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSheet(); closeRoomWin(); } });
+$('rw-close').addEventListener('click', closeRoomWin); setIc($('rw-close'), 'down');
+// Paket 25: jembatan ke room.html lewat postMessage. SENGAJA gak pernah kirim refresh token (G.u.rt) ke
+// iframe — room.html minta token ID yang masih berlaku lewat 'alya-room-tokreq' tiap mau manggil Firestore,
+// index.html yang jawab pakai gTok() (yang sudah ada, nyimpen & memperpanjang sendiri). Jadi kredensial
+// sensitif tetap cuma ada di satu tempat (index.html + localStorage), gak digandakan ke berkas lain.
+function roomPost(m) { try { $('roomFrame').contentWindow.postMessage(m, location.origin); } catch (e) { } }
+$('roomFrame').addEventListener('load', () => {
+  if (!G.room || !G.u) return;
+  roomPost({ type: 'alya-room-init', roomId: G.room.id, isHost: G.room.isHost, name: G.room.name, project: G.cfg.project, apiKey: G.cfg.apiKey, uid: G.u.uid, uname: G.u.name || 'Pengguna', photo: G.u.photo || '' });
+});
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== $('roomFrame').contentWindow) return;
+  const d = e.data; if (!d || typeof d !== 'object') return;
+  if (d.type === 'alya-room-tokreq') {
+    gTok().then(t => roomPost({ type: 'alya-room-tok', rid: d.rid, token: t }))
+      .catch(e2 => roomPost({ type: 'alya-room-tok', rid: d.rid, error: e2.message || 'Gagal ambil token' }));
+  } else if (d.type === 'alya-room-leave') {
+    if (G.room) confirmBox(G.room.isHost ? 'Tutup room ini? Semua pendengar ikut keluar.' : 'Keluar dari room ini?', G.room.isHost ? 'Tutup' : 'Keluar', roomLeave);
+  } else if (d.type === 'alya-room-close') closeRoomWin();
+  else if (d.type === 'alya-room-gone') { if (G.room) { toast('Room sudah ditutup'); roomLeave(); } }
+  // Paket 26: kontrol pemutar dari jendela room (tombol putar/jeda/sebelumnya/berikutnya/acak/ulangi) —
+  // dicek lagi di sini (jangan cuma percaya room.html) kalau beneran lagi jadi host, baru diteruskan ke
+  // window.alyaCmd yang SUDAH ADA (dipakai juga widget Android) — gak ada logika kontrol baru yang berisiko.
+  else if (d.type === 'alya-room-cmd') { if (G.room && G.room.isHost && window.alyaCmd) window.alyaCmd(d.cmd); }
+});
 $('close').addEventListener('click', closeSheet); setIc($('close'), 'down');
 $('m-open').addEventListener('click', openSheet);
 setIc($('m-prev'), 'prev'); setIc($('m-next'), 'next'); setIc($('m-play'), 'play'); setIc($('s-like'), 'heart'); setIc($('m-q'), 'list'); $('m-q').addEventListener('click', openQueue);
@@ -1807,7 +1846,7 @@ function joinFriend(n) {
 // Beda dari "dengar bareng" presence di atas (joinFriend, cuma catch-up sekali di awal): ini disinkronkan
 // TERUS-MENERUS lewat polling (bukan push realtime — lihat catatan di CLAUDE.md soal kenapa REST, bukan SDK
 // Firestore). Host nyiarin posisi/status putarnya tiap beberapa detik; anggota lain ngikutin.
-const ROOM_STALE_MS = 10 * 60 * 1000, ROOM_POLL_MS = 3000, ROOM_GONE_MS = 15 * 60 * 1000, ROOM_MSG_MAX = 300;
+const ROOM_STALE_MS = 10 * 60 * 1000, ROOM_POLL_MS = 3000, ROOM_GONE_MS = 15 * 60 * 1000;
 let roomPollT = null;
 // Paket 22: anggota sekarang {name,photo[,left]} (dulu cuma true/false) supaya bisa ditampilkan namanya.
 // left:true dipakai saat keluar (bukan dihapus dari map) biar tetap konsisten dgn batas members.size()<=30
@@ -1816,11 +1855,6 @@ function memberNames(members) {
   return Object.values(members || {}).filter(v => v && (typeof v !== 'object' || !v.left)).map(v => (v && typeof v === 'object' ? (v.name || 'Pengguna') : 'Pengguna'));
 }
 function countMembers(members) { return memberNames(members).length; }
-// Paket 23: dipakai buat daftar "Pendengar" ber-avatar (bukan cuma nama) — nyaring left:true sama kayak
-// memberNames, tapi tetap bawa uid & foto.
-function memberList(members) {
-  return Object.entries(members || {}).filter(([, v]) => v && (typeof v !== 'object' || !v.left)).map(([mid, v]) => ({ uid: mid, name: (v && typeof v === 'object' && v.name) || 'Pengguna', photo: (v && typeof v === 'object' && v.photo) || '' }));
-}
 async function roomsLoad() {
   if (!G.u) { G.rooms = []; return; }
   try {
@@ -1836,72 +1870,56 @@ async function roomsLoad() {
 async function roomCreate(name) {
   if (!G.u) { toast('Login Google dulu'); return; }
   if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { toast('Putar lagu dulu, baru buat room'); return; }
-  const id = 'r' + uid() + uid(), me = G.u.uid, t = queue[qi] || {};
-  const initData = { host: me, hostName: G.u.name || 'Pengguna', name: name.slice(0, 60), trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now(), members: { [me]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } }, active: true };
-  await put('/rooms/' + id, initData);
-  roomEnter(id, true, initData); toast('Room dibuat');
+  const id = 'r' + uid() + uid(), me = G.u.uid, t = queue[qi] || {}, nm = name.slice(0, 60);
+  await put('/rooms/' + id, { host: me, hostName: G.u.name || 'Pengguna', name: nm, trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), durMs: Math.round((media.dur || 0) * 1000), playing: !!media.playing, updatedAt: Date.now(), members: { [me]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } }, active: true });
+  roomEnter(id, true, nm); toast('Room dibuat');
 }
 async function roomJoin(r) {
   if (!G.u) { toast('Login Google dulu'); return; }
   await fs('/rooms/' + r.id, 'PATCH', { fields: fo({ members: { [G.u.uid]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } } }) }, '?updateMask.fieldPaths=members.' + G.u.uid);
-  // Paket 23: langsung kasih data yang udah ada (judul/host/anggota lama + diri sendiri) ke roomEnter biar
-  // kartu room gak kelihatan kosong sesaat sebelum tick pertama datang.
-  const initData = Object.assign({}, r, { members: Object.assign({}, r.members, { [G.u.uid]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } }) });
-  roomEnter(r.id, false, initData);
+  roomEnter(r.id, false, r.name || 'Room');
 }
-function roomEnter(id, isHost, initData) { roomPollStop(); G.room = { id, isHost, lastTrackId: isHost ? (queue[qi] && queue[qi].id) : null, data: initData || null, fails: 0, err: '', msgs: [] }; roomMsgsLoad(); roomPollTick(); roomPollT = setInterval(roomPollTick, ROOM_POLL_MS); render(); }
+// Paket 25: ROMBAK BESAR — daftar pendengar & obrolan dipindah SELURUHNYA ke berkas sendiri (room.html,
+// dimuat lewat <iframe id="roomFrame"> di #roomwin, lihat markup di <body>), biar index.html gak perlu lagi
+// nyimpen/nge-render itu semua (permintaan pemilik: "ga beban di index"). G.room di sini sekarang cuma
+// nyimpen state MINIMUM yang beneran dibutuhkan buat sinkron pemutar (lihat roomPollTick di bawah) — bukan
+// lagi tempat penyimpanan daftar anggota/pesan (itu sekarang murni urusan room.html sendiri, polling-nya
+// sendiri, lepas dari index.html).
+function roomEnter(id, isHost, name) {
+  roomPollStop();
+  G.room = { id, isHost, name: name || 'Room', lastTrackId: isHost ? (queue[qi] && queue[qi].id) : null, fails: 0, err: '' };
+  const rwt = $('rw-title'); if (rwt) rwt.textContent = G.room.name;
+  $('roomFrame').src = '/room/' + encodeURIComponent(id); // Paket 25: muat room.html lewat rute baru di AlyaServer.java
+  openRoomWin();
+  roomPollTick(); roomPollT = setInterval(roomPollTick, ROOM_POLL_MS);
+  render();
+}
 function roomPollStop() { if (roomPollT) clearInterval(roomPollT); roomPollT = null; }
 async function roomLeave() {
   if (!G.room) return;
   const id = G.room.id, isHost = G.room.isHost, me = G.u.uid;
-  roomPollStop(); G.room = null; render();
+  roomPollStop(); G.room = null; closeRoomWin(); $('roomFrame').src = 'about:blank'; render();
   try {
     if (isHost) await fs('/rooms/' + id, 'DELETE');
     else await fs('/rooms/' + id, 'PATCH', { fields: fo({ members: { [me]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '', left: true } } }) }, '?updateMask.fieldPaths=members.' + me);
   } catch (e) { }
 }
-// Paket 22: obrolan room, subkoleksi rooms/{id}/messages (lihat firestore.rules). Gagal ambil/kirim pesan
-// TIDAK dihitung sebagai kegagalan sinkron room (lihat roomPollTick) — biar chat yang ngadat sendiri nggak
-// ikut memaksa keluar dari room.
-async function roomMsgsLoad() {
-  if (!G.room) return;
-  const id = G.room.id;
-  try {
-    const d = await fs('/rooms/' + id + '/messages', 'GET', null, '?orderBy=ts&pageSize=50');
-    if (!G.room || G.room.id !== id) return;
-    G.room.msgs = ((d && d.documents) || []).map(x => Object.assign({ id: x.name.split('/').pop() }, uo(x.fields || {})));
-  } catch (e) { return; }
-  roomPatch(); // Paket 23: patch langsung (bukan render() penuh) biar kotak ketik di bawahnya gak ke-reset
-}
-async function roomChatSend(text) {
-  if (!G.room || !G.u) return;
-  const t = text.trim().slice(0, ROOM_MSG_MAX);
-  if (!t) return;
-  await fs('/rooms/' + G.room.id + '/messages', 'POST', { fields: fo({ uid: G.u.uid, name: G.u.name || 'Pengguna', photo: G.u.photo || '', text: t, ts: Date.now() }) });
-  await roomMsgsLoad();
-}
+// Paket 25: cuma ngurus bagian yang BENERAN butuh akses pemutar (tulis trackId/posisi/putar-jeda kalau
+// host, baca+kendalikan pemutar kalau anggota) — gak ada lagi GET tambahan/roomPatch()/render() buat urusan
+// daftar pendengar atau obrolan di sini, itu sepenuhnya kerjaan room.html sendiri sekarang.
 async function roomPollTick() {
   if (!G.room) return;
   const id = G.room.id;
   try {
     if (G.room.isHost) {
-      if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { G.room.fails = 0; roomMsgsLoad(); return; } // belum/gak ada lagu valid buat disiarkan, tunggu tick berikutnya
+      if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { G.room.fails = 0; return; } // belum/gak ada lagu valid buat disiarkan, tunggu tick berikutnya
       const t = queue[qi] || {};
-      await put('/rooms/' + id, { trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now() }, true);
-      // Paket 23: BUG NYATA dari laporan pemilik ("ada yg gabung, lagu keputer, tapi semua ga ke-proses") —
-      // host SELAMA INI cuma pernah MENULIS ke dokumen room, nggak pernah MEMBACA baliknya. Akibatnya
-      // G.room.data di sisi host selalu null/kosong SELAMANYA, jadi walau member sudah beneran gabung
-      // (field members ketambah lewat roomJoin, dan sinkronnya sendiri jalan normal), kartu room di layar
-      // HOST selalu kelihatan "0 pendengar" tanpa nama — serasa "nggak ke-proses" padahal sebenarnya cuma
-      // host yang gak pernah lihat datanya sendiri. Sekarang host ikut GET dokumennya tiap tick (sama kayak
-      // anggota), biar daftar pendengar ketahuan juga di layar host.
-      const d = await fs('/rooms/' + id);
-      if (G.room && d) G.room.data = uo(d.fields || {});
+      await put('/rooms/' + id, { trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), durMs: Math.round((media.dur || 0) * 1000), playing: !!media.playing, updatedAt: Date.now() }, true);
     } else {
       const d = await fs('/rooms/' + id);
       if (!G.room) return; // keluar sementara nunggu respons
       if (!d) { toast('Room sudah ditutup host'); roomLeave(); return; }
-      const o = uo(d.fields || {}); G.room.data = o;
+      const o = uo(d.fields || {});
       const estPos = (o.posMs || 0) / 1000 + (o.playing ? Math.max(0, (Date.now() - (o.updatedAt || Date.now())) / 1000) : 0);
       if (o.trackId && o.trackId !== G.room.lastTrackId) {
         G.room.lastTrackId = o.trackId; pendingSeek = { id: o.trackId, ms: Math.round(estPos * 1000), exact: true };
@@ -1914,85 +1932,29 @@ async function roomPollTick() {
     G.room.fails = 0; G.room.err = '';
   } catch (e) {
     // Paket 22: dulu galat di sini ditelan diam-diam (catch kosong) — host/anggota kelihatan "ngadat" tanpa
-    // kelihatan sebabnya (lihat CLAUDE.md Paket 22: token kadaluarsa / jaringan putus / rules nolak, tak ada
-    // satupun yang kelihatan ke pengguna). Sekarang dikasih tahu sekali lewat toast, dan kalau sampai gagal
-    // 5 kali beruntun (±15 detik) keluar otomatis dari room daripada nyangkut diam-diam selamanya.
-    // Paket 23: pesan galatnya juga disimpan di G.room.err biar NETAP kelihatan di kartu room (lewat
-    // roomPatch/#rm-err), bukan cuma toast sekilas yang gampang kelewat kalau pas gak lihat HP persis
-    // waktu itu.
+    // kelihatan sebabnya. Sekarang dikasih tahu sekali lewat toast, dan kalau sampai gagal 5 kali beruntun
+    // (±15 detik) keluar otomatis dari room daripada nyangkut diam-diam selamanya.
     G.room.fails = (G.room.fails || 0) + 1;
     G.room.err = e.message || 'Galat tidak dikenal';
     if (G.room.fails === 1) toast('Gagal menyinkron room: ' + G.room.err);
     if (G.room.fails >= 5) { toast('Koneksi room terus gagal, keluar otomatis dari room'); roomLeave(); return; }
   }
-  roomMsgsLoad();
-  roomPatch();
 }
-// Paket 23: dulu tiap tick (3 detik) manggil render() PENUH — nge-rebuild ULANG seluruh tampilan termasuk
-// kotak ketik obrolan, jadi kalau lagi ngetik pesan bakal ke-reset/fokusnya ilang tiap 3 detik (laporan
-// pemilik: "susah mau ngetik ke-refresh terus"), dan kalau pas lagi di tab lain (Beranda dsb.) ikut
-// dirender ulang sia-sia tiap 3 detik juga. Sekarang tiap tick cuma nulis ulang ISI elemen yang memang
-// perlu lewat id tetap (#rm-track/#rm-err/#rm-listeners/#rm-msgs) — elemen2 ini dibikin SEKALI pas
-// roomSection() kebangun (pindah tab / masuk-keluar room), BUKAN dibikin ulang tiap tick, jadi kotak ketik
-// (#rm-input) gak pernah disentuh dan nilainya gak ke-reset walau lagi diketik pas tick lewat. Kalau
-// elemen2 ini gak ada di layar (pengguna lagi di tab lain, bukan Teman), roomPatch() gak ngapa2in (dicek
-// null) — data (G.room.data/msgs) tetap kebaruin di latar lewat G.room, jadi pas balik ke tab Teman langsung
-// up-to-date dari render() biasa yang manggil roomPatch() juga di akhir roomSection().
-function roomPatch() {
-  if (!G.room) return;
-  const o = G.room.data || {};
-  const te = $('rm-track'); if (te) te.textContent = o.title ? 'Lagu: ' + o.title + (o.author ? ' — ' + o.author : '') : 'Menunggu lagu...';
-  const ee = $('rm-err'); if (ee) { ee.textContent = G.room.err ? 'Sinkron sempat gagal: ' + G.room.err : ''; ee.hidden = !G.room.err; }
-  const le = $('rm-listeners');
-  if (le) {
-    const list = memberList(o.members); le.innerHTML = '';
-    if (!list.length) le.appendChild(h('div', 'mut', 'Belum ada yang gabung.'));
-    else list.forEach(x => {
-      const row = h('div', 'fr'); row.appendChild(av(x.name, x.photo));
-      row.appendChild(h('div', 'rb', x.name + (x.uid === (G.u && G.u.uid) ? ' (kamu)' : '')));
-      le.appendChild(row);
-    });
-  }
-  const me = $('rm-msgs');
-  if (me) {
-    const atBottom = me.scrollHeight - me.scrollTop - me.clientHeight < 30, msgs = G.room.msgs || [];
-    me.innerHTML = '';
-    if (!msgs.length) me.appendChild(h('div', 'mut', 'Belum ada obrolan. Sapa pendengar lain, yuk.'));
-    else msgs.forEach(x => {
-      const row = h('div', 'rmmsg' + (x.uid === (G.u && G.u.uid) ? ' me' : ''));
-      row.append(h('b', '', x.name || 'Pengguna'), h('span', '', x.text || ''));
-      me.appendChild(row);
-    });
-    if (atBottom) me.scrollTop = me.scrollHeight; // cuma auto-scroll ke bawah kalau posisinya emang udah di bawah — biar gak ganggu kalau lagi baca pesan lama ke atas
-  }
-}
+function openRoomWin() { document.body.classList.add('roomopen'); }
+function closeRoomWin() { document.body.classList.remove('roomopen'); }
 function roomSection(m) {
   sec(m, 'Room dengar bareng');
-  line(m, 'dengarkan music bersama orang lain di publik.');
+  line(m, 'Terbuka buat semua pengguna yang login Google, bukan cuma teman.');
   if (G.room) {
-    const o = G.room.data || {}, rc = h('div', 'pcard');
+    // Paket 24/25: di tab Teman cuma kartu RINGKAS + tombol buka jendela — detail pendengar & obrolan
+    // sepenuhnya ada di jendela room.html sendiri, biar gak numpuk/kecampur di sini.
+    const rc = h('div', 'pcard');
     rc.appendChild(h('div', 'mut', G.room.isHost ? 'Kamu jadi host' : 'Lagi ikut room'));
-    rc.appendChild(h('b', '', o.name || 'Room'));
-    const te = h('div', 'mut'); te.id = 'rm-track'; rc.appendChild(te);
-    const ee = h('div', 'warn'); ee.id = 'rm-err'; ee.hidden = true; rc.appendChild(ee);
+    rc.appendChild(h('b', '', G.room.name));
     const a = h('div', 'acts'); rc.appendChild(a);
+    btn(a, 'Buka jendela room', openRoomWin, 'pbtn');
     btn(a, G.room.isHost ? 'Tutup room' : 'Keluar room', () => confirmBox(G.room.isHost ? 'Tutup room ini? Semua pendengar ikut keluar.' : 'Keluar dari room ini?', G.room.isHost ? 'Tutup' : 'Keluar', roomLeave));
     m.appendChild(rc);
-    // Paket 23: "Pendengar" dipisah jadi bagiannya sendiri dgn avatar+nama per baris (bukan satu baris teks
-    // nama ditebas koma kayak Paket 22), dan "Obrolan" tetap bagian terpisah di bawahnya — sesuai laporan
-    // pemilik biar gak numpuk/kecampur jadi satu.
-    sec(m, 'Pendengar');
-    const le = h('div', 'list'); le.id = 'rm-listeners'; m.appendChild(le);
-    sec(m, 'Obrolan room');
-    const me = h('div', 'rmchat'); me.id = 'rm-msgs'; m.appendChild(me);
-    const row = h('div', 'acts');
-    const i = h('input', 'minput'); i.id = 'rm-input'; i.placeholder = 'Tulis pesan...'; i.maxLength = ROOM_MSG_MAX;
-    const send = () => { if (!i.value.trim()) return; const v = i.value; i.value = ''; roomChatSend(v).catch(e => toast(e.message || 'Gagal kirim pesan')); };
-    i.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
-    row.appendChild(i);
-    btn(row, 'Kirim', send, 'pbtn');
-    m.appendChild(row);
-    roomPatch(); // biar langsung keisi dari data yg sudah ada (initData/tick sebelumnya), gak nunggu tick berikutnya
     return;
   }
   const a0 = h('div', 'acts'); m.appendChild(a0);
@@ -2287,6 +2249,10 @@ render();
 maybeOnboard();
 if (window.AlyaApp) setTimeout(() => checkUpdate(false), 800);
 if (tok()) setTimeout(() => syncNow(true), 1500);
+// Paket 23: dulu pembersihan room basi (lihat roomsLoad) cuma kepicu kalau ada yang SENGAJA buka tab
+// Teman — kalau gak ada siapa pun yang mampir ke situ, room basi (mis. host force-close app) nyangkut
+// terus dan harus dihapus manual lewat Firebase Console (laporan pemilik). Sekarang dicoba juga sekali tiap
+// app dibuka buat pengguna yang sudah login, jadi gak perlu nunggu ada yang buka tab Teman dulu.
 if (G.u) setTimeout(() => { gSync(); gLoad(); roomsLoad(); }, 1200);
 })();
 </script>

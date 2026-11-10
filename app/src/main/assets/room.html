@@ -1,0 +1,380 @@
+
+<style>
+:root{--bg:#0a0a12;--card:rgba(255,255,255,.07);--card2:rgba(255,255,255,.12);--line:rgba(255,255,255,.1);--ink:#f5f5fb;--muted:rgba(245,245,251,.58);--a:#8b5cf6;--b:#22d3ee;--sys:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sys);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font-family:inherit}
+.wrap{display:flex;flex-direction:column;height:100%}
+/* ---- header ---- */
+.top{display:flex;align-items:center;gap:10px;padding:12px 14px;flex:none;border-bottom:1px solid var(--line)}
+.icb{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--card);color:var(--ink);flex:none}
+.icb:active{transform:scale(.92)}
+.headmid{flex:1;min-width:0}
+.hname{font-size:16.5px;font-weight:800;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hsub{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:#22d97a;flex:none;box-shadow:0 0 6px #22d97a;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+/* ---- scroll area ---- */
+.scroll{flex:1;overflow-y:auto;padding:14px 14px calc(14px + env(safe-area-inset-bottom));scrollbar-width:none;-ms-overflow-style:none}
+.scroll::-webkit-scrollbar{display:none}
+/* ---- now playing ---- */
+.npcard{position:relative;border-radius:22px;padding:16px;margin-bottom:14px;background:linear-gradient(160deg,color-mix(in srgb,var(--a) 30%,var(--card)),color-mix(in srgb,var(--b) 14%,var(--card)));border:1px solid var(--line);overflow:hidden}
+.nptop{display:flex;gap:12px;align-items:center}
+.npcoverwrap{position:relative;width:64px;height:64px;flex:none}
+.npcover{width:64px;height:64px;border-radius:14px;object-fit:cover;display:block;background:var(--card2);box-shadow:0 8px 20px rgba(0,0,0,.4)}
+.npinfo{flex:1;min-width:0}
+.npbadge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--a),var(--b));padding:3px 9px;border-radius:99px;margin-bottom:6px}
+.npbadge .bars{display:flex;align-items:flex-end;gap:1.5px;height:9px}
+.npbadge .bars i{width:2px;background:#fff;border-radius:1px;animation:eq 1s ease-in-out infinite}
+.npbadge .bars i:nth-child(1){animation-delay:0s}.npbadge .bars i:nth-child(2){animation-delay:.2s}.npbadge .bars i:nth-child(3){animation-delay:.4s}
+@keyframes eq{0%,100%{height:3px}50%{height:9px}}
+.nptitle{font-size:15.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.npauthor{font-size:12.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.npbar{position:relative;height:5px;border-radius:5px;background:rgba(255,255,255,.14);margin:14px 0 6px}
+.npfill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:5px;background:linear-gradient(90deg,var(--a),var(--b))}
+.nptime{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-bottom:12px}
+.npctl{display:flex;align-items:center;justify-content:space-between}
+.ctlb{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.ctlb.main{width:50px;height:50px;background:linear-gradient(135deg,var(--a),var(--b));color:#fff}
+.ctlb.on{color:#fff}
+.ctlb[disabled]{opacity:.35;pointer-events:none}
+.ctlb:active{transform:scale(.9)}
+.npnote{font-size:11px;color:var(--muted);text-align:center;margin-top:8px}
+.err{font-size:12px;color:#ff7a8a;margin-top:8px}
+/* ---- host + listeners ---- */
+.hostrow{display:flex;gap:10px;margin-bottom:14px}
+.hostcard,.lsncard{flex:1;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px;min-width:0}
+.hbadge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#1a1a1a;background:linear-gradient(135deg,#ffd166,#ffb020);padding:2px 8px;border-radius:99px;margin-bottom:8px}
+.hmain{display:flex;align-items:center;gap:8px;min-width:0}
+.hname2{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrole{font-size:11px;color:var(--a);font-weight:600}
+.lsnlbl{font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.lsnlbl b{color:var(--ink);font-weight:800}
+.lsnav{display:flex;align-items:center}
+.lsnav .av{margin-left:-9px;border:2px solid var(--bg)}
+.lsnav .av:first-child{margin-left:0}
+.lsnmore{width:30px;height:30px;border-radius:50%;background:var(--card2);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);margin-left:-9px}
+.av{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--b));display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;color:#fff;flex:none;overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+.av.lg{width:40px;height:40px;font-size:15px}
+/* ---- chat ---- */
+.mut{font-size:13px;color:var(--muted);padding:22px 4px;text-align:center}
+.crow{display:flex;gap:9px;margin-bottom:14px;align-items:flex-end}
+.crow.me{flex-direction:row-reverse}
+.cbub{max-width:72%;min-width:0}
+.cname{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;margin-bottom:3px;color:var(--b)}
+.crow.me .cname{color:var(--a);justify-content:flex-end}
+.ctime{font-size:10.5px;color:var(--muted);font-weight:500}
+.cbod{background:var(--card);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:9px 13px;font-size:14px;line-height:1.4;overflow-wrap:break-word}
+.crow.me .cbod{background:linear-gradient(135deg,var(--a),var(--b));border-color:transparent;border-radius:16px 16px 4px 16px}
+.crown{font-size:11px}
+.typing{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:-4px 0 14px 2px}
+.tdots{display:flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:7px 11px}
+.tdots i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:tb 1.2s ease-in-out infinite}
+.tdots i:nth-child(2){animation-delay:.15s}.tdots i:nth-child(3){animation-delay:.3s}
+@keyframes tb{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+/* ---- input bar ---- */
+.inputrow{display:flex;align-items:center;gap:8px;flex:none;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
+.emojib{font-size:19px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex:none}
+.inputrow input{flex:1;height:42px;border-radius:21px;padding:0 15px;background:var(--card);border:1px solid var(--line);color:var(--ink);font-size:14px;min-width:0}
+.inputrow input::placeholder{color:var(--muted)}
+.sendb{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--b));color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.sendb:active{transform:scale(.92)}
+/* ---- menu & bottom sheet (pendengar) ---- */
+.pop{position:fixed;inset:0;z-index:5;display:none}
+.pop.open{display:block}
+.popbg{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.popmenu{position:absolute;top:58px;right:12px;background:#17171f;border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:170px;box-shadow:0 14px 34px rgba(0,0,0,.5)}
+.popmenu button{display:block;width:100%;text-align:left;padding:12px 14px;font-size:13.5px;font-weight:600;color:#ff7a8a}
+.popmenu button:active{background:var(--card)}
+.sheetwrap{position:absolute;left:0;right:0;bottom:0;max-height:70%;background:#101019;border-radius:22px 22px 0 0;border:1px solid var(--line);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s ease}
+.pop.open .sheetwrap{transform:translateY(0)}
+.sheetbar{width:36px;height:4px;border-radius:4px;background:var(--card2);margin:10px auto 2px;flex:none}
+.sheethead{font-size:14.5px;font-weight:800;padding:12px 18px;flex:none}
+.sheethead b{color:var(--a);font-weight:800}
+.sheetlist{overflow-y:auto;padding:0 14px 18px;display:flex;flex-direction:column;gap:9px}
+.srow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:9px 12px}
+.srow .sname{font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+<div class="wrap">
+  <div class="top">
+    <button class="icb" id="t-back" aria-label="Tutup jendela room"></button>
+    <div class="headmid">
+      <div class="hname" id="t-name">Room</div>
+      <div class="hsub"><i class="dot"></i><span>Listening Party</span>&nbsp;·&nbsp;<span id="t-online">0</span> online</div>
+    </div>
+    <button class="icb" id="t-menu" aria-label="Menu room"></button>
+  </div>
+  <div class="scroll" id="scroll">
+    <div class="npcard">
+      <div class="nptop">
+        <div class="npcoverwrap"><img class="npcover" id="t-cover" alt=""></div>
+        <div class="npinfo">
+          <div class="npbadge"><div class="bars"><i></i><i></i><i></i></div>Now Playing</div>
+          <div class="nptitle" id="t-title">Menunggu lagu...</div>
+          <div class="npauthor" id="t-author"></div>
+        </div>
+      </div>
+      <div class="npbar" id="t-bar"><i class="npfill" id="t-fill"></i></div>
+      <div class="nptime"><span id="t-pos">00:00</span><span id="t-dur">00:00</span></div>
+      <div class="npctl">
+        <button class="ctlb" id="c-shuf" aria-label="Acak"></button>
+        <button class="ctlb" id="c-prev" aria-label="Sebelumnya"></button>
+        <button class="ctlb main" id="c-play" aria-label="Putar atau jeda"></button>
+        <button class="ctlb" id="c-next" aria-label="Berikutnya"></button>
+        <button class="ctlb" id="c-rep" aria-label="Ulangi"></button>
+      </div>
+      <div class="npnote" id="t-note" hidden>Cuma host yang bisa mengendalikan pemutar</div>
+      <div class="err" id="t-err" hidden></div>
+    </div>
+    <div class="hostrow">
+      <div class="hostcard">
+        <div class="hbadge">👑 Host</div>
+        <div class="hmain"><div class="av lg" id="t-hostav"></div><div style="min-width:0"><div class="hname2" id="t-hostname">Host</div><div class="hrole">Room Host</div></div></div>
+      </div>
+      <div class="lsncard" id="t-lsncard">
+        <div class="lsnlbl"><b id="t-count">0</b> Pendengar</div>
+        <div class="lsnav" id="t-lsnav"></div>
+      </div>
+    </div>
+    <div id="t-chat"></div>
+    <div class="typing" id="t-typing" hidden><div class="tdots"><i></i><i></i><i></i></div><span id="t-typingtxt"></span></div>
+  </div>
+  <div class="inputrow">
+    <button class="emojib" id="t-emoji" aria-label="Emoji">🙂</button>
+    <input id="t-input" maxlength="300" placeholder="Tulis pesan...">
+    <button class="sendb" id="t-send" aria-label="Kirim pesan"></button>
+  </div>
+</div>
+<div class="pop" id="t-pop">
+  <div class="popbg" id="t-popbg"></div>
+  <div class="popmenu" id="t-popmenu"><button type="button" id="t-popleave">Keluar room</button></div>
+</div>
+<div class="pop" id="t-sheetpop">
+  <div class="popbg" id="t-sheetbg"></div>
+  <div class="sheetwrap">
+    <div class="sheetbar"></div>
+    <div class="sheethead"><b id="t-count2">0</b> Pendengar</div>
+    <div class="sheetlist" id="t-sheetlist"></div>
+  </div>
+</div>
+<script>
+// Paket 26: tampilan room.html dirombak total mengikuti rujukan desain yang dikasih pemilik (kartu "Now
+// Playing" + kontrol, host & pendengar, obrolan ber-avatar/waktu, indikator "sedang mengetik", daftar
+// pendengar bisa di-expand lewat bottom sheet). Kontrol putar/jeda/sebelumnya/berikutnya/acak/ulangi BENERAN
+// nyambung (bukan hiasan) — diteruskan ke index.html lewat 'alya-room-cmd', yang motong langsung ke
+// window.alyaCmd(...) yang SUDAH ADA di index.html (dipakai juga oleh widget Android), jadi gak ada logika
+// baru yang berisiko salah. Kontrol ini CUMA aktif buat host — anggota lain lihat tombolnya abu-abu/non-aktif
+// (room didesain cuma host yang boleh ganti lagu/status putar, lihat firestore.rules), biar gak ada dua
+// orang rebutan ngontrol.
+var $ = function (id) { return document.getElementById(id); };
+var CFG = null, ROOM = null, U = null, members = {}, msgs = [], pollTimer = null, posTimer = null, tokReqs = {};
+var lastO = {}, typingSentAt = 0;
+function post(m) { try { if (window.parent !== window) window.parent.postMessage(m, location.origin); } catch (e) { } }
+function reqTok() {
+  return new Promise(function (res, rej) {
+    var rid = 'r' + Math.random().toString(36).slice(2);
+    tokReqs[rid] = { res: res, rej: rej };
+    post({ type: 'alya-room-tokreq', rid: rid });
+    setTimeout(function () { if (tokReqs[rid]) { delete tokReqs[rid]; rej(new Error('Timeout ambil token')); } }, 8000);
+  });
+}
+window.addEventListener('message', function (e) {
+  if (e.origin !== location.origin || e.source !== window.parent) return;
+  var d = e.data; if (!d || typeof d !== 'object') return;
+  if (d.type === 'alya-room-init') {
+    CFG = { project: d.project, apiKey: d.apiKey };
+    ROOM = { id: d.roomId, isHost: !!d.isHost, name: d.name || 'Room' };
+    U = { uid: d.uid, name: d.uname || 'Pengguna', photo: d.photo || '' };
+    boot();
+  } else if (d.type === 'alya-room-tok') {
+    var p = tokReqs[d.rid]; if (!p) return; delete tokReqs[d.rid];
+    if (d.error) p.rej(new Error(d.error)); else p.res(d.token);
+  }
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') post({ type: 'alya-room-close' }); });
+// ---------- Firestore lewat REST (salinan minimal dari index.html) ----------
+var FSN = function () { return 'projects/' + CFG.project + '/databases/(default)/documents'; };
+var fv = function (v) { return v == null ? { nullValue: null } : typeof v === 'string' ? { stringValue: v } : typeof v === 'number' ? { integerValue: String(Math.round(v)) } : typeof v === 'object' ? { mapValue: { fields: fo(v) } } : { booleanValue: !!v }; };
+var fo = function (o) { var f = {}; Object.keys(o).forEach(function (k) { f[k] = fv(o[k]); }); return f; };
+var uv = function (v) { return v.stringValue !== undefined ? v.stringValue : v.integerValue !== undefined ? Number(v.integerValue) : v.mapValue ? uo(v.mapValue.fields || {}) : v.booleanValue !== undefined ? v.booleanValue : null; };
+var uo = function (f) { var o = {}; Object.keys(f || {}).forEach(function (k) { o[k] = uv(f[k]); }); return o; };
+function fs(path, method, body, q) {
+  return reqTok().then(function (t) {
+    return fetch('https://firestore.googleapis.com/v1/' + FSN() + path + (q || ''), { method: method || 'GET', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  }).then(function (r) {
+    if (r.status === 404) return null;
+    return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error((d.error && d.error.message) || 'Error ' + r.status); return d; });
+  });
+}
+// thumbnail: sama persis pola thumb() di index.html — SoundCloud lewat /thumb/<id> lokal, YouTube langsung ke i.ytimg.com
+function thumbUrl(id) { return /^sc[A-Za-z0-9_-]{4,500}$/.test(id || '') ? '/thumb/' + id : 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg'; }
+function fmtTime(s) { s = Math.max(0, Math.round(s || 0)); var m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
+function avatarNode(name, photo, big) {
+  var av = document.createElement('div'); av.className = 'av' + (big ? ' lg' : '');
+  if (photo && photo.indexOf('https://lh3.googleusercontent.com/') === 0) { var img = document.createElement('img'); img.src = photo; img.alt = ''; img.referrerPolicy = 'no-referrer'; av.appendChild(img); }
+  else av.textContent = (name || '?').trim().charAt(0).toUpperCase();
+  return av;
+}
+// ---------- polling (tiap 3 detik) ----------
+var POLL_MS = 3000;
+function tick() {
+  fs('/rooms/' + ROOM.id).then(function (d) {
+    if (!d) {
+      post({ type: 'alya-room-gone' });
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      $('t-name').textContent = ROOM.name + ' (ditutup)';
+      return;
+    }
+    var o = uo(d.fields || {});
+    lastO = o;
+    ROOM.name = o.name || ROOM.name;
+    $('t-name').textContent = ROOM.name;
+    $('t-hostname').textContent = o.hostName || 'Host';
+    $('t-hostav').innerHTML = ''; $('t-hostav').appendChild(avatarNode(o.hostName, '', true));
+    paintTrack(o);
+    members = o.members || {};
+    paintListeners();
+    paintTyping();
+    setErr('');
+  }).catch(function (e) { setErr(e.message || 'Galat tidak dikenal'); });
+  // Obrolan dicoba terpisah — gagal ambil/kirim pesan TIDAK dianggap galat sinkron room (chat yang ngadat
+  // sendiri gak boleh bikin seolah-olah room-nya yang bermasalah).
+  fs('/rooms/' + ROOM.id + '/messages', 'GET', null, '?orderBy=ts&pageSize=50').then(function (d) {
+    msgs = ((d && d.documents) || []).map(function (x) { return Object.assign({ id: x.name.split('/').pop() }, uo(x.fields || {})); });
+    paintChat();
+  }).catch(function () { });
+}
+var lastTrackId = null;
+function paintTrack(o) {
+  $('t-title').textContent = o.title || 'Menunggu lagu...';
+  $('t-author').textContent = o.author || '';
+  if (o.trackId && o.trackId !== lastTrackId) { lastTrackId = o.trackId; $('t-cover').src = thumbUrl(o.trackId); }
+  $('t-dur').textContent = fmtTime((o.durMs || 0) / 1000);
+  $('c-play').innerHTML = o.playing ? ICON.pause : ICON.play;
+  document.querySelectorAll('.npbadge .bars')[0] && (document.querySelector('.npbadge').style.opacity = o.trackId ? 1 : .5);
+}
+function estPos(o) { return (o.posMs || 0) / 1000 + (o.playing ? Math.max(0, (Date.now() - (o.updatedAt || Date.now())) / 1000) : 0); }
+function tickPos() {
+  var o = lastO; if (!o || !o.trackId) return;
+  var p = Math.min(estPos(o), (o.durMs || 0) / 1000 || 1e9);
+  $('t-pos').textContent = fmtTime(p);
+  var dur = (o.durMs || 0) / 1000;
+  $('t-fill').style.width = (dur > 0 ? Math.min(100, (p / dur) * 100) : 0) + '%';
+}
+function paintListeners() {
+  var list = Object.keys(members || {}).filter(function (k) { var v = members[k]; return v && !v.left; }).map(function (k) { var v = members[k]; return { uid: k, name: (v && v.name) || 'Pengguna', photo: (v && v.photo) || '' }; });
+  $('t-count').textContent = list.length; $('t-online').textContent = list.length; $('t-count2').textContent = list.length;
+  var box = $('t-lsnav'); box.innerHTML = '';
+  list.slice(0, 4).forEach(function (x) { box.appendChild(avatarNode(x.name, x.photo)); });
+  if (list.length > 4) { var more = document.createElement('div'); more.className = 'lsnmore'; more.textContent = '+' + (list.length - 4); box.appendChild(more); }
+  var sl = $('t-sheetlist'); sl.innerHTML = '';
+  if (!list.length) sl.innerHTML = '<div class="mut">Belum ada yang gabung.</div>';
+  else list.forEach(function (x) {
+    var row = document.createElement('div'); row.className = 'srow';
+    row.appendChild(avatarNode(x.name, x.photo));
+    var nm = document.createElement('div'); nm.className = 'sname'; nm.textContent = x.name + (U && x.uid === U.uid ? ' (kamu)' : '') + (lastO.host === x.uid ? ' 👑' : '');
+    row.appendChild(nm); sl.appendChild(row);
+  });
+}
+// Paket 26: indikator "X sedang mengetik..." — nyimpen jejak waktu ketik terakhir di members.<uid>.typing
+// (field baru, cuma ditulis ke entri milik sendiri — diizinkan firestore.rules yang sudah ada sejak Paket 21,
+// lihat CLAUDE.md). Dianggap "masih mengetik" kalau jejaknya kurang dari 4 detik yang lalu.
+function paintTyping() {
+  var now = Date.now(), names = [];
+  Object.keys(members || {}).forEach(function (k) {
+    var v = members[k]; if (!v || v.left || (U && k === U.uid)) return;
+    if (v.typing && now - v.typing < 4000) names.push(v.name || 'Pengguna');
+  });
+  var el = $('t-typing');
+  if (!names.length) { el.hidden = true; return; }
+  el.hidden = false;
+  $('t-typingtxt').textContent = (names.length === 1 ? names[0] : names.length + ' orang') + ' sedang mengetik...';
+}
+function paintChat() {
+  var box = $('t-chat');
+  var atBottom = $('scroll').scrollHeight - $('scroll').scrollTop - $('scroll').clientHeight < 80;
+  box.innerHTML = '';
+  if (!msgs.length) box.innerHTML = '<div class="mut">Belum ada obrolan. Sapa pendengar lain, yuk.</div>';
+  else msgs.forEach(function (x) {
+    var mine = U && x.uid === U.uid;
+    var row = document.createElement('div'); row.className = 'crow' + (mine ? ' me' : '');
+    var bub = document.createElement('div'); bub.className = 'cbub';
+    var nm = document.createElement('div'); nm.className = 'cname';
+    var nmtxt = document.createElement('span'); nmtxt.textContent = x.name || 'Pengguna'; nm.appendChild(nmtxt);
+    if (lastO.host === x.uid) { var cr = document.createElement('span'); cr.className = 'crown'; cr.textContent = '👑'; nm.appendChild(cr); }
+    var tm = document.createElement('span'); tm.className = 'ctime'; tm.textContent = x.ts ? new Date(x.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+    nm.appendChild(tm);
+    var bd = document.createElement('div'); bd.className = 'cbod'; bd.textContent = x.text || '';
+    bub.appendChild(nm); bub.appendChild(bd);
+    row.appendChild(avatarNode(x.name, x.photo)); row.appendChild(bub);
+    box.appendChild(row);
+  });
+  if (atBottom) $('scroll').scrollTop = $('scroll').scrollHeight;
+}
+function setErr(msg) { var e = $('t-err'); e.textContent = msg ? 'Sinkron sempat gagal: ' + msg : ''; e.hidden = !msg; }
+function send() {
+  var i = $('t-input'), t = i.value.trim().slice(0, 300);
+  if (!t) return;
+  i.value = '';
+  fs('/rooms/' + ROOM.id + '/messages', 'POST', { fields: fo({ uid: U.uid, name: U.name, photo: U.photo, text: t, ts: Date.now() }) })
+    .then(function () { return tick(); })
+    .catch(function (e) { setErr(e.message || 'Gagal kirim pesan'); });
+}
+$('t-send').addEventListener('click', send);
+$('t-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
+$('t-input').addEventListener('input', function () {
+  var now = Date.now(); if (now - typingSentAt < 2000 || !U || !ROOM) return; typingSentAt = now;
+  var me = {}; me[U.uid] = { name: U.name, photo: U.photo, typing: now };
+  fs('/rooms/' + ROOM.id, 'PATCH', { fields: fo({ members: me }) }, '?updateMask.fieldPaths=members.' + U.uid).catch(function () { });
+});
+$('t-emoji').addEventListener('click', function () { var i = $('t-input'); i.value += '🙂'; i.focus(); });
+// ---------- ikon (SVG inline, gak gantung ke index.html) ----------
+var ICON = {
+  back: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  dots: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
+  play: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
+  prev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 18V6z"/></svg>',
+  next: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
+  shuffle: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>',
+  repeat: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
+  send: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg>'
+};
+$('t-back').innerHTML = ICON.back;
+$('t-menu').innerHTML = ICON.dots;
+$('c-play').innerHTML = ICON.play;
+$('c-prev').innerHTML = ICON.prev;
+$('c-next').innerHTML = ICON.next;
+$('c-shuf').innerHTML = ICON.shuffle;
+$('c-rep').innerHTML = ICON.repeat;
+$('t-send').innerHTML = ICON.send;
+// ---------- kontrol pemutar (CUMA buat host — lihat catatan paling atas) ----------
+function cmd(c) { if (!ROOM || !ROOM.isHost) return; post({ type: 'alya-room-cmd', cmd: c }); }
+$('c-play').addEventListener('click', function () { cmd('toggle'); });
+$('c-prev').addEventListener('click', function () { cmd('prev'); });
+$('c-next').addEventListener('click', function () { cmd('next'); });
+$('c-shuf').addEventListener('click', function () { cmd('shuffle'); });
+$('c-rep').addEventListener('click', function () { cmd('repeat'); });
+// ---------- menu (⋮) & sheet daftar pendengar ----------
+function openPop(id) { $(id).classList.add('open'); }
+function closePop(id) { $(id).classList.remove('open'); }
+$('t-menu').addEventListener('click', function () { $('t-popleave').textContent = (ROOM && ROOM.isHost) ? 'Tutup room' : 'Keluar room'; openPop('t-pop'); });
+$('t-popbg').addEventListener('click', function () { closePop('t-pop'); });
+$('t-popleave').addEventListener('click', function () { closePop('t-pop'); post({ type: 'alya-room-leave' }); });
+$('t-back').addEventListener('click', function () { post({ type: 'alya-room-close' }); });
+$('t-lsncard').addEventListener('click', function () { openPop('t-sheetpop'); });
+$('t-sheetbg').addEventListener('click', function () { closePop('t-sheetpop'); });
+function boot() {
+  $('t-name').textContent = ROOM.name;
+  $('c-play').disabled = $('c-prev').disabled = $('c-next').disabled = $('c-shuf').disabled = $('c-rep').disabled = !ROOM.isHost;
+  $('t-note').hidden = !!ROOM.isHost;
+  tick();
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(tick, POLL_MS);
+  if (posTimer) clearInterval(posTimer);
+  posTimer = setInterval(tickPos, 250);
+}
+post({ type: 'alya-room-hello' });
+</script>

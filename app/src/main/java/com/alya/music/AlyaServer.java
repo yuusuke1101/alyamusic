@@ -48,6 +48,9 @@ public class AlyaServer extends NanoHTTPD {
         try {
             if (uri.equals("/")) return asset("index.html", "text/html; charset=utf-8");
             if (uri.startsWith("/player/")) return asset("player.html", "text/html; charset=utf-8");
+            // Paket 25: jendela "Room dengar bareng" sekarang berkas sendiri (room.html), persis pola
+            // /player/ di atas — bukan dibangun lewat JS di dalam index.html lagi.
+            if (uri.startsWith("/room/")) return asset("room.html", "text/html; charset=utf-8");
             if (uri.equals("/icon-192.png") || uri.equals("/mascot.png")) return asset(uri.substring(1), "image/png");
             // Paket 20: pustaka hls.js (buat mutar lagu SoundCloud yang cuma nawarin HLS) dibundel lokal sebagai
             // aset, bukan dari internet — path absolut (bukan relatif) karena player.html dilayani di /player/<id>.
