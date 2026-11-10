@@ -483,7 +483,8 @@ const P = {
   cloud: '<path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9H7z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   dlo: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>',
-  video: '<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.3v5.4l5-2.7z" fill="currentColor"/>'
+  video: '<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.3v5.4l5-2.7z" fill="currentColor"/>',
+  radio: '<circle cx="12" cy="12" r="2.3" fill="currentColor"/><path d="M7.5 8.5a6 6 0 0 0 0 7M16.5 8.5a6 6 0 0 1 0 7M4.3 5.3a10.5 10.5 0 0 0 0 13.4M19.7 5.3a10.5 10.5 0 0 1 0 13.4"/>'
 };
 const FILL = { play: 1, pause: 1, prev: 1, next: 1, dots: 1 };
 const svg = (n, s) => '<svg width="' + (s || 22) + '" height="' + (s || 22) + '" viewBox="0 0 24 24" fill="' + (FILL[n] ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + P[n] + '</svg>';
@@ -621,9 +622,9 @@ function act(box, text, fn, cls, icon) {
   b.addEventListener('click', () => { closeModal(); fn(); });
   box.appendChild(b);
 }
-function ask(title, value, okText, cb) {
+function ask(title, value, okText, cb, placeholder) {
   modal(title, box => {
-    const i = h('input', 'minput'); i.value = value || ''; i.maxLength = 40; i.placeholder = 'Nama playlist'; box.appendChild(i);
+    const i = h('input', 'minput'); i.value = value || ''; i.maxLength = 40; i.placeholder = placeholder || 'Nama playlist'; box.appendChild(i);
     const r = h('div', 'brow'), c = h('button', '', 'Batal'), o = h('button', 'go', okText);
     c.onclick = closeModal;
     o.onclick = () => { const v = i.value.trim(); if (!v) return; closeModal(); cb(v); };
@@ -753,7 +754,7 @@ function buildNav() {
 }
 function updNav() { document.querySelectorAll('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === (V.v === 'list' || V.v === 'colist' ? 'lib' : V.v === 'profile' ? 'friends' : V.v === 'recap' || V.v === 'set' ? 'me' : V.v === 'plv' || V.v === 'artist' ? 'search' : V.v))); }
 const stateObj = () => ({ v: V.v, id: V.id, sheet: document.body.classList.contains('sheet') ? 1 : 0 });
-function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); if (G.u && (v === 'friends' || v === 'lib')) gLoad(); }
+function setView(v, id) { V = { v, id }; history.pushState(stateObj(), ''); render(); window.scrollTo(0, 0); if (G.u && (v === 'friends' || v === 'lib')) gLoad(); if (G.u && v === 'friends' && !G.room) roomsLoad().then(render); }
 function openSheet() { if (!document.body.classList.contains('sheet')) { document.body.classList.add('sheet'); history.pushState({ v: V.v, id: V.id, sheet: 1 }, ''); } }
 function closeSheet() { if (!document.body.classList.contains('sheet')) return; if (history.state && history.state.sheet) history.back(); else document.body.classList.remove('sheet'); }
 window.addEventListener('popstate', e => {
@@ -1578,7 +1579,7 @@ function logBox(m) {
 }
 
 // ---------- login Google, sinkronisasi cloud & teman (Firebase lewat REST) ----------
-const G = { u: null, cfg: null, friends: [], reqs: [], inbox: [], cols: [], cur: null, sig: '' };
+const G = { u: null, cfg: null, friends: [], reqs: [], inbox: [], cols: [], cur: null, sig: '', room: null, rooms: [] };
 try { G.cfg = JSON.parse(window.AlyaApp && AlyaApp.cfg ? AlyaApp.cfg() : 'null'); } catch (e) {}
 try { G.u = JSON.parse(localStorage.getItem('alya_g') || 'null'); } catch (e) {}
 const gSave = () => { try { localStorage.setItem('alya_g', JSON.stringify(G.u)); } catch (e) {} };
@@ -1600,7 +1601,11 @@ async function fs(path, method, body, q) {
 }
 const put = (path, o, merge) => fs(path, 'PATCH', { fields: fo(o) }, merge ? '?' + Object.keys(o).map(k => 'updateMask.fieldPaths=' + k).join('&') : '');
 async function qry(coll, field, val) {
-  const d = await fs(':runQuery', 'POST', { structuredQuery: { from: [{ collectionId: coll }], where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: { stringValue: val } } }, limit: 30 } });
+  // Paket 21: nilai filternya dibungkus sesuai tipe JS-nya (string/boolean/number) — sebelumnya dipaksa
+  // jadi stringValue apa pun tipenya, jadi filter boolean (mis. "active"==true) gak pernah kena, daftar
+  // selalu kosong diam-diam.
+  const fv = typeof val === 'boolean' ? { booleanValue: val } : typeof val === 'number' ? { integerValue: String(val) } : { stringValue: val };
+  const d = await fs(':runQuery', 'POST', { structuredQuery: { from: [{ collectionId: coll }], where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: fv } }, limit: 30 } });
   return (d || []).filter(x => x.document).map(x => Object.assign({ id: x.document.name.split('/').pop() }, uo(x.document.fields || {})));
 }
 function gStart() {
@@ -1669,6 +1674,7 @@ function rFriends(m0) {
   const mb = h('div', 'acts'); me.appendChild(mb);
   btn(mb, 'Bagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); });
   btn(mb, 'Segarkan', () => gLoad().then(() => toast('Diperbarui')));
+  roomSection(m);
   const ad = box(m, 'Tambah teman'); const i = h('input', 'minput'); i.placeholder = 'Masukkan kode teman'; i.autocapitalize = 'characters'; ad.appendChild(i);
   btn(ad, 'Kirim permintaan', () => { if (!i.value.trim()) { toast('Isi kodenya dulu'); return; } addFriend(i.value).then(n => { i.value = ''; toast('Permintaan dikirim ke ' + n); }).catch(e => toast(e.message)); }, 'pbtn');
   inboxSec(m, 20);
@@ -1786,6 +1792,89 @@ function getResume() {
 function joinFriend(n) {
   const el = Date.now() - n.ts; pendingSeek = el < 6e5 ? { id: n.id, ms: el } : null;
   playFrom([{ id: n.id, title: n.title, author: n.author }], 0); if (pendingSeek) toast('Menyamakan posisi dengan temanmu');
+}
+
+// ===== Paket 21: room dengar bareng, TERBUKA buat siapa pun yang login Google (bukan cuma teman) =====
+// Beda dari "dengar bareng" presence di atas (joinFriend, cuma catch-up sekali di awal): ini disinkronkan
+// TERUS-MENERUS lewat polling (bukan push realtime — lihat catatan di CLAUDE.md soal kenapa REST, bukan SDK
+// Firestore). Host nyiarin posisi/status putarnya tiap beberapa detik; anggota lain ngikutin.
+const ROOM_STALE_MS = 10 * 60 * 1000, ROOM_POLL_MS = 3000;
+let roomPollT = null;
+function countMembers(members) { return Object.values(members || {}).filter(Boolean).length; }
+async function roomsLoad() {
+  if (!G.u) { G.rooms = []; return; }
+  try {
+    const d = await qry('rooms', 'active', true), now = Date.now();
+    G.rooms = d.filter(r => r.id !== (G.room && G.room.id) && now - (r.updatedAt || 0) < ROOM_STALE_MS).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  } catch (e) { G.rooms = []; }
+}
+async function roomCreate(name) {
+  if (!G.u) { toast('Login Google dulu'); return; }
+  if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { toast('Putar lagu dulu, baru buat room'); return; }
+  const id = 'r' + uid() + uid(), me = G.u.uid, t = queue[qi] || {};
+  await put('/rooms/' + id, { host: me, hostName: G.u.name || 'Pengguna', name: name.slice(0, 60), trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now(), members: { [me]: true }, active: true });
+  roomEnter(id, true); toast('Room dibuat');
+}
+async function roomJoin(r) {
+  if (!G.u) { toast('Login Google dulu'); return; }
+  await fs('/rooms/' + r.id, 'PATCH', { fields: fo({ members: { [G.u.uid]: true } }) }, '?updateMask.fieldPaths=members.' + G.u.uid);
+  roomEnter(r.id, false);
+}
+function roomEnter(id, isHost) { roomPollStop(); G.room = { id, isHost, lastTrackId: isHost ? (queue[qi] && queue[qi].id) : null, data: null }; roomPollTick(); roomPollT = setInterval(roomPollTick, ROOM_POLL_MS); render(); }
+function roomPollStop() { if (roomPollT) clearInterval(roomPollT); roomPollT = null; }
+async function roomLeave() {
+  if (!G.room) return;
+  const id = G.room.id, isHost = G.room.isHost, me = G.u.uid;
+  roomPollStop(); G.room = null; render();
+  try { if (isHost) await fs('/rooms/' + id, 'DELETE'); else await fs('/rooms/' + id, 'PATCH', { fields: fo({ members: { [me]: false } }) }, '?updateMask.fieldPaths=members.' + me); } catch (e) { }
+}
+async function roomPollTick() {
+  if (!G.room) return;
+  const id = G.room.id;
+  try {
+    if (G.room.isHost) {
+      if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) return; // belum/gak ada lagu valid buat disiarkan, tunggu tick berikutnya
+      const t = queue[qi] || {};
+      await put('/rooms/' + id, { trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now() }, true);
+    } else {
+      const d = await fs('/rooms/' + id);
+      if (!G.room) return; // keluar sementara nunggu respons
+      if (!d) { toast('Room sudah ditutup host'); roomLeave(); return; }
+      const o = uo(d.fields || {}); G.room.data = o;
+      const estPos = (o.posMs || 0) / 1000 + (o.playing ? Math.max(0, (Date.now() - (o.updatedAt || Date.now())) / 1000) : 0);
+      if (o.trackId && o.trackId !== G.room.lastTrackId) {
+        G.room.lastTrackId = o.trackId; pendingSeek = { id: o.trackId, ms: Math.round(estPos * 1000), exact: true };
+        playFrom([{ id: o.trackId, title: o.title, author: o.author }], 0);
+      } else if (fstate === 2) {
+        if (Math.abs((media.pos || 0) - estPos) > 3) cmdPlayer({ cmd: 'seek', ms: Math.round(estPos * 1000) });
+        if (!!o.playing !== !!media.playing) cmdPlayer({ cmd: o.playing ? 'play' : 'pause' });
+      }
+    }
+  } catch (e) { }
+  if (G.room) render();
+}
+function roomSection(m) {
+  sec(m, 'Room dengar bareng');
+  line(m, 'Terbuka buat semua pengguna yang login Google, bukan cuma teman.');
+  if (G.room) {
+    const o = G.room.data || {}, rc = h('div', 'pcard');
+    rc.appendChild(h('div', 'mut', G.room.isHost ? 'Kamu jadi host' : 'Lagi ikut room'));
+    rc.appendChild(h('b', '', o.name || 'Room'));
+    line(rc, (o.title ? 'Lagu: ' + o.title : 'Menunggu lagu...') + ' · ' + countMembers(o.members) + ' pendengar');
+    const a = h('div', 'acts'); rc.appendChild(a);
+    btn(a, G.room.isHost ? 'Tutup room' : 'Keluar room', () => confirmBox(G.room.isHost ? 'Tutup room ini? Semua pendengar ikut keluar.' : 'Keluar dari room ini?', G.room.isHost ? 'Tutup' : 'Keluar', roomLeave));
+    m.appendChild(rc);
+    return;
+  }
+  const a0 = h('div', 'acts'); m.appendChild(a0);
+  btn(a0, '+ Buat room dari lagu ini', () => { if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { toast('Putar lagu dulu, baru buat room'); return; } ask('Nama room', (G.u.name || '') + "'s room", 'Buat', n => roomCreate(n).catch(e => toast(e.message || 'Gagal bikin room')), 'Nama room'); });
+  if (!G.rooms || !G.rooms.length) { m.appendChild(h('div', 'msg', 'Belum ada room aktif sekarang. Buat salah satu di atas, atau tunggu orang lain buka room.')); return; }
+  G.rooms.forEach(r => {
+    const row = h('div', 'fr'), ic = h('div', 'sico'); setIc(ic, 'radio', 20); row.appendChild(ic);
+    const b = h('div', 'rb'); b.append(h('div', 'rt', r.name || 'Room'), h('div', 'rs', (r.title || 'Belum ada lagu') + ' · ' + (r.hostName || 'Pengguna') + ' · ' + countMembers(r.members) + ' pendengar'));
+    row.appendChild(b); row.addEventListener('click', () => roomJoin(r).catch(e => toast(e.message || 'Gagal gabung')));
+    m.appendChild(row);
+  });
 }
 async function sendReact(x) { await fs('/users/' + x.from + '/inbox', 'POST', { fields: fo({ from: G.u.uid, name: G.u.name, photo: G.u.photo, tid: x.tid, title: x.title, author: x.author || '', ts: Date.now(), react: 'suka' }) }); toast('Reaksi terkirim'); }
 const pubOn = () => { try { return localStorage.getItem('alya_pub') === '1'; } catch (e) { return false; } };
