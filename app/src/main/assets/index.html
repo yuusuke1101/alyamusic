@@ -177,6 +177,12 @@ h1.gr{font-size:22px;margin:0 0 12px}
 .nb.on .ic{background:color-mix(in srgb,var(--a) 28%,transparent)}
 .side .nb .ic{padding:0}
 .pcard{position:relative;border-radius:22px;padding:20px 16px 14px;margin:4px 0 8px;background:var(--card);background:linear-gradient(135deg,color-mix(in srgb,var(--a) 38%,var(--surf)),color-mix(in srgb,var(--b) 24%,var(--surf)));border:1px solid var(--line)}
+.rmchat{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding:4px 2px;margin-bottom:10px}
+.rmmsg{font-size:13px;line-height:1.4;padding:8px 11px;border-radius:14px;background:var(--card);border:1px solid var(--line);max-width:88%;align-self:flex-start}
+.rmmsg.me{align-self:flex-end;background:color-mix(in srgb,var(--a) 22%,var(--card));border-color:transparent}
+.rmmsg b{display:block;font-size:11px;color:var(--b);margin-bottom:2px}
+.rmmsg.me b{color:var(--a)}
+.rmmsg span{word-break:break-word}
 .ptop{display:flex;align-items:center;gap:14px}.ptop h1{font-size:22px}
 .ptop>img{width:72px;height:72px;border-radius:50%;object-fit:cover;flex:none;border:2px solid var(--card2)}
 .pst{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
@@ -407,6 +413,9 @@ button:active{transform:scale(.96)}
 .fteman .sec h2{font-size:19px;font-weight:800;display:flex;align-items:center;gap:10px}
 .fteman .sec h2::before{content:"";flex:none;width:4px;height:20px;border-radius:3px;background:linear-gradient(180deg,var(--a),var(--b))}
 .fr .rs{white-space:normal;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ===== Paket 23: galat sinkron room yang menetap di kartu (bukan cuma toast sekilas) ===== */
+.warn{font-size:12.5px;color:#ff7a8a;margin:4px 0 0}
 </style>
 </head>
 <body>
@@ -1798,13 +1807,29 @@ function joinFriend(n) {
 // Beda dari "dengar bareng" presence di atas (joinFriend, cuma catch-up sekali di awal): ini disinkronkan
 // TERUS-MENERUS lewat polling (bukan push realtime — lihat catatan di CLAUDE.md soal kenapa REST, bukan SDK
 // Firestore). Host nyiarin posisi/status putarnya tiap beberapa detik; anggota lain ngikutin.
-const ROOM_STALE_MS = 10 * 60 * 1000, ROOM_POLL_MS = 3000;
+const ROOM_STALE_MS = 10 * 60 * 1000, ROOM_POLL_MS = 3000, ROOM_GONE_MS = 15 * 60 * 1000, ROOM_MSG_MAX = 300;
 let roomPollT = null;
-function countMembers(members) { return Object.values(members || {}).filter(Boolean).length; }
+// Paket 22: anggota sekarang {name,photo[,left]} (dulu cuma true/false) supaya bisa ditampilkan namanya.
+// left:true dipakai saat keluar (bukan dihapus dari map) biar tetap konsisten dgn batas members.size()<=30
+// di firestore.rules yang sudah ada sebelumnya.
+function memberNames(members) {
+  return Object.values(members || {}).filter(v => v && (typeof v !== 'object' || !v.left)).map(v => (v && typeof v === 'object' ? (v.name || 'Pengguna') : 'Pengguna'));
+}
+function countMembers(members) { return memberNames(members).length; }
+// Paket 23: dipakai buat daftar "Pendengar" ber-avatar (bukan cuma nama) — nyaring left:true sama kayak
+// memberNames, tapi tetap bawa uid & foto.
+function memberList(members) {
+  return Object.entries(members || {}).filter(([, v]) => v && (typeof v !== 'object' || !v.left)).map(([mid, v]) => ({ uid: mid, name: (v && typeof v === 'object' && v.name) || 'Pengguna', photo: (v && typeof v === 'object' && v.photo) || '' }));
+}
 async function roomsLoad() {
   if (!G.u) { G.rooms = []; return; }
   try {
     const d = await qry('rooms', 'active', true), now = Date.now();
+    // Paket 22: bersih-bersih pasif. Room yang sudah lebih dari 15 menit tidak di-update host (mis. app
+    // di-force-close saat jadi host, lihat CLAUDE.md Paket 22) dihapus diam-diam saat siapa pun membuka tab
+    // Teman — jadi tidak perlu lagi dihapus manual lewat Firebase Console. firestore.rules juga diperbarui
+    // supaya penghapusan room basi ini diizinkan oleh siapa pun yang login, bukan cuma host aslinya.
+    d.filter(r => now - (r.updatedAt || 0) > ROOM_GONE_MS).forEach(r => { fs('/rooms/' + r.id, 'DELETE').catch(() => {}); });
     G.rooms = d.filter(r => r.id !== (G.room && G.room.id) && now - (r.updatedAt || 0) < ROOM_STALE_MS).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   } catch (e) { G.rooms = []; }
 }
@@ -1812,30 +1837,66 @@ async function roomCreate(name) {
   if (!G.u) { toast('Login Google dulu'); return; }
   if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { toast('Putar lagu dulu, baru buat room'); return; }
   const id = 'r' + uid() + uid(), me = G.u.uid, t = queue[qi] || {};
-  await put('/rooms/' + id, { host: me, hostName: G.u.name || 'Pengguna', name: name.slice(0, 60), trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now(), members: { [me]: true }, active: true });
-  roomEnter(id, true); toast('Room dibuat');
+  const initData = { host: me, hostName: G.u.name || 'Pengguna', name: name.slice(0, 60), trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now(), members: { [me]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } }, active: true };
+  await put('/rooms/' + id, initData);
+  roomEnter(id, true, initData); toast('Room dibuat');
 }
 async function roomJoin(r) {
   if (!G.u) { toast('Login Google dulu'); return; }
-  await fs('/rooms/' + r.id, 'PATCH', { fields: fo({ members: { [G.u.uid]: true } }) }, '?updateMask.fieldPaths=members.' + G.u.uid);
-  roomEnter(r.id, false);
+  await fs('/rooms/' + r.id, 'PATCH', { fields: fo({ members: { [G.u.uid]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } } }) }, '?updateMask.fieldPaths=members.' + G.u.uid);
+  // Paket 23: langsung kasih data yang udah ada (judul/host/anggota lama + diri sendiri) ke roomEnter biar
+  // kartu room gak kelihatan kosong sesaat sebelum tick pertama datang.
+  const initData = Object.assign({}, r, { members: Object.assign({}, r.members, { [G.u.uid]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '' } }) });
+  roomEnter(r.id, false, initData);
 }
-function roomEnter(id, isHost) { roomPollStop(); G.room = { id, isHost, lastTrackId: isHost ? (queue[qi] && queue[qi].id) : null, data: null }; roomPollTick(); roomPollT = setInterval(roomPollTick, ROOM_POLL_MS); render(); }
+function roomEnter(id, isHost, initData) { roomPollStop(); G.room = { id, isHost, lastTrackId: isHost ? (queue[qi] && queue[qi].id) : null, data: initData || null, fails: 0, err: '', msgs: [] }; roomMsgsLoad(); roomPollTick(); roomPollT = setInterval(roomPollTick, ROOM_POLL_MS); render(); }
 function roomPollStop() { if (roomPollT) clearInterval(roomPollT); roomPollT = null; }
 async function roomLeave() {
   if (!G.room) return;
   const id = G.room.id, isHost = G.room.isHost, me = G.u.uid;
   roomPollStop(); G.room = null; render();
-  try { if (isHost) await fs('/rooms/' + id, 'DELETE'); else await fs('/rooms/' + id, 'PATCH', { fields: fo({ members: { [me]: false } }) }, '?updateMask.fieldPaths=members.' + me); } catch (e) { }
+  try {
+    if (isHost) await fs('/rooms/' + id, 'DELETE');
+    else await fs('/rooms/' + id, 'PATCH', { fields: fo({ members: { [me]: { name: G.u.name || 'Pengguna', photo: G.u.photo || '', left: true } } }) }, '?updateMask.fieldPaths=members.' + me);
+  } catch (e) { }
+}
+// Paket 22: obrolan room, subkoleksi rooms/{id}/messages (lihat firestore.rules). Gagal ambil/kirim pesan
+// TIDAK dihitung sebagai kegagalan sinkron room (lihat roomPollTick) — biar chat yang ngadat sendiri nggak
+// ikut memaksa keluar dari room.
+async function roomMsgsLoad() {
+  if (!G.room) return;
+  const id = G.room.id;
+  try {
+    const d = await fs('/rooms/' + id + '/messages', 'GET', null, '?orderBy=ts&pageSize=50');
+    if (!G.room || G.room.id !== id) return;
+    G.room.msgs = ((d && d.documents) || []).map(x => Object.assign({ id: x.name.split('/').pop() }, uo(x.fields || {})));
+  } catch (e) { return; }
+  roomPatch(); // Paket 23: patch langsung (bukan render() penuh) biar kotak ketik di bawahnya gak ke-reset
+}
+async function roomChatSend(text) {
+  if (!G.room || !G.u) return;
+  const t = text.trim().slice(0, ROOM_MSG_MAX);
+  if (!t) return;
+  await fs('/rooms/' + G.room.id + '/messages', 'POST', { fields: fo({ uid: G.u.uid, name: G.u.name || 'Pengguna', photo: G.u.photo || '', text: t, ts: Date.now() }) });
+  await roomMsgsLoad();
 }
 async function roomPollTick() {
   if (!G.room) return;
   const id = G.room.id;
   try {
     if (G.room.isHost) {
-      if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) return; // belum/gak ada lagu valid buat disiarkan, tunggu tick berikutnya
+      if (!(queue[qi] && queue[qi].id) || !okId((queue[qi] && queue[qi].id))) { G.room.fails = 0; roomMsgsLoad(); return; } // belum/gak ada lagu valid buat disiarkan, tunggu tick berikutnya
       const t = queue[qi] || {};
       await put('/rooms/' + id, { trackId: (queue[qi] && queue[qi].id), title: t.title || '', author: t.author || '', posMs: Math.round((media.pos || 0) * 1000), playing: !!media.playing, updatedAt: Date.now() }, true);
+      // Paket 23: BUG NYATA dari laporan pemilik ("ada yg gabung, lagu keputer, tapi semua ga ke-proses") —
+      // host SELAMA INI cuma pernah MENULIS ke dokumen room, nggak pernah MEMBACA baliknya. Akibatnya
+      // G.room.data di sisi host selalu null/kosong SELAMANYA, jadi walau member sudah beneran gabung
+      // (field members ketambah lewat roomJoin, dan sinkronnya sendiri jalan normal), kartu room di layar
+      // HOST selalu kelihatan "0 pendengar" tanpa nama — serasa "nggak ke-proses" padahal sebenarnya cuma
+      // host yang gak pernah lihat datanya sendiri. Sekarang host ikut GET dokumennya tiap tick (sama kayak
+      // anggota), biar daftar pendengar ketahuan juga di layar host.
+      const d = await fs('/rooms/' + id);
+      if (G.room && d) G.room.data = uo(d.fields || {});
     } else {
       const d = await fs('/rooms/' + id);
       if (!G.room) return; // keluar sementara nunggu respons
@@ -1850,20 +1911,88 @@ async function roomPollTick() {
         if (!!o.playing !== !!media.playing) cmdPlayer({ cmd: o.playing ? 'play' : 'pause' });
       }
     }
-  } catch (e) { }
-  if (G.room) render();
+    G.room.fails = 0; G.room.err = '';
+  } catch (e) {
+    // Paket 22: dulu galat di sini ditelan diam-diam (catch kosong) — host/anggota kelihatan "ngadat" tanpa
+    // kelihatan sebabnya (lihat CLAUDE.md Paket 22: token kadaluarsa / jaringan putus / rules nolak, tak ada
+    // satupun yang kelihatan ke pengguna). Sekarang dikasih tahu sekali lewat toast, dan kalau sampai gagal
+    // 5 kali beruntun (±15 detik) keluar otomatis dari room daripada nyangkut diam-diam selamanya.
+    // Paket 23: pesan galatnya juga disimpan di G.room.err biar NETAP kelihatan di kartu room (lewat
+    // roomPatch/#rm-err), bukan cuma toast sekilas yang gampang kelewat kalau pas gak lihat HP persis
+    // waktu itu.
+    G.room.fails = (G.room.fails || 0) + 1;
+    G.room.err = e.message || 'Galat tidak dikenal';
+    if (G.room.fails === 1) toast('Gagal menyinkron room: ' + G.room.err);
+    if (G.room.fails >= 5) { toast('Koneksi room terus gagal, keluar otomatis dari room'); roomLeave(); return; }
+  }
+  roomMsgsLoad();
+  roomPatch();
+}
+// Paket 23: dulu tiap tick (3 detik) manggil render() PENUH — nge-rebuild ULANG seluruh tampilan termasuk
+// kotak ketik obrolan, jadi kalau lagi ngetik pesan bakal ke-reset/fokusnya ilang tiap 3 detik (laporan
+// pemilik: "susah mau ngetik ke-refresh terus"), dan kalau pas lagi di tab lain (Beranda dsb.) ikut
+// dirender ulang sia-sia tiap 3 detik juga. Sekarang tiap tick cuma nulis ulang ISI elemen yang memang
+// perlu lewat id tetap (#rm-track/#rm-err/#rm-listeners/#rm-msgs) — elemen2 ini dibikin SEKALI pas
+// roomSection() kebangun (pindah tab / masuk-keluar room), BUKAN dibikin ulang tiap tick, jadi kotak ketik
+// (#rm-input) gak pernah disentuh dan nilainya gak ke-reset walau lagi diketik pas tick lewat. Kalau
+// elemen2 ini gak ada di layar (pengguna lagi di tab lain, bukan Teman), roomPatch() gak ngapa2in (dicek
+// null) — data (G.room.data/msgs) tetap kebaruin di latar lewat G.room, jadi pas balik ke tab Teman langsung
+// up-to-date dari render() biasa yang manggil roomPatch() juga di akhir roomSection().
+function roomPatch() {
+  if (!G.room) return;
+  const o = G.room.data || {};
+  const te = $('rm-track'); if (te) te.textContent = o.title ? 'Lagu: ' + o.title + (o.author ? ' — ' + o.author : '') : 'Menunggu lagu...';
+  const ee = $('rm-err'); if (ee) { ee.textContent = G.room.err ? 'Sinkron sempat gagal: ' + G.room.err : ''; ee.hidden = !G.room.err; }
+  const le = $('rm-listeners');
+  if (le) {
+    const list = memberList(o.members); le.innerHTML = '';
+    if (!list.length) le.appendChild(h('div', 'mut', 'Belum ada yang gabung.'));
+    else list.forEach(x => {
+      const row = h('div', 'fr'); row.appendChild(av(x.name, x.photo));
+      row.appendChild(h('div', 'rb', x.name + (x.uid === (G.u && G.u.uid) ? ' (kamu)' : '')));
+      le.appendChild(row);
+    });
+  }
+  const me = $('rm-msgs');
+  if (me) {
+    const atBottom = me.scrollHeight - me.scrollTop - me.clientHeight < 30, msgs = G.room.msgs || [];
+    me.innerHTML = '';
+    if (!msgs.length) me.appendChild(h('div', 'mut', 'Belum ada obrolan. Sapa pendengar lain, yuk.'));
+    else msgs.forEach(x => {
+      const row = h('div', 'rmmsg' + (x.uid === (G.u && G.u.uid) ? ' me' : ''));
+      row.append(h('b', '', x.name || 'Pengguna'), h('span', '', x.text || ''));
+      me.appendChild(row);
+    });
+    if (atBottom) me.scrollTop = me.scrollHeight; // cuma auto-scroll ke bawah kalau posisinya emang udah di bawah — biar gak ganggu kalau lagi baca pesan lama ke atas
+  }
 }
 function roomSection(m) {
   sec(m, 'Room dengar bareng');
-  line(m, 'Terbuka buat semua pengguna yang login Google, bukan cuma teman.');
+  line(m, 'dengarkan music bersama orang lain di publik.');
   if (G.room) {
     const o = G.room.data || {}, rc = h('div', 'pcard');
     rc.appendChild(h('div', 'mut', G.room.isHost ? 'Kamu jadi host' : 'Lagi ikut room'));
     rc.appendChild(h('b', '', o.name || 'Room'));
-    line(rc, (o.title ? 'Lagu: ' + o.title : 'Menunggu lagu...') + ' · ' + countMembers(o.members) + ' pendengar');
+    const te = h('div', 'mut'); te.id = 'rm-track'; rc.appendChild(te);
+    const ee = h('div', 'warn'); ee.id = 'rm-err'; ee.hidden = true; rc.appendChild(ee);
     const a = h('div', 'acts'); rc.appendChild(a);
     btn(a, G.room.isHost ? 'Tutup room' : 'Keluar room', () => confirmBox(G.room.isHost ? 'Tutup room ini? Semua pendengar ikut keluar.' : 'Keluar dari room ini?', G.room.isHost ? 'Tutup' : 'Keluar', roomLeave));
     m.appendChild(rc);
+    // Paket 23: "Pendengar" dipisah jadi bagiannya sendiri dgn avatar+nama per baris (bukan satu baris teks
+    // nama ditebas koma kayak Paket 22), dan "Obrolan" tetap bagian terpisah di bawahnya — sesuai laporan
+    // pemilik biar gak numpuk/kecampur jadi satu.
+    sec(m, 'Pendengar');
+    const le = h('div', 'list'); le.id = 'rm-listeners'; m.appendChild(le);
+    sec(m, 'Obrolan room');
+    const me = h('div', 'rmchat'); me.id = 'rm-msgs'; m.appendChild(me);
+    const row = h('div', 'acts');
+    const i = h('input', 'minput'); i.id = 'rm-input'; i.placeholder = 'Tulis pesan...'; i.maxLength = ROOM_MSG_MAX;
+    const send = () => { if (!i.value.trim()) return; const v = i.value; i.value = ''; roomChatSend(v).catch(e => toast(e.message || 'Gagal kirim pesan')); };
+    i.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    row.appendChild(i);
+    btn(row, 'Kirim', send, 'pbtn');
+    m.appendChild(row);
+    roomPatch(); // biar langsung keisi dari data yg sudah ada (initData/tick sebelumnya), gak nunggu tick berikutnya
     return;
   }
   const a0 = h('div', 'acts'); m.appendChild(a0);
@@ -2158,7 +2287,7 @@ render();
 maybeOnboard();
 if (window.AlyaApp) setTimeout(() => checkUpdate(false), 800);
 if (tok()) setTimeout(() => syncNow(true), 1500);
-if (G.u) setTimeout(() => { gSync(); gLoad(); }, 1200);
+if (G.u) setTimeout(() => { gSync(); gLoad(); roomsLoad(); }, 1200);
 })();
 </script>
 </body>
