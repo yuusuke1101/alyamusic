@@ -5,7 +5,7 @@ def githubRunNumber = System.getenv("GITHUB_RUN_NUMBER") ?: "1"
 def autoVersionCode = githubRunNumber.toInteger()
 def autoVersionName = "v" + githubRunNumber
 
-def extractorVer = 'v0.26.5'
+def extractorVer = 'v0.27.0'
 def cfg(k) { System.getenv(k) ?: (project.findProperty(k) ?: '') }
 
 android {
