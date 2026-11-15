@@ -73,12 +73,15 @@
   .btn:active { transform:scale(.98); }
 
   /* ---- Lirik ---- */
-  .lyrics { position:relative; height:clamp(250px, calc(100vh - 246px), 740px); overflow-x:hidden; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; overscroll-behavior:contain; -webkit-mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); }
+  .lyrics { position:relative; height:clamp(220px, calc(100vh - 292px), 700px); overflow-x:hidden; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; overscroll-behavior:contain; -webkit-mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); mask-image:linear-gradient(180deg,transparent 0%,black 14%,black 86%,transparent 100%); }
   .lyrics::-webkit-scrollbar { display:none; }
   .lyrics-text { width:100%; padding:110px 14px; display:flex; flex-direction:column; gap:14px; text-align:center; }
   .ly { font-size:var(--lf); color:rgba(255,255,255,.32); line-height:1.4; font-weight:600; cursor:pointer; transition:color .3s ease, transform .3s ease; overflow-wrap:anywhere; }
   .ly.on { color:#fff; font-weight:800; transform:scale(1.12); }
   .ly-empty { font-size:12px; color:var(--muted); padding:20px 0; }
+  .ly-romaji, .ly-sub { font-size:.76em; font-weight:500; opacity:.55; margin-top:3px; overflow-wrap:anywhere; }
+  .ly-romaji { font-style:italic; opacity:.48; }
+  .ly-romaji[hidden], .ly-sub[hidden] { display:none; }
   .mini { display:flex; gap:6px; }
   .mini .chip { padding:5px 10px; font-size:11px; }
 
@@ -140,13 +143,17 @@
   @media (prefers-reduced-motion:reduce) { .kar .k1.in { animation:none; } .kw { transition:none; } }
 
   /* v15: sinkron lirik */
+  /* Paket 37: .lsc/.lsb/.lsv/.lsh dipakai di DUA tempat — versi ringkas .lysync.mini (nempel di layar
+     utama pemutar, lihat markup lain) dan sekarang juga di tab Atur (dipindah dari panel Lirik biar gak
+     numpuk) — jadi aturan dasarnya dibikin MANDIRI (gak lagi harus di dalam .lysync) supaya kepake di
+     dua-duanya. .lysync sendiri TETAP ada, khusus buat versi ringkas yang masih butuh margin/tengahnya. */
+  .lsc { display:flex; gap:8px; align-items:center; }
+  .lsb { width:auto; margin:0; padding:8px 16px; }
+  .lsv { min-width:88px; padding:8px 10px; border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; }
+  .lsv.act { color:#fff; background:linear-gradient(135deg,var(--a),var(--b)); border-color:transparent; }
+  .lsh { font-size:11px; color:var(--muted); margin-top:6px; }
   .lysync { margin-top:14px; text-align:center; }
-  .lysync .lsl { display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px; }
-  .lysync .lsc { display:flex; gap:8px; justify-content:center; align-items:center; }
-  .lysync .lsb { width:auto; margin:0; padding:8px 16px; }
-  .lysync .lsv { min-width:88px; padding:8px 10px; border-radius:12px; background:var(--card); border:1px solid var(--line); color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; }
-  .lysync .lsv.act { color:#fff; background:linear-gradient(135deg,var(--a),var(--b)); border-color:transparent; }
-  .lysync .lsh { font-size:11px; color:var(--muted); margin-top:6px; }
+  .lysync .lsc { justify-content:center; }
   .lysync.mini { display:none; margin:0 0 8px; }
   html.kon .lysync.mini { display:block; }
   .lysync.mini .lsc { gap:6px; }
@@ -200,6 +207,23 @@
   .mini { gap:6px; align-items:center; }
   .mini .chip { padding:0; min-width:34px; height:34px; justify-content:center; font-size:13px; font-weight:700; border-radius:var(--r3); }
   .mini .chip#ly-follow { padding:0 12px; font-size:12px; }
+  /* Paket 42: baris tombol pilihan di atas lirik (Terjemahan / Romaji / Per kata / AI) */
+  .lytools { display:flex; gap:6px; margin:0 0 10px; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; }
+  .lytools::-webkit-scrollbar { display:none; }
+  .lytools .chip { flex:none; padding:7px 9px; font-size:11.5px; }
+  .lytools .chip.on { background:var(--card2); border-color:var(--a); color:var(--ink); font-weight:600; animation:none; }
+  .lytools .chip.busy { opacity:.6; }
+  .lytools .chip.ai { margin-left:auto; }
+  .lytools { gap:5px; }
+  .srcgrid { display:flex; flex-wrap:wrap; gap:6px; }
+  .aisheet { position:fixed; left:0; right:0; top:0; bottom:0; z-index:60; display:none; align-items:flex-end; background:rgba(0,0,0,.5); }
+  .aisheet.on { display:flex; }
+  .aisheet > div { width:100%; max-height:84%; overflow-y:auto; background:var(--bg); border-top:1px solid var(--line); border-radius:var(--r1) var(--r1) 0 0; padding:16px 18px 20px; }
+  .aisheet [hidden] { display:none !important; }
+  .aisheet .chip.busy { opacity:.6; }
+  .aisheet h3 { font-size:15px; font-weight:700; margin-bottom:14px; }
+  .aisheet .row { padding:11px 0; }
+  .aisheet .aichain { font-size:11.5px; color:var(--muted); margin:2px 0 14px; line-height:1.5; }
   .lybtns { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
   .lybtns .btn { margin:0 !important; }
 
@@ -338,19 +362,39 @@
               <button class="chip on" id="ly-follow">Ikuti</button>
             </span>
           </div>
+          <div class="lytools" role="group" aria-label="Pilihan lirik">
+            <button class="chip" id="tg-tr" aria-pressed="false">Terjemahan</button>
+            <button class="chip" id="sw-romaji" aria-pressed="false">Romaji</button>
+            <button class="chip on" id="sw-wordhi" aria-pressed="true">Per kata</button>
+            <button class="chip ai" id="ly-src">Sumber</button>
+            <button class="chip" id="ly-ai">AI</button>
+          </div>
           <div class="lyrics" id="lyrics"><div class="lyrics-text" id="lyrics-text"></div></div>
           <div class="lybtns"><button class="btn" id="ly-copy">Salin lirik</button><button class="btn" id="ly-refresh">Segarkan lirik</button></div>
-          <div class="lysync">
-            <span class="lsl">Sinkron lirik</span>
-            <div class="lsc"><button class="btn lsb" data-lsd="-0.5" aria-label="Lirik lebih lambat">&minus; 0,5</button><button class="lsv" data-lsd="0" aria-label="Atur ulang sinkron">0,0 dtk</button><button class="btn lsb" data-lsd="0.5" aria-label="Lirik lebih awal">+ 0,5</button></div>
-            <div class="lsh">+ lirik muncul lebih awal &middot; &minus; lebih lambat</div>
-          </div>
-          <div class="lysync lspace">
-            <span class="lsl">Kecepatan isi warna</span>
-            <div class="chips" id="chips-pace"><button class="chip" data-pace="0.75">Cepat</button><button class="chip on" data-pace="1">Pas</button><button class="chip" data-pace="1.1">Lambat</button></div>
-            <div class="lsh">Ubah kalau warna selesai lebih dulu atau lebih lambat dari vokal</div>
-          </div>
         </div>
+
+        <!-- Paket 42: lembar pilihan AI terjemahan & romaji -->
+        <div class="aisheet" id="ai-sheet"><div>
+          <h3>Terjemahan &amp; romaji</h3>
+          <div class="sec"><h4><span>AI utama</span></h4><div class="chips" id="chips-ormodel"></div></div>
+          <div class="sec"><h4><span>Cadangan kalau gagal</span></h4>
+            <div class="row sw-row" id="fbrow-or"><span>OpenRouter<small>Memakai model default</small></span><button class="sw" id="fb-or" aria-label="Cadangan OpenRouter"></button></div>
+            <div class="row sw-row" id="fbrow-gem"><span>Gemini Web<small>Tanpa key, bisa saja tidak tersedia</small></span><button class="sw" id="fb-gem" aria-label="Cadangan Gemini Web"></button></div>
+            <div class="row sw-row" id="fbrow-gt"><span>Google Translate<small>Hanya untuk terjemahan, tidak untuk romaji</small></span><button class="sw" id="fb-gt" aria-label="Cadangan Google Translate"></button></div>
+          </div>
+          <div class="aichain" id="ai-chain"></div>
+          <div class="aichain" id="ai-last"></div>
+          <button class="btn" id="ai-close">Selesai</button>
+        </div></div>
+
+        <!-- Paket 43: lembar pilihan sumber lirik -->
+        <div class="aisheet" id="src-sheet"><div>
+          <h3>Sumber lirik</h3>
+          <div class="aichain" style="margin-top:-6px">Otomatis memilih sumber terbaik untuk tiap lagu. Pilihan manual hanya berlaku untuk lagu yang sedang diputar.</div>
+          <div class="sec"><div class="chips" id="chips-lysrc"></div></div>
+          <div class="aichain" id="src-now"></div>
+          <button class="btn" id="src-close">Selesai</button>
+        </div></div>
 
         <!-- EFEK -->
         <div class="panel" id="p-fx">
@@ -426,6 +470,18 @@
               </div>
             </div>
             <div class="grp">
+              <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h14"/></svg>Lirik</h3>
+              <div class="sec"><h4><span>Sinkron lirik</span></h4>
+                <div class="lsc"><button class="btn lsb" data-lsd="-0.5" aria-label="Lirik lebih lambat">&minus; 0,5</button><button class="lsv" data-lsd="0" aria-label="Atur ulang sinkron">0,0 dtk</button><button class="btn lsb" data-lsd="0.5" aria-label="Lirik lebih awal">+ 0,5</button></div>
+                <div class="lsh">+ lirik muncul lebih awal &middot; &minus; lebih lambat</div>
+              </div>
+              <div class="sec"><h4><span>Kecepatan isi warna</span></h4>
+                <div class="chips" id="chips-pace"><button class="chip" data-pace="0.75">Cepat</button><button class="chip on" data-pace="1">Pas</button><button class="chip" data-pace="1.1">Lambat</button></div>
+                <div class="lsh">Ubah kalau warna selesai lebih dulu atau lebih lambat dari vokal</div>
+              </div>
+              <div class="lsh" style="margin:-4px 0 12px">Terjemahan, romaji, per kata, dan pilihan AI ada di tab Lirik.</div>
+            </div>
+            <div class="grp">
               <h3><svg class="ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Pilihan</h3>
             <div class="row sw-row"><span>Putar otomatis<small>Lanjut ke lagu berikutnya otomatis</small></span><button class="sw on" id="sw-auto" aria-label="Putar otomatis"></button></div>
             <div class="row sw-row"><span>Ulangi lagu<small>Putar ulang lagu ini terus-menerus</small></span><button class="sw" id="sw-loop" aria-label="Ulangi lagu"></button></div>
@@ -433,6 +489,7 @@
             <div class="row sw-row"><span>Audio murni<small>Tanpa efek, lebih stabil di aplikasi</small></span><button class="sw" id="sw-pure" aria-label="Audio murni"></button></div>
             <div class="row sw-row"><span>Mode karaoke<small>Lirik besar menggantikan sampul</small></span><button class="sw" id="sw-kar" aria-label="Mode karaoke"></button></div>
             <div class="row sw-row"><span>Visualizer<small>Animasi batang yang mengikuti suara</small></span><button class="sw on" id="sw-viz" aria-label="Visualizer"></button></div>
+            <div class="row sw-row"><span>Lewati non-musik<small>Lewati otomatis sponsor/intro/outro video YouTube (SponsorBlock)</small></span><button class="sw on" id="sw-sb" aria-label="Lewati non-musik"></button></div>
             </div>
           </div>
         </div>
@@ -490,6 +547,7 @@
 <!-- Paket 20: hls.js dibundel lokal (app/src/main/assets/hls.min.js, build "light" dari paket npm resmi),
      dipakai cuma buat lagu SoundCloud yang cuma nawarin HLS (.m3u8) — lihat setAudioSrc(). -->
 <script src="/hls.min.js"></script>
+<script src="/sources/hub.js"></script>
 <script>
 (function() {
   'use strict';
@@ -514,6 +572,10 @@
   var rate = 1, loop = false, vizOn = true, vizMode = 0, volume = 1, fadeIn = false;
   var sleepT = null, sleepEnd = 0, eight = false, eightT = null;
   var abState = 0, abA = 0, abB = 0, marks = [];
+  // Paket 28: SponsorBlock — database komunitas yang nandain bagian non-musik (sponsor/intro/outro/dst) di
+  // video YouTube, dipakai juga sama banyak aplikasi pemutar musik lain buat lewatin bagian itu otomatis.
+  // CUMA berlaku buat video YouTube (ada id-nya di sana), SoundCloud gak ada konsep "video" jadi dilewati.
+  var sbOn = (localStorage.getItem('alya_sb') || '1') === '1', sbSegs = [], sbTrackId = '';
   var lyFollow = true, lyFont = 15, presetName = 'Normal';
   var muted = false, karaoke = false, loud = false, remain = false, listenSec = 0, plays = 0;
   var nearSent = false, AUTO = /[?&]auto=1/.test(location.search);
@@ -572,9 +634,35 @@
     if (Array.isArray(parsed)) LY = parsed;
   } catch (e) { LY = []; }
 
-  var lyEls = [];
+  var lyEls = []; // div LUAR tiap baris (.ly) — dipakai buat classList on/n1 (highlight) & hitung posisi scroll
+  var lyMainEls = []; // Paket 35: elemen DALAM (.ly-main) — target wordSpans/buildLyLine (teks asli SAJA, gak pernah disentuh terjemahan)
   var lyActive = -2;
   var notifLyIdx = -2; // baris lirik terakhir yang dikirim ke notifikasi/layar kunci (lihat notifLyricTick)
+  // Paket 35: rombak Paket 31/34 — dulu terjemahan GANTI teks baris lirik (ketuk tombol, teks aslinya
+  // ketutup). Sekarang: terjemahan jalan OTOMATIS begitu lirik dimuat (gak perlu ketuk apa pun) dan
+  // ditampilin sebagai BARIS KEDUA di bawah baris asli (dua baris per lirik, bukan gantiin). Romaji TETAP
+  // lewat tombol (ketuk buat nukar baris kedua dari "terjemahan" jadi "romaji", ketuk lagi buat balik).
+  // LY_TR/LY_RO isinya array STRING (sejajar LY, index sama) — timing/kata buat karaoke & word-highlight
+  // TETAP dari LY asli, gak pernah diganti (beda dari Paket 31 yang sempat nukar LY_ALT ke situ juga).
+  // Paket 36: romaji & terjemahan sekarang DUA BARIS TERPISAH & INDEPENDEN (bukan satu baris yang isinya
+  // ditukar kayak Paket 35) — urutan di layar: asli → romaji (kalau toggle lagi aktif) → terjemahan
+  // (SELALU tampil kalau ada, gak peduli romaji aktif atau nggak). Nyalain/matiin romaji TIDAK ngaruh ke
+  // baris terjemahan sama sekali.
+  var LY_TR = [], LY_RO = [], lyRoEls = [], lySubEls = [];
+  // Paket 42: dua tombol di tab Lirik menyimpan pilihan pengguna (terus berlaku untuk lagu berikutnya)
+  var trOn = true, romajiOn = false;
+  // Paket 43: pilihan sumber lirik untuk lagu yang sedang diputar (kembali 'auto' tiap ganti lagu)
+  var lyPick = 'auto', curLySrc = '';
+  var LY_SRCS = [['auto', 'Otomatis'], ['joox', 'JOOX'], ['lrclib', 'lrclib'], ['musixmatch', 'Musixmatch'], ['kugou', 'KuGou'], ['simpmusic', 'SimpMusic'], ['betterlyrics', 'BetterLyrics'], ['lirikonline', 'LirikOnline'], ['caption', 'Subtitle YouTube']];
+  try { trOn = (localStorage.getItem('alya_autotr') || '1') === '1'; romajiOn = (localStorage.getItem('alya_autoro') || '0') === '1'; } catch (e) { }
+  function paintSubs() {
+    for (var i = 0; i < lySubEls.length; i++) {
+      var ro = romajiOn ? (LY_RO[i] || '') : '';
+      if (lyRoEls[i]) { lyRoEls[i].textContent = ro; lyRoEls[i].hidden = !ro; }
+      var tr = trOn ? (LY_TR[i] || '') : '';
+      lySubEls[i].textContent = tr; lySubEls[i].hidden = !tr;
+    }
+  }
   function mkLine(t) { return function() { seekTo(Math.max(0, (Number(t) || 0) - lyOff)); }; }
   if (!LY.length) {
     lyText.innerHTML = '<div class="ly-empty">Lirik belum tersedia untuk lagu ini.</div>';
@@ -705,15 +793,44 @@
     dot.style.left = pct + '%';
     cur.textContent = fmt(p);
     dur.textContent = remain ? '-' + fmt((d - p) / rate) : fmt(d);
-    if (playing) listenSec += 0.25;
+    if (playing) { listenSec += 0.25; lfElapsed += 0.25; }
+    // Paket 29: aturan resmi Last.fm — scrobble BOLEH dikirim setelah lagu diputar separuh durasinya ATAU
+    // 4 menit (240 detik), mana yang lebih DULU tercapai, dan lagunya minimal 30 detik. Dikirim sekali saja
+    // per lagu (lfScrobbled dicek), startedAt diambil dari waktu lagu MULAI diputar (lihat listener 'play'
+    // di atas), BUKAN waktu scrobble ini dikirim.
+    if (!lfScrobbled && lfStartedAt && d >= 30 && lfElapsed >= Math.min(240, d / 2)) {
+      lfScrobbled = true;
+      fetch('/api/lastfm/scrobble?artist=' + encodeURIComponent(curArtist) + '&title=' + encodeURIComponent(curTitle) + '&startedAt=' + lfStartedAt).catch(function() {});
+    }
     $('i-listen').textContent = fmt(listenSec);
     $('i-plays').textContent = String(plays);
     updLyrics(p, false);
     if (abState === 2 && playing && p >= abB) seekTo(abA);
+    checkSponsorBlock(p);
     if (playing && !nearSent && d > 60 && d - p < 45) { nearSent = true; post({ type: 'alya-near' }); }
     if (sleepEnd) {
       var left = Math.max(0, Math.round((sleepEnd - Date.now()) / 1000));
       $('sleep-left').textContent = fmt(left);
+    }
+  }
+  // Paket 28: kategori yang dilewati — sponsor/self-promo/interaction (ajakan subscribe dsb.)/intro/outro/
+  // preview (cuplikan di awal) dan music_offtopic (bagian non-musik KHUSUS di video musik, kategori paling
+  // relevan buat app ini). TIDAK termasuk "filler" (obrolan santai) karena untuk video musik itu jarang &
+  // berisiko kepotong bagian yang sebenarnya pengen didengar.
+  var SB_CATS = ['sponsor', 'selfpromo', 'interaction', 'intro', 'outro', 'preview', 'music_offtopic'];
+  function loadSponsorBlock(id) {
+    sbSegs = []; sbTrackId = id;
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id || '')) return; // bukan id YouTube (mis. SoundCloud) — SponsorBlock gak berlaku
+    fetch('https://sponsor.ajay.app/api/skipSegments?videoID=' + encodeURIComponent(id) + '&categories=' + encodeURIComponent(JSON.stringify(SB_CATS)))
+      .then(function(r) { return r.status === 404 ? [] : r.ok ? r.json() : []; })
+      .then(function(arr) { if (sbTrackId === id && Array.isArray(arr)) sbSegs = arr.filter(function(s) { return s && Array.isArray(s.segment) && s.segment.length === 2; }); })
+      .catch(function() { }); // SponsorBlock gagal/down bukan galat fatal — lagu tetap diputar normal tanpa lewatan
+  }
+  function checkSponsorBlock(p) {
+    if (!sbOn || !playing || !sbSegs.length) return;
+    for (var i = 0; i < sbSegs.length; i++) {
+      var seg = sbSegs[i], start = seg.segment[0], end = seg.segment[1];
+      if (p >= start && p < end - 0.15) { seekTo(end); st.textContent = 'Melewati bagian non-musik'; setTimeout(function() { if (st.textContent === 'Melewati bagian non-musik') st.textContent = ''; }, 1600); return; }
     }
   }
   function applyVol(fade) {
@@ -998,10 +1115,26 @@
   // Karaoke v2: baris besar, warna mengisi kata demi kata. Waktu tiap kata adalah PERKIRAAN
   // (lirik hanya punya waktu per baris), dibagi menurut panjang kata dalam durasi baris itu.
   var LYKIND = 'synced', kWords = [], kStart = 0, kDur = 1, kIdx = -2;
+  // Paket 37: toggle manual "per baris" vs "per kata" (NanzBeatles punya pilihan serupa). Default NYALA
+  // (otomatis pakai highlight per-kata kalau datanya ada, sama kayak sebelumnya) — dimatikan = paksa
+  // highlight satu baris penuh walau data per-kata sebenarnya tersedia.
+  var wordHiOn = (localStorage.getItem('alya_wordhi') || '1') === '1';
   function kClamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
   function buildKLine(idx) {
-    var el = $('k1'), r = wordSpans(el, 'kw', idx, idx >= 0 && LYKIND !== 'plain');
-    kWords = r.words; kReal = r.real; kIdx = idx;
+    var el = $('k1'); kIdx = idx;
+    // Paket 37: kalau toggle "Soroti kata per kata" mati, JANGAN panggil wordSpans sama sekali — lewat
+    // parameter timedOk=false doang TETAP masih nyalain animasi isi-warna per-KARAKTER (estimasi), bukan
+    // beneran "satu baris nyala bareng" yang diminta. jadi di sini langsung teks polos, kWords dikosongin
+    // biar kFill() (yang ngecek kWords.length) otomatis gak ngapa-ngapain.
+    if (!wordHiOn) {
+      el.textContent = idx >= 0 ? (LY[idx].text || '') : '';
+      kWords = []; kReal = false;
+      if (idx >= 0 && isRtl(LY[idx].text)) el.dir = 'rtl'; else el.removeAttribute('dir');
+      el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+      return;
+    }
+    var r = wordSpans(el, 'kw', idx, idx >= 0 && LYKIND !== 'plain');
+    kWords = r.words; kReal = r.real;
     if (idx >= 0 && isRtl(LY[idx].text)) el.dir = 'rtl'; else el.removeAttribute('dir');
     if (idx >= 0 && !r.real) { var ls0 = lineSpan(idx, r.chars); kStart = ls0.start; kDur = ls0.dur; }
     el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
@@ -1071,7 +1204,7 @@
   }
   // Satu <span> per kata di dalam `el`. Waktu asli bila ada ({el,s,e}); kalau tidak, perkiraan ({el,a,b}) dari panjang kata.
   function wordSpans(el, cls, idx, timedOk) {
-    var text = LY[idx] ? (LY[idx].text || '\u266A') : '\u266A', rw = timedOk ? realWords(idx) : null, out = [], i, sp;
+    var text = (LY[idx] ? LY[idx].text : '') || '\u266A', rw = timedOk ? realWords(idx) : null, out = [], i, sp;
     el.textContent = '';
     if (rw) {
       var sep = /\s/.test(text) ? ' ' : '';
@@ -1095,10 +1228,11 @@
     return { words: out, real: false, chars: total };
   }
   function buildLyLine(idx) {
-    if (lwIdx >= 0 && lyEls[lwIdx]) lyEls[lwIdx].textContent = LY[lwIdx].text || '\u266A';
+    if (lwIdx >= 0 && lyMainEls[lwIdx]) lyMainEls[lwIdx].textContent = (LY[lwIdx] ? LY[lwIdx].text : '') || '\u266A';
     lwIdx = idx; lwWords = []; lwReal = false;
-    if (idx < 0 || !lyEls[idx] || LYKIND === 'plain') return;
-    var r = wordSpans(lyEls[idx], 'lw', idx, true);
+    if (idx < 0 || !lyMainEls[idx]) return;
+    if (LYKIND === 'plain' || !wordHiOn) { lyMainEls[idx].textContent = LY[idx].text || '\u266A'; return; }
+    var r = wordSpans(lyMainEls[idx], 'lw', idx, true);
     lwWords = r.words; lwReal = r.real;
     if (!r.real) { var s2 = lineSpan(idx, r.chars); lwStart = s2.start; lwDur = s2.dur; }
   }
@@ -1124,6 +1258,237 @@
     if (LY.length) { updLyrics(pos(), true); kFill(pos()); }
   });
   paintPace();
+  // Paket 35: terjemahan lirik AI (OpenRouter) OTOMATIS begitu lirik dimuat — gak perlu ketuk apa pun,
+  // hasilnya langsung tampil sebagai baris kedua (lihat subText/paintSubs). Romaji TETAP lewat tombol
+  // toggle terpisah (#sw-romaji), karena gak semua orang butuh romaji tiap saat.
+  // Paket 38: SEKARANG BOLEH LEBIH DARI SATU API KEY — pemilik atur semuanya langsung di sini (di repo
+  // GitHub pribadinya), BUKAN lewat UI yang kelihatan pengguna lain. Kalau satu key gagal (kuota habis/
+  // ditolak/limit), otomatis dicoba key BERIKUTNYA di daftar ini (lihat orRequest) — pengguna gak perlu
+  // tahu/pilih key mana, yang kelihatan di app cuma DAFTAR MODEL (lihat OR_MODELS + chip "Model AI" di tab
+  // Atur), bukan key-nya. Tambah/kurangi key tinggal edit array ini.
+  var OR_KEYS = [
+    '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',
+    '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',
+    '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',
+    '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',
+    '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'
+    // , 'sk-or-v1-key-tambahan-berikutnya-di-sini'
+  ].filter(function(k) { return k && k.trim(); });
+  // Paket 38: daftar model yang kelihatan di app sebagai PILIHAN (chip di tab Atur > Lirik > "Model AI"),
+  // BUKAN kolom isi bebas lagi (itu cara Paket 31-35, sekarang dihapus). Nama tampil di kiri, slug
+  // OpenRouter-nya di kanan — kalau OpenRouter ganti/pensiunin sebuah slug, tinggal edit di sini.
+  var OR_MODELS = [
+    { name: 'Mistral Small', id: 'mistralai/mistral-small-3.1-24b-instruct' },
+    { name: 'GPT-4o mini', id: 'openai/gpt-4o-mini' },
+    { name: 'Gemini 2.0 Flash', id: 'google/gemini-2.0-flash-001' },
+    { name: 'DeepSeek Chat', id: 'deepseek/deepseek-chat' }
+  ];
+  // Paket 42: pilihan AI utama = salah satu OR_MODELS, atau Gemini Web (indeks terakhir). Kunci lama
+  // alya_or_model_idx tetap dibaca supaya pilihan pemilik sebelumnya tidak hilang.
+  function aiMainIdx() {
+    var i = 0;
+    try { var v = localStorage.getItem('alya_ai_main'); if (v == null) v = localStorage.getItem('alya_or_model_idx'); i = parseInt(v || '0', 10) || 0; } catch (e) { }
+    return (i >= 0 && i <= OR_MODELS.length) ? i : 0;
+  }
+  function aiMainIsGem() { return aiMainIdx() === OR_MODELS.length; }
+  function orModel() { var i = aiMainIdx(); return (OR_MODELS[i] || OR_MODELS[0]).id; }
+  function fbOn(k) { try { return (localStorage.getItem('alya_fb_' + k) || '1') === '1'; } catch (e) { return true; } }
+  function aiChain(mode) {
+    var c = [], gem = aiMainIsGem();
+    c.push(gem ? 'gem' : 'or');
+    if (gem) { if (fbOn('or')) c.push('or'); } else if (fbOn('gem')) c.push('gem');
+    if (mode === 'translated' && fbOn('gt')) c.push('gt');
+    return c;
+  }
+  function aiName(k) { return k === 'or' ? (aiMainIsGem() ? 'OpenRouter' : OR_MODELS[aiMainIdx()].name) : k === 'gem' ? 'Gemini Web' : 'Google Translate'; }
+  var orCache = {}; // kunci: "<trackId>|<mode>" -> array string; kuncinya otomatis gak relevan lagi begitu curTrackId ganti
+  // Paket 34: max_tokens WAJIB ada — tanpa ini OpenRouter nyadangin budget sebesar batas keluaran MAKSIMAL
+  // model (bisa ratusan ribu token), nolak duluan dengan galat "requires more credits" walau yang beneran
+  // kepake cuma beberapa ratus token. Diskalakan ke jumlah baris (±40 token/baris, 800-4000).
+  // Paket 38: rotasi key — coba key[keyIdx], kalau statusnya nunjukin masalah SAMA KEY-nya (401=key salah,
+  // 402=kuota/saldo habis, 429=kena limit), lanjut coba key BERIKUTNYA, bukan langsung nyerah. Galat lain
+  // (jaringan dsb.) juga ikut lanjut ke key berikutnya, siapa tahu itu cuma masalah sesaat di key itu.
+  function orRequest(mode, lines, keyIdx) {
+    if (keyIdx >= OR_KEYS.length) return Promise.resolve({ ok: false });
+    var sys = 'You are a precise lyrics ' + (mode === 'romaji' ? 'romanization' : 'translation') + ' assistant. Output ONLY a valid JSON array of strings, no explanation, no markdown code fences. Each input line maps to exactly one output line in the same order, preserve empty lines as empty strings "", and return EXACTLY ' + lines.length + ' items in the array.';
+    var usr = (mode === 'romaji'
+      ? 'Romanize/transliterate the following ' + lines.length + ' song lyric lines into simple Latin script using ONLY basic letters (a-z, A-Z), keep it readable and roughly phonetic/singable:\n\n'
+      : 'Translate the following ' + lines.length + ' song lyric lines into natural, singable Indonesian, preserving the emotional tone:\n\n') + JSON.stringify(lines);
+    return fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OR_KEYS[keyIdx], 'HTTP-Referer': 'https://alyamusic.app', 'X-Title': 'Alya Music' },
+      body: JSON.stringify({ model: orModel(), max_tokens: Math.min(4000, Math.max(800, lines.length * 40)), temperature: 0.3, messages: [{ role: 'system', content: sys }, { role: 'user', content: usr }] })
+    }).then(function(r) {
+      if (r.status === 401 || r.status === 402 || r.status === 429) return orRequest(mode, lines, keyIdx + 1);
+      return r.json().then(function(d) {
+        var txt = (d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
+        txt = String(txt).replace(/```json|```/g, '').trim();
+        var arr; try { arr = JSON.parse(txt); } catch (e) { arr = null; }
+        if (!Array.isArray(arr) || arr.length !== lines.length) return { ok: false, err: (d && d.error && d.error.message) || null };
+        return { ok: true, arr: arr };
+      });
+    }).catch(function() { return orRequest(mode, lines, keyIdx + 1); });
+  }
+  // Paket 38: Google Translate (endpoint tidak resmi yang sama dipakai banyak aplikasi, gratis, gak perlu
+  // API key) sebagai cadangan TERAKHIR kalau SEMUA key OpenRouter gagal — TAPI CUMA buat mode "translated".
+  // Romaji TIDAK punya cadangan ini — Google Translate gak punya fitur romanisasi lirik yang bisa diandalkan
+  // (beda dari terjemahan biasa), jadi kalau semua key OpenRouter gagal, romaji JUJUR gagal, gak dipaksain.
+  function gtFallback(lines) {
+    var joined = lines.join('\n');
+    return fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=id&dt=t&q=' + encodeURIComponent(joined))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var segs = (d && d[0]) || [], full = segs.map(function(s) { return s[0] || ''; }).join('');
+        var out = full.split('\n');
+        return out.length === lines.length ? out : null; // jumlah baris harus cocok persis, kalau nggak jangan dipaksain (bisa nyasar/kecampur)
+      }).catch(function() { return null; });
+  }
+  // Paket 41: cadangan Gemini web (tanpa key) lewat /api/gemini di server lokal — dicoba SETELAH semua key
+  // OpenRouter gagal, dan berlaku untuk terjemahan MAUPUN romaji. Gemini web tak punya peran "system", jadi
+  // instruksi dan isi digabung jadi satu prompt. Endpoint-nya tidak resmi: bisa saja gagal/berubah, makanya
+  // hanya cadangan. Jawaban harus berupa array JSON dengan jumlah item PAS SAMA, kalau tidak dibuang.
+  function gemRequest(mode, lines) {
+    var sys = 'You are a precise lyrics ' + (mode === 'romaji' ? 'romanization' : 'translation') + ' assistant. Output ONLY a valid JSON array of strings, no explanation, no markdown code fences. Each input line maps to exactly one output line in the same order, preserve empty lines as empty strings "", and return EXACTLY ' + lines.length + ' items in the array.';
+    var usr = (mode === 'romaji'
+      ? 'Romanize/transliterate the following ' + lines.length + ' song lyric lines into simple Latin script using ONLY basic letters (a-z, A-Z), keep it readable and roughly phonetic/singable:\n\n'
+      : 'Translate the following ' + lines.length + ' song lyric lines into natural, singable Indonesian, preserving the emotional tone:\n\n') + JSON.stringify(lines);
+    return fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Alya': '1' },
+      body: sys + '\n\n' + usr
+    }).then(function(r) {
+      return r.json().then(function(d) {
+        if (!r.ok) throw new Error((d && d.error) || ('HTTP ' + r.status));
+        return d;
+      });
+    }).then(function(d) {
+      var txt = String((d && d.text) || '').replace(/```json|```/g, '').trim();
+      var a = txt.indexOf('['), b = txt.lastIndexOf(']');
+      if (a >= 0 && b > a) txt = txt.slice(a, b + 1);
+      var arr; try { arr = JSON.parse(txt); } catch (e) { arr = null; }
+      if (!Array.isArray(arr) || arr.length !== lines.length) return { ok: false, err: 'Jawaban Gemini tidak sesuai format' };
+      return { ok: true, arr: arr.map(function(x) { return String(x == null ? '' : x); }) };
+    }).catch(function(e) { return { ok: false, err: String((e && e.message) || e) }; });
+  }
+  // Paket 42: rantai penyedia dibaca dari pilihan pengguna (aiChain). Dicoba berurutan sampai ada yang
+  // menjawab dengan jumlah baris yang pas. onDone(arr, pesanGalat, namaPenyedia).
+  var aiLastUsed = '';
+  // Paket 43: kunci cache memuat tanda tangan isi lirik, jadi ganti sumber lirik = terjemahan diminta ulang
+  function ck(mode) { var n = LY.length; return curTrackId + '|' + mode + '|' + n + ':' + (n ? String(LY[0].text || '') + String(LY[n - 1].text || '') : ''); }
+  function orFetch(mode, onDone) {
+    if (!LY.length) { onDone(null); return; }
+    var cacheKey = ck(mode);
+    if (orCache[cacheKey]) { onDone(orCache[cacheKey]); return; }
+    var lines = []; for (var i = 0; i < LY.length; i++) lines.push(LY[i].text || '');
+    var chain = aiChain(mode), why = null;
+    function next(n) {
+      if (n >= chain.length) { onDone(null, why); return; }
+      var k = chain[n];
+      var p = k === 'or' ? orRequest(mode, lines, 0)
+            : k === 'gem' ? gemRequest(mode, lines)
+            : gtFallback(lines).then(function(arr) { return arr ? { ok: true, arr: arr } : { ok: false, err: 'Google Translate gagal' }; });
+      p.then(function(res) {
+        if (ck(mode) !== cacheKey) { onDone(null); return; } // sudah pindah lagu / lirik diganti
+        if (res && res.ok) { orCache[cacheKey] = res.arr; aiLastUsed = aiName(k); aiRefresh(); onDone(res.arr, null, aiName(k)); return; }
+        if (res && res.err && !why) why = res.err;
+        next(n + 1);
+      });
+    }
+    next(0);
+  }
+  // Dipanggil otomatis dari setLyrics() tiap ganti lagu — diam-diam, gak ada status/toast kalau gagal
+  // (biar gak ganggu; kalau emang gagal, baris kedua cuma gak muncul, lagu tetap diputar normal).
+  function busy(id, on) { var e = $(id); if (e) e.classList.toggle('busy', !!on); }
+  function flash(msg) { st.textContent = msg; setTimeout(function() { if (st.textContent === msg) st.textContent = ''; }, 3000); }
+  function autoTranslate() {
+    if (!trOn || !LY.length || LY_TR.length) return;
+    var myTrack = curTrackId;
+    busy('tg-tr', true);
+    orFetch('translated', function(arr, err) {
+      if (myTrack !== curTrackId) return;
+      busy('tg-tr', false);
+      if (arr) { LY_TR = arr; paintSubs(); } else if (err !== undefined) flash('Terjemahan gagal' + (err ? ': ' + err : ''));
+    });
+  }
+  function autoRomaji() {
+    if (!romajiOn || !LY.length || LY_RO.length) return;
+    var myTrack = curTrackId;
+    busy('sw-romaji', true);
+    orFetch('romaji', function(arr, err) {
+      if (myTrack !== curTrackId) return;
+      busy('sw-romaji', false);
+      if (arr) { LY_RO = arr; paintSubs(); } else if (err !== undefined) flash('Romaji gagal' + (err ? ': ' + err : ''));
+    });
+  }
+  function setTg(id, on, key) {
+    $(id).classList.toggle('on', on); $(id).setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (key) { try { localStorage.setItem(key, on ? '1' : '0'); } catch (e) { } }
+  }
+  setTg('tg-tr', trOn); setTg('sw-romaji', romajiOn);
+  $('tg-tr').addEventListener('click', function() { trOn = !trOn; setTg('tg-tr', trOn, 'alya_autotr'); paintSubs(); autoTranslate(); });
+  $('sw-romaji').addEventListener('click', function() { romajiOn = !romajiOn; setTg('sw-romaji', romajiOn, 'alya_autoro'); paintSubs(); autoRomaji(); });
+  // Lembar pilihan sumber lirik (Paket 43)
+  (function() {
+    var box = $('chips-lysrc'), now = $('src-now'), sh = $('src-sheet');
+    function paint() {
+      var all = box.querySelectorAll('.chip');
+      for (var j = 0; j < all.length; j++) all[j].classList.toggle('on', all[j].dataset.k === lyPick);
+      var nm = lySrcName(curLySrc);
+      if (!now.dataset.msg) now.textContent = nm ? 'Sedang dipakai: ' + nm + '.' : '';
+    }
+    LY_SRCS.forEach(function(s) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = s[1]; b.dataset.k = s[0];
+      b.addEventListener('click', function() {
+        if (!curTrackId || b.classList.contains('busy')) return;
+        var id = curTrackId, k = s[0];
+        now.dataset.msg = '1'; now.textContent = 'Mencari lirik di ' + s[1] + '...'; b.classList.add('busy');
+        fetchLyrics(id, k === 'auto', k).then(function(n) {
+          if (n === -1) return;
+          if (n > 0) { lyPick = k; delete now.dataset.msg; }
+          else now.textContent = k === 'auto' ? 'Lirik tidak ditemukan.' : 'Tidak ditemukan di ' + s[1] + ', lirik sebelumnya dipertahankan.';
+        }).catch(function() { now.textContent = 'Gagal mencari lirik, coba lagi.'; })
+          .then(function() { b.classList.remove('busy'); paint(); });
+      });
+      box.appendChild(b);
+    });
+    $('ly-src').addEventListener('click', function() { delete now.dataset.msg; paint(); sh.classList.add('on'); });
+    $('src-close').addEventListener('click', function() { sh.classList.remove('on'); });
+    sh.addEventListener('click', function(e) { if (e.target === sh) sh.classList.remove('on'); });
+  })();
+  // Lembar pilihan AI
+  function aiRefresh() {
+    var gem = aiMainIsGem();
+    $('fbrow-or').hidden = !gem; $('fbrow-gem').hidden = gem;
+    $('fb-or').classList.toggle('on', fbOn('or')); $('fb-gem').classList.toggle('on', fbOn('gem')); $('fb-gt').classList.toggle('on', fbOn('gt'));
+    $('ai-chain').textContent = 'Urutan terjemahan: ' + aiChain('translated').map(aiName).join(' \u2192 ') + '. Romaji: ' + aiChain('romaji').map(aiName).join(' \u2192 ') + '.';
+    $('ai-last').textContent = aiLastUsed ? 'Terakhir berhasil lewat ' + aiLastUsed + '.' : '';
+    var all = $('chips-ormodel').querySelectorAll('.chip'), cur = aiMainIdx();
+    for (var j = 0; j < all.length; j++) all[j].classList.toggle('on', j === cur);
+  }
+  function aiReset() {
+    orCache = {}; LY_TR = []; LY_RO = []; paintSubs(); autoTranslate(); autoRomaji();
+  }
+  (function() {
+    var box = $('chips-ormodel'); if (!box) return;
+    OR_MODELS.map(function(m) { return m.name; }).concat(['Gemini Web']).forEach(function(nm, i) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = nm;
+      b.addEventListener('click', function() {
+        try { localStorage.setItem('alya_ai_main', String(i)); } catch (e) { }
+        aiReset(); aiRefresh();
+      });
+      box.appendChild(b);
+    });
+    ['or', 'gem', 'gt'].forEach(function(k) {
+      $('fb-' + k).addEventListener('click', function() {
+        try { localStorage.setItem('alya_fb_' + k, fbOn(k) ? '0' : '1'); } catch (e) { }
+        aiRefresh();
+      });
+    });
+    $('ly-ai').addEventListener('click', function() { aiRefresh(); $('ai-sheet').classList.add('on'); });
+    $('ai-close').addEventListener('click', function() { $('ai-sheet').classList.remove('on'); });
+    $('ai-sheet').addEventListener('click', function(e) { if (e.target === $('ai-sheet')) $('ai-sheet').classList.remove('on'); });
+    aiRefresh();
+  })();
   function lyJump(dir) {
     if (!LY.length || !ready) return;
     var p = pos(), i = lyFind(p), t;
@@ -1189,6 +1554,18 @@
   $('sw-loop').addEventListener('click', function() { setLoop(!loop); });
   $('sw-auto').addEventListener('click', function() { post({ type: 'alya-ui', act: 'auto' }); });
   $('sw-viz').addEventListener('click', function() { setViz(!vizOn); });
+  $('sw-wordhi').classList.toggle('on', wordHiOn);
+  $('sw-wordhi').addEventListener('click', function() {
+    wordHiOn = !wordHiOn; $('sw-wordhi').classList.toggle('on', wordHiOn);
+    try { localStorage.setItem('alya_wordhi', wordHiOn ? '1' : '0'); } catch (e) { }
+    lyActive = -2; kIdx = -2; lwIdx = -2;
+    if (LY.length) { updLyrics(pos(), true); kFill(pos()); }
+  });
+  $('sw-sb').classList.toggle('on', sbOn);
+  $('sw-sb').addEventListener('click', function() {
+    sbOn = !sbOn; $('sw-sb').classList.toggle('on', sbOn);
+    try { localStorage.setItem('alya_sb', sbOn ? '1' : '0'); } catch (e) { }
+  });
   $('sw-fade').addEventListener('click', function() {
     fadeIn = !fadeIn;
     if (fadeIn) this.classList.add('on'); else this.classList.remove('on');
@@ -1323,13 +1700,19 @@
     var idx = lyFind(pos());
     if (idx === notifLyIdx) return;
     notifLyIdx = idx;
-    post({ type: 'alya-lyric', text: idx >= 0 ? (LY[idx].text || '') : '' });
+    post({ type: 'alya-lyric', text: idx >= 0 ? ((LY[idx] ? LY[idx].text : '') || '') : '' });
   }, 1000);
 
   // ===== Audio (streaming lewat elemen <audio>) =====
   try { au.preservesPitch = false; au.mozPreservesPitch = false; au.webkitPreservesPitch = false; } catch (e) {}
   au.preload = 'auto';
-  au.addEventListener('play', function() { playing = true; plays++; setIcons(); st.textContent = ''; kickViz(); post({ type: 'alya-state', playing: true }); });
+  au.addEventListener('play', function() {
+    playing = true; plays++; setIcons(); st.textContent = ''; kickViz(); post({ type: 'alya-state', playing: true });
+    if (!lfNowPlayingSent && curTrackId) {
+      lfNowPlayingSent = true; lfStartedAt = Math.floor(Date.now() / 1000);
+      fetch('/api/lastfm/nowplaying?artist=' + encodeURIComponent(curArtist) + '&title=' + encodeURIComponent(curTitle)).catch(function() {});
+    }
+  });
   au.addEventListener('pause', function() { playing = false; setIcons(); render(); drawViz(); post({ type: 'alya-state', playing: false }); });
   au.addEventListener('ended', function() { playing = false; setIcons(); render(); drawViz(); post({ type: 'alya-ended' }); });
   au.addEventListener('waiting', function() { if (playing) st.textContent = 'Memuat...'; });
@@ -1426,7 +1809,9 @@
   }
   function setLyrics(arr) {
     LY = Array.isArray(arr) ? arr : []; kIdx = -2; lwIdx = -2; lwWords = [];
-    lyEls = [];
+    // Paket 35: lagu baru = terjemahan/romaji lagu sebelumnya gak relevan lagi, reset semuanya.
+    LY_TR = []; LY_RO = [];
+    lyEls = []; lyMainEls = []; lyRoEls = []; lySubEls = [];
     lyText.innerHTML = '';
     lyActive = -2; notifLyIdx = -2;
     if (!LY.length) {
@@ -1435,16 +1820,23 @@
       $('i-ly').textContent = 'Tidak tersedia';
     } else {
       for (var j2 = 0; j2 < LY.length; j2++) {
-        var dv = document.createElement('div');
-        dv.className = 'ly';
-        dv.textContent = LY[j2].text || '♪';
-        if (isRtl(LY[j2].text)) dv.dir = 'rtl';
+        var dv = document.createElement('div'); dv.className = 'ly';
+        // Paket 36: TIGA elemen per baris, urutan tetap di layar — .ly-main (teks asli, target
+        // wordSpans/karaoke, TIDAK PERNAH disentuh romaji/terjemahan) → .ly-romaji (baris romaji, cuma
+        // kelihatan kalau toggle Romaji aktif DAN sudah ada hasilnya) → .ly-sub (baris terjemahan, SELALU
+        // kelihatan begitu auto-translate selesai, gak peduli status toggle Romaji).
+        var main = document.createElement('div'); main.className = 'ly-main'; main.textContent = LY[j2].text || '♪';
+        if (isRtl(LY[j2].text)) main.dir = 'rtl';
+        var ro = document.createElement('div'); ro.className = 'ly-romaji'; ro.hidden = true;
+        var sub = document.createElement('div'); sub.className = 'ly-sub'; sub.hidden = true;
+        dv.appendChild(main); dv.appendChild(ro); dv.appendChild(sub);
         dv.addEventListener('click', mkLine(LY[j2].time));
         lyText.appendChild(dv);
-        lyEls.push(dv);
+        lyEls.push(dv); lyMainEls.push(main); lyRoEls.push(ro); lySubEls.push(sub);
       }
       nowEl.textContent = '';
       $('i-ly').textContent = LY.length + ' baris tersinkron';
+      autoTranslate(); autoRomaji();
     }
     lyTarget = 0; lyCurrent = 0; lyBox.scrollTop = 0;
     updKar(LY.length ? lyFind(0) : -1);
@@ -1463,6 +1855,8 @@
     ready = false; playing = false; setIcons();
     abState = 0; $('btn-ab').textContent = 'A-B: mati'; $('btn-ab').classList.remove('act'); drawAB();
     marks = []; renderMarks();
+    loadSponsorBlock(m.id);
+    lfElapsed = 0; lfStartedAt = 0; lfNowPlayingSent = false; lfScrobbled = false; curArtist = m.artist || ''; curTitle = m.title || '';
     $('t-title').textContent = m.title;
     lyOff = readOff(m.id); paintSync();
     $('t-artist').textContent = m.artist + (m.metaDur ? ' • ' + m.metaDur : '');
@@ -1482,6 +1876,7 @@
         if (cl && cl.l && cl.l.length) { m.lyrics = cl.l.map(function(x) { return { time: x[0], text: x[1] }; }); m.lyricsKind = cl.k; m.lyricsDbg = ''; }
       }
     } catch (e) {}
+    lyPick = 'auto'; curLySrc = '';
     LYKIND = m.lyricsKind || 'synced'; setLyrics(m.lyrics);
     if (!LY.length && m.lyricsDbg) $('i-ly').textContent = 'Tidak tersedia (' + m.lyricsDbg + ')';
     if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
@@ -1500,6 +1895,7 @@
     setAudioSrc(m.audioUrl, !!m.hls);
     setMedia(m);
     coverTheme();
+    if (!LY.length && !needLy) applyHub(m.id);
     if (needLy) {
       var lid = m.id;
       fetchLyrics(lid, false).catch(function() {
@@ -1523,25 +1919,93 @@
   }
   // Lirik diambil terpisah dari info lagu supaya audio bisa mulai tanpa menunggu pencarian lirik.
   // Mengembalikan jumlah baris, atau -1 kalau lagunya sudah berganti selama menunggu.
-  function fetchLyrics(id, refresh) {
-    return fetch('/api/lyrics/' + id + (refresh ? '?refresh=1' : ''))
+  // Paket 43: parameter ketiga `src` = sumber manual ('joox', 'lrclib', ...); kosong/'auto' = rantai otomatis.
+  // Sumber manual yang tidak menemukan apa pun TIDAK menghapus lirik yang sedang tampil.
+  function lySrcName(k) {
+    k = String(k || '').replace(/-plain$/, '');
+    if (k === 'subtitle') k = 'caption';
+    for (var i = 0; i < LY_SRCS.length; i++) if (LY_SRCS[i][0] === k) return LY_SRCS[i][1];
+    return k === 'cache' ? 'Tersimpan' : '';
+  }
+  // Paket 44: modul sumber (assets/sources, lewat hub) dipakai untuk lirik. Saat ini hanya LirikOnline yang
+  // punya kemampuan 'lyrics' (teks biasa tanpa waktu, jadi waktunya diperkirakan seperti lirik "plain" dari
+  // Backend). Dipakai (1) otomatis sebagai cadangan terakhir kalau Backend tidak menemukan lirik apa pun,
+  // (2) kalau pengguna memilih "LirikOnline" di menu Sumber.
+  function hubClean(s) {
+    return String(s || '')
+      .replace(/[\(\[\{][^\)\]\}]*(official|video|audio|lyric|lyrics|lirik|terjemahan|resmi|klip|subtitle|mv|m\/v|visualizer|hd|hq|4k|remaster|clip)[^\)\]\}]*[\)\]\}]/ig, '')
+      .replace(/\s*[\(\[]?\s*(feat\.?|ft\.?)\s[^\)\]]*[\)\]]?/ig, '')
+      .replace(/\s*\|.*$/, '')
+      .replace(/\s+(lirik|lyrics?)(\s+(dan|&)\s+terjemahan(\s+indonesia)?)?\s*$/i, '')
+      .replace(/\s+-\s+topic$/i, '').replace(/vevo$/i, '')
+      .replace(/\s{2,}/g, ' ').trim();
+  }
+  function plainToLy(text) {
+    var lines = String(text || '').split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean).map(function(l) { return l.length > 120 ? l.slice(0, 120) : l; });
+    var sec = (isFinite(au.duration) && au.duration > 0) ? au.duration : 0, out = [];
+    var start = sec > 40 ? 10 : 0, span = sec > 40 ? sec - 25 : Math.max(lines.length * 3, 30);
+    for (var i = 0; i < lines.length; i++) out.push({ time: start + span * i / lines.length, text: lines[i] });
+    return out;
+  }
+  function hubLyrics() {
+    if (!window.AlyaSrc || !AlyaSrc.ready) return Promise.reject(new Error('Hub belum siap'));
+    var ti = hubClean(curTitle), ar = hubClean(curArtist), tries = [], d = ti.indexOf(' - ');
+    if (d > 0) { var l = ti.slice(0, d).trim(), r = ti.slice(d + 3).trim(); tries.push([r, l]); tries.push([l, r]); }
+    tries.push([ti, ar]);
+    return AlyaSrc.ready.then(function() {
+      var chain = Promise.reject(new Error('mulai'));
+      tries.forEach(function(p) {
+        if (!p[0]) return;
+        chain = chain.catch(function() { return AlyaSrc.lyrics(p[0], p[1], { sources: ['lirikonline'] }); });
+      });
+      return chain.then(function(res) {
+        var arr = plainToLy(res && res.text);
+        if (!arr.length) throw new Error('kosong');
+        return arr;
+      });
+    });
+  }
+  // Mengembalikan jumlah baris, -1 kalau lagunya berganti, 0 kalau tidak ketemu (lirik yang tampil tidak diubah)
+  function applyHub(id) {
+    return hubLyrics().then(function(arr) {
+      if (id !== curTrackId) return -1;
+      curLySrc = 'lirikonline'; LYKIND = 'plain'; setLyrics(arr);
+      $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
+      saveLyCache(id, 'plain', arr); updLyrics(pos(), true);
+      return LY.length;
+    }).catch(function() { return id !== curTrackId ? -1 : 0; });
+  }
+  // Paket 43: parameter ketiga `src` = sumber manual ('joox', 'lrclib', ...); kosong/'auto' = rantai otomatis.
+  // Sumber manual yang tidak menemukan apa pun TIDAK menghapus lirik yang sedang tampil.
+  function fetchLyrics(id, refresh, src) {
+    var manual = src && src !== 'auto';
+    if (src === 'lirikonline') return applyHub(id);
+    return fetch('/api/lyrics/' + id + (manual ? '?src=' + encodeURIComponent(src) : (refresh ? '?refresh=1' : '')))
       .then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Gagal'); return j; }); })
       .then(function(m) {
         if (id !== curTrackId) return -1;
         var arr = Array.isArray(m.lyrics) ? m.lyrics : [];
+        if (manual && !arr.length) return 0;
+        curLySrc = m.lyricsSrc || '';
         LYKIND = m.lyricsKind || 'synced'; setLyrics(arr);
         if (LY.length) {
           if (m.lyricsKind === 'plain') $('i-ly').textContent = 'Perkiraan (tidak tersinkron)';
           else if (m.lyricsKind === 'caption') $('i-ly').textContent = LY.length + ' baris dari subtitle YouTube';
           saveLyCache(id, m.lyricsKind, arr);
           updLyrics(pos(), true);
-        } else if (m.lyricsDbg) {
-          $('i-ly').textContent = 'Tidak tersedia (' + m.lyricsDbg + ')';
+        } else {
+          if (m.lyricsDbg) $('i-ly').textContent = 'Tidak tersedia (' + m.lyricsDbg + ')';
+          if (!manual) return applyHub(id); // Paket 44: cadangan terakhir = LirikOnline lewat hub
         }
         return LY.length;
       });
   }
   var curTrackId = '';
+  // Paket 29: state scrobbling Last.fm, direset tiap ganti lagu (lihat loadTrack). lfElapsed MIRIP listenSec
+  // (yang sudah ada, total per sesi) tapi KHUSUS lagu yang sedang jalan, dipakai buat nentuin kapan boleh
+  // scrobble (lihat render()). Panggilan /api/lastfm/* aman dipanggil kapan pun walau belum tersambung Last.fm
+  // — servernya sendiri yang nolak diam-diam (lihat Backend.lfNowPlaying/lfScrobble di Java).
+  var lfElapsed = 0, lfStartedAt = 0, lfNowPlayingSent = false, lfScrobbled = false, curArtist = '', curTitle = '';
   var hlsInst = null; // Paket 20: instance hls.js yang lagi aktif, kalau ada (lagu HLS) — dihancurkan tiap ganti lagu
   function setAudioSrc(url, isHls) {
     if (hlsInst) { try { hlsInst.destroy(); } catch (e) {} hlsInst = null; }
@@ -1675,6 +2139,7 @@
     b.disabled = true;
     st.textContent = 'Memuat ulang lirik...';
     try { localStorage.removeItem('alya_ly_' + id); } catch (e) {}
+    lyPick = 'auto';
     fetchLyrics(id, true)
       .then(function(n) { if (n === -1) return; st.textContent = n > 0 ? 'Lirik diperbarui' : 'Lirik tidak ditemukan'; })
       .catch(function() { st.textContent = 'Gagal memuat ulang lirik'; })
