@@ -211,25 +211,94 @@ final class Backend {
         SearchExtractor se = yt.getSearchExtractor(yt.getSearchQHFactory().fromQuery(q));
         se.fetchPage();
         JSONArray out = new JSONArray();
-        for (InfoItem it : se.getInitialPage().getItems()) {
-            if (!(it instanceof StreamInfoItem)) continue;
-            StreamInfoItem s = (StreamInfoItem) it;
-            String url = s.getUrl();
-            int k = url == null ? -1 : url.indexOf("v=");
-            if (k < 0 || url.length() < k + 13) continue;
-            String id = url.substring(k + 2, k + 13);
-            if (!validId(id)) continue;
-            JSONObject o = new JSONObject();
-            o.put("id", id);
-            o.put("title", s.getName());
-            o.put("author", cleanArtist(s.getUploaderName()));
-            o.put("duration", fmt(s.getDuration()));
-            o.put("thumb", "/thumb/" + id);
-            o.put("source", "youtube");
-            out.put(o);
-            if (out.length() >= 12) break;
+        // Paket 30: dulu CUMA ambil halaman pertama DAN dibatasi keras 12 hasil — jadi kerasa "dikit
+        // banget" (laporan pemilik), padahal YouTube nawarin jauh lebih banyak. Sekarang diambil sampai
+        // beberapa halaman tambahan (pola persis sama kayak paginasi playlist() di atas, yang sudah lama
+        // ada dan terbukti jalan), dengan batas total dinaikkan ke 48. Dibatasi maks 4 halaman (bukan tanpa
+        // batas) biar waktu tunggu pencarian tetap wajar.
+        ListExtractor.InfoItemsPage<InfoItem> pg = se.getInitialPage();
+        int pages = 0;
+        while (pg != null) {
+            for (InfoItem it : pg.getItems()) {
+                if (!(it instanceof StreamInfoItem)) continue;
+                StreamInfoItem s = (StreamInfoItem) it;
+                String url = s.getUrl();
+                int k = url == null ? -1 : url.indexOf("v=");
+                if (k < 0 || url.length() < k + 13) continue;
+                String id = url.substring(k + 2, k + 13);
+                if (!validId(id)) continue;
+                JSONObject o = new JSONObject();
+                o.put("id", id);
+                o.put("title", s.getName());
+                o.put("author", cleanArtist(s.getUploaderName()));
+                o.put("duration", fmt(s.getDuration()));
+                o.put("thumb", "/thumb/" + id);
+                o.put("source", "youtube");
+                out.put(o);
+                if (out.length() >= 48) break;
+            }
+            if (out.length() >= 48 || !pg.hasNextPage() || ++pages > 4) break;
+            pg = se.getPage(pg.getNextPage());
         }
         return out;
+    }
+
+    // ---------- Paket 42: pencarian lagu tanpa batas (muat lagi saat pengguna menggulir) ----------
+    // Satu pencarian disimpan di memori (daftar hasil + halaman terakhir) supaya halaman berikutnya bisa
+    // diambil lanjutannya, bukan mulai dari awal. Disimpan maks. 4 pencarian, kedaluwarsa 10 menit.
+    private static class MoreState {
+        SearchExtractor se; ListExtractor.InfoItemsPage<InfoItem> last; boolean done; long t;
+        final java.util.ArrayList<JSONObject> all = new java.util.ArrayList<>();
+        final java.util.HashSet<String> ids = new java.util.HashSet<>();
+    }
+    private static final java.util.LinkedHashMap<String, MoreState> moreCache = new java.util.LinkedHashMap<>();
+    private static final Object moreLock = new Object();
+
+    static JSONArray searchMore(String q, int offset, int count) throws Exception {
+        synchronized (moreLock) {
+            init();
+            long now = System.currentTimeMillis();
+            java.util.Iterator<java.util.Map.Entry<String, MoreState>> ei = moreCache.entrySet().iterator();
+            while (ei.hasNext()) if (now - ei.next().getValue().t > 600000L) ei.remove();
+            MoreState ms = moreCache.get(q);
+            if (ms == null) {
+                ms = new MoreState();
+                StreamingService yt = ServiceList.YouTube;
+                ms.se = yt.getSearchExtractor(yt.getSearchQHFactory().fromQuery(q));
+                moreCache.put(q, ms);
+                while (moreCache.size() > 4) { String eldest = moreCache.keySet().iterator().next(); moreCache.remove(eldest); }
+            }
+            ms.t = now;
+            int guard = 0;
+            while (ms.all.size() < offset + count && !ms.done && guard++ < 6) {
+                ListExtractor.InfoItemsPage<InfoItem> pg;
+                if (ms.last == null) { ms.se.fetchPage(); pg = ms.se.getInitialPage(); }
+                else if (ms.last.hasNextPage()) pg = ms.se.getPage(ms.last.getNextPage());
+                else { ms.done = true; break; }
+                ms.last = pg;
+                for (InfoItem item : pg.getItems()) {
+                    if (!(item instanceof StreamInfoItem)) continue;
+                    StreamInfoItem s = (StreamInfoItem) item;
+                    String url = s.getUrl();
+                    int k = url == null ? -1 : url.indexOf("v=");
+                    if (k < 0 || url.length() < k + 13) continue;
+                    String id = url.substring(k + 2, k + 13);
+                    if (!validId(id) || !ms.ids.add(id)) continue;
+                    JSONObject o = new JSONObject();
+                    o.put("id", id);
+                    o.put("title", s.getName());
+                    o.put("author", cleanArtist(s.getUploaderName()));
+                    o.put("duration", fmt(s.getDuration()));
+                    o.put("thumb", "/thumb/" + id);
+                    o.put("source", "youtube");
+                    ms.all.add(o);
+                }
+                if (!pg.hasNextPage()) ms.done = true;
+            }
+            JSONArray out = new JSONArray();
+            for (int i = Math.max(0, offset); i < ms.all.size() && out.length() < count; i++) out.put(ms.all.get(i));
+            return out;
+        }
     }
 
     // ---------- pencarian per jenis: "artists", "albums", "playlists" ----------
@@ -260,26 +329,35 @@ final class Backend {
         SearchExtractor se = yt.getSearchExtractor(yt.getSearchQHFactory().fromQuery(q, Collections.singletonList(filter), ""));
         se.fetchPage();
         JSONArray out = new JSONArray();
-        for (InfoItem it : se.getInitialPage().getItems()) {
-            JSONObject o = new JSONObject();
-            if ("artists".equals(kind) && it instanceof ChannelInfoItem) {
-                ChannelInfoItem c = (ChannelInfoItem) it;
-                o.put("name", c.getName());
-                long sc = c.getSubscriberCount();
-                o.put("subs", sc >= 0 ? compact(sc) + " pelanggan" : "");
-                o.put("img", bestThumb(c.getThumbnails()));
-            } else if (!"artists".equals(kind) && it instanceof PlaylistInfoItem) {
-                PlaylistInfoItem p = (PlaylistInfoItem) it;
-                Matcher m = Pattern.compile("[?&]list=([A-Za-z0-9_-]{10,64})").matcher(p.getUrl() == null ? "" : p.getUrl());
-                if (!m.find()) continue;
-                o.put("id", m.group(1));
-                o.put("title", p.getName());
-                o.put("author", p.getUploaderName() == null ? "" : p.getUploaderName());
-                o.put("count", p.getStreamCount());
-                o.put("img", bestThumb(p.getThumbnails()));
-            } else continue;
-            out.put(o);
-            if (out.length() >= 15) break;
+        // Paket 30: sama kayak search() di atas — dulu cuma halaman pertama + batas 15, sekarang sampai 2
+        // halaman + batas 30 (filter artis/album/playlist biasanya hasilnya lebih sedikit relevan daripada
+        // pencarian lagu biasa, jadi gak perlu sebanyak search() di atas).
+        ListExtractor.InfoItemsPage<InfoItem> pg2 = se.getInitialPage();
+        int pages2 = 0;
+        while (pg2 != null) {
+            for (InfoItem it : pg2.getItems()) {
+                JSONObject o = new JSONObject();
+                if ("artists".equals(kind) && it instanceof ChannelInfoItem) {
+                    ChannelInfoItem c = (ChannelInfoItem) it;
+                    o.put("name", c.getName());
+                    long sc = c.getSubscriberCount();
+                    o.put("subs", sc >= 0 ? compact(sc) + " pelanggan" : "");
+                    o.put("img", bestThumb(c.getThumbnails()));
+                } else if (!"artists".equals(kind) && it instanceof PlaylistInfoItem) {
+                    PlaylistInfoItem p = (PlaylistInfoItem) it;
+                    Matcher m = Pattern.compile("[?&]list=([A-Za-z0-9_-]{10,64})").matcher(p.getUrl() == null ? "" : p.getUrl());
+                    if (!m.find()) continue;
+                    o.put("id", m.group(1));
+                    o.put("title", p.getName());
+                    o.put("author", p.getUploaderName() == null ? "" : p.getUploaderName());
+                    o.put("count", p.getStreamCount());
+                    o.put("img", bestThumb(p.getThumbnails()));
+                } else continue;
+                out.put(o);
+                if (out.length() >= 30) break;
+            }
+            if (out.length() >= 30 || !pg2.hasNextPage() || ++pages2 > 2) break;
+            pg2 = se.getPage(pg2.getNextPage());
         }
         // Hasil album kadang tidak membawa id playlist; cadangannya cari sebagai playlist biasa.
         if (out.length() == 0 && "albums".equals(kind)) return searchKind(q + " album", "playlists");
@@ -879,13 +957,53 @@ final class Backend {
     }
 
     // Pencarian lirik lengkap (boleh lambat), dipanggil terpisah oleh pemutar.
-    static JSONObject lyricsJson(String id) throws Exception {
+    static JSONObject lyricsJson(String id, String pref) throws Exception {
         Track t = track(id);
-        Object[] ly = lyrics(id, t);
+        Object[] ly = lyrics(id, t, pref);
         JSONObject o = new JSONObject();
         o.put("lyrics", ly[0]);
         o.put("lyricsKind", ly[1]);
         o.put("lyricsDbg", ly[2]);
+        o.put("lyricsSrc", ly[3]); // Paket 31: sumber yang beneran kepakai, dipakai player.html buat nampilin menunya
+        return o;
+    }
+
+    // ===== Paket 32: terjemahan lirik otomatis =====
+    // Pakai endpoint Google Translate gratis (tanpa kunci/akun) — SAMA kelasnya dengan JOOX/NetEase di proyek
+    // ini: bukan API resmi, bisa berubah/berhenti sewaktu-waktu, tapi dipakai luas di banyak proyek open-source
+    // dan gak butuh pemilik daftar akun apa pun. (NanzBeatles sendiri pakai OpenRouter — gerbang model AI yang
+    // BUTUH API key + bisa kena biaya tiap terjemahan — sengaja TIDAK diikuti di sini, lihat catatan Paket 32.)
+    // Semua baris lirik digabung jadi satu teks (dipisah baris baru) dan diterjemahkan dalam SATU permintaan
+    // (bukan satu per baris) — lebih hemat & cepat, tapi ada risiko kecil jumlah baris hasil terjemahan gak
+    // persis sama kalau Google gabung/pecah baris secara beda; makanya ditangani defensif (baris yang gak
+    // kebagian hasil dibiarkan kosong, bukan error).
+    static JSONArray translateLyrics(JSONArray lyrics, String targetLang) {
+        JSONArray out = new JSONArray();
+        try {
+            if (lyrics == null || lyrics.length() == 0) return out;
+            List<String> texts = new ArrayList<>();
+            for (int i = 0; i < lyrics.length(); i++) {
+                JSONObject r = lyrics.optJSONObject(i);
+                texts.add(r == null ? "" : r.optString("text", ""));
+            }
+            String joined = String.join("\n", texts);
+            byte[] b = bytes("https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + enc(targetLang) + "&dt=t&q=" + enc(joined), FF, 8000);
+            if (b == null) { logErr("terjemah", "permintaan gagal (jaringan/HTTP)"); return out; }
+            Object v = new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
+            JSONArray segs = v instanceof JSONArray ? ((JSONArray) v).optJSONArray(0) : null;
+            StringBuilder full = new StringBuilder();
+            if (segs != null) for (int i = 0; i < segs.length(); i++) { JSONArray seg = segs.optJSONArray(i); if (seg != null) full.append(seg.optString(0, "")); }
+            String[] lines = full.toString().split("\n", -1);
+            for (int i = 0; i < texts.size(); i++) out.put(i < lines.length ? lines[i] : "");
+            if (lines.length != texts.size()) logErr("terjemah", "jumlah baris beda: asli " + texts.size() + ", hasil " + lines.length + " (sebagian baris mungkin kosong/meleset)");
+        } catch (Throwable e) { logErr("terjemah", "gagal: " + e); }
+        return out;
+    }
+    static JSONObject translateJson(String id, String lang) throws Exception {
+        Track t = track(id);
+        if (t.lyr == null) { Object[] c = lyLoad(id); if (c != null) t.lyr = (JSONArray) c[0]; }
+        JSONObject o = new JSONObject();
+        o.put("lines", t.lyr == null ? new JSONArray() : translateLyrics(t.lyr, lang));
         return o;
     }
 
@@ -908,6 +1026,7 @@ final class Backend {
                     dlDir.mkdirs();
                     dlIndexFile = new java.io.File(c.getFilesDir(), "downloads.json");
                     loadDlIndex();
+                    lfLoadSaved(); // Paket 29: muat sesi Last.fm tersimpan (kalau sebelumnya pernah terhubung)
                     dlLoaded = true;
                 }
             }
@@ -1022,13 +1141,23 @@ final class Backend {
 
     // ---------- lirik ----------
     // Urutan: lrclib (tersinkron) -> lrclib (teks biasa, waktu diperkirakan) -> subtitle YouTube
-    static Object[] lyrics(String id, Track t) {
-        if (t.lyr == null) {
-            Object[] c = lyLoad(id);
-            if (c != null) { t.lyr = (JSONArray) c[0]; t.kind = (String) c[1]; }
+    static Object[] lyrics(String id, Track t) { return lyrics(id, t, null); }
+
+    // Paket 31: parameter "pref" baru — null/"auto" = rantai otomatis seperti sebelumnya (JOOX → lrclib →
+    // Musixmatch → subtitle). Nama sumber spesifik ("joox","lrclib","musixmatch","kugou","simpmusic",
+    // "betterlyrics","caption") = CUMA sumber itu yang dicoba, gak jatuh ke sumber lain kalau gagal — ini yang
+    // dipanggil dari menu pemilihan sumber di player.html. Hasil balik sekarang 4 elemen (tambah nama sumber
+    // yang beneran kepakai di indeks ke-3), dipakai buat nampilin label di menu.
+    static Object[] lyrics(String id, Track t, String pref) {
+        boolean auto = pref == null || pref.isEmpty() || "auto".equals(pref);
+        if (auto) {
+            if (t.lyr == null) {
+                Object[] c = lyLoad(id);
+                if (c != null) { t.lyr = (JSONArray) c[0]; t.kind = (String) c[1]; }
+            }
+            if (t.lyr != null) return new Object[]{t.lyr, t.kind, "", "cache"};
+            if (lyNone(id)) return new Object[]{new JSONArray(), "synced", LY_NONE_MSG, "none"};
         }
-        if (t.lyr != null) return new Object[]{t.lyr, t.kind, ""};
-        if (lyNone(id)) return new Object[]{new JSONArray(), "synced", LY_NONE_MSG};
         JSONArray out = new JSONArray();
         String kind = "synced";
         long dl = System.currentTimeMillis() + 12000;
@@ -1037,6 +1166,46 @@ final class Backend {
         String src = "lrclib";
         try {
             String ti = cleanTitle(t.title), ch = cleanArtist(t.artist);
+            if (!auto) {
+                String artistFallback = ch.isEmpty() ? (t.artist == null ? "" : t.artist) : ch;
+                if ("joox".equals(pref)) { JSONArray jx = jxLyrics(t.title, t.artist, t.seconds); if (jx != null && jx.length() > 0) { out = jx; src = "joox"; } }
+                else if ("lrclib".equals(pref)) {
+                    Object o = lrc("search?q=" + enc((ch.isEmpty() ? "" : ch + " ") + ti));
+                    if (o instanceof JSONArray) {
+                        JSONArray arr = (JSONArray) o; JSONObject bestS = null; double scS = 0;
+                        for (int k = 0; k < arr.length(); k++) {
+                            JSONObject x = arr.optJSONObject(k); if (x == null || x.optBoolean("instrumental", false)) continue;
+                            double sc = matchScore(x, Arrays.asList(ti), Arrays.asList(ch), t.seconds);
+                            if (sc > scS && !synced(x).trim().isEmpty()) { bestS = x; scS = sc; }
+                        }
+                        if (bestS != null) { out = parseLrc(synced(bestS)); src = "lrclib"; }
+                    }
+                }
+                else if ("musixmatch".equals(pref)) {
+                    String[] mx = mxmLyrics(ti, artistFallback, (int) t.seconds);
+                    if (mx != null) { if ("synced".equals(mx[0])) { out = parseLrc(mx[1]); src = "musixmatch"; } else { out = fromPlain(mx[1], t.seconds); kind = "plain"; src = "musixmatch-plain"; } }
+                }
+                else if ("kugou".equals(pref)) {
+                    String[] kg = kgLyrics(ti, artistFallback, (int) t.seconds);
+                    if (kg != null) { if ("synced".equals(kg[0])) { out = parseLrc(kg[1]); src = "kugou"; } else { out = fromPlain(kg[1], t.seconds); kind = "plain"; src = "kugou-plain"; } }
+                }
+                else if ("simpmusic".equals(pref)) {
+                    String[] sm = isSoundCloud(id) ? null : smLyrics(id, (int) t.seconds);
+                    if (sm != null) { if ("synced".equals(sm[0])) { out = parseLrc(sm[1]); src = "simpmusic"; } else { out = fromPlain(sm[1], t.seconds); kind = "plain"; src = "simpmusic-plain"; } }
+                }
+                else if ("betterlyrics".equals(pref)) {
+                    String[] bl = blLyrics(ti, artistFallback, (int) t.seconds);
+                    if (bl != null) { if ("synced".equals(bl[0])) { out = parseLrc(bl[1]); src = "betterlyrics"; } else { out = fromPlain(bl[1], t.seconds); kind = "plain"; src = "betterlyrics-plain"; } }
+                }
+                else if ("caption".equals(pref) && t.subUrl != null) {
+                    byte[] b = bytes(t.subUrl, FF);
+                    if (b != null) { out = parseVtt(new String(b, StandardCharsets.UTF_8), t.subAuto); kind = "caption"; src = "subtitle"; }
+                }
+                if (out.length() > 0 && "synced".equals(kind)) neEnrich(out, t.title, t.artist, t.seconds);
+                if (out.length() > 0) { t.lyr = out; t.kind = kind; lySave(id, out, kind); }
+                String dm = "sumber manual: " + pref + ", hasil " + out.length() + " baris";
+                return new Object[]{out, kind, dm, out.length() > 0 ? src : "none"};
+            }
             // Paket 15: JOOX sekarang jadi sumber UTAMA (dicoba duluan). Kalau ketemu, seluruh pencarian lrclib
             // di bawah ini DILEWATI sama sekali (lebih cepat, gak buang permintaan jaringan yang gak kepakai).
             // lrclib cuma jadi cadangan kalau JOOX gak ketemu/gak cocok buat lagu ini.
@@ -1097,6 +1266,16 @@ final class Backend {
                 if (!synced.isEmpty()) out = parseLrc(synced);
                 else if (!plain.isEmpty()) { out = fromPlain(plain, t.seconds); kind = "plain"; src = "lrclib-plain"; }
             }
+            // Paket 30: Musixmatch sebagai sumber TAMBAHAN (porting dari NanzBeatles) — dicoba cuma kalau
+            // JOOX & lrclib DUA-DUANYA gak ketemu sama sekali, sebelum jatuh ke subtitle YouTube (paling
+            // rendah kualitasnya, auto-generated & gak ada tanda bacanya).
+            if (out.length() == 0) {
+                String[] mx = mxmLyrics(ti, ch.isEmpty() ? (t.artist == null ? "" : t.artist) : ch, (int) t.seconds);
+                if (mx != null) {
+                    if ("synced".equals(mx[0])) { out = parseLrc(mx[1]); src = "musixmatch"; }
+                    else { out = fromPlain(mx[1], t.seconds); kind = "plain"; src = "musixmatch-plain"; }
+                }
+            }
             // Tahap 3 (NetEase) — kalau ketemu lirik tersinkron (JOOX ATAU lrclib), coba tempel waktu kata ASLI.
             // Opsional & diam-diam kalau gagal; `realWords`/`wordSpans` di player.html otomatis makai ini kalau
             // tersedia, sama seperti LRC enhanced.
@@ -1114,7 +1293,7 @@ final class Backend {
         logErr("lirik-ne", (t.title == null ? "?" : t.title) + " – " + (t.artist == null ? "?" : t.artist)
             + " · ringkasan: sumber=" + src + ", kind=" + kind + ", " + out.length() + " baris"
             + (out.length() > 0 && "synced".equals(kind) ? " → NetEase seharusnya dicoba (cek baris lirik-ne lain)" : " → NetEase TIDAK dicoba"));
-        return new Object[]{out, kind, d};
+        return new Object[]{out, kind, d, out.length() > 0 ? src : "none"};
     }
 
     private static String plainOf(JSONObject o) { return o.isNull("plainLyrics") ? "" : o.optString("plainLyrics", "").trim(); }
@@ -1670,4 +1849,440 @@ final class Backend {
             return new Response(code, c.getResponseMessage(), hs, body, c.getURL().toString());
         }
     }
+
+    // ===== Paket 30: Musixmatch (API tidak resmi) sebagai sumber lirik TAMBAHAN =====
+    // Diterjemahkan ke Java dari modul Kotlin "musixmatch" NanzBeatles. Skema tanda tangan permintaan
+    // (HMAC-SHA256, kunci berganti tiap hari lewat tanggal UTC) hasil reverse-engineering publik — Musixmatch
+    // bisa mengubahnya kapan saja tanpa pemberitahuan karena ini BUKAN API resmi. SENGAJA cuma pakai kunci
+    // cadangan publik (MXM_SECRET, sama yang dipakai NanzBeatles sebagai fallback mereka) — bukan skema
+    // "ambil kunci terbaru dari skrip halaman web Musixmatch" yang jauh lebih rumit & rapuh buat ditiru di
+    // Java. Kalau Musixmatch ganti kunci cadangan ini, sumber lirik ini diam-diam berhenti nyumbang apa pun
+    // (sama kayak sumber lirik lain yang gagal) — TIDAK bikin app error, alur lyrics() tetap lanjut normal.
+    private static final String MXM_APP_ID = "web-desktop-app-v1.0";
+    private static final String MXM_SECRET = "IEJ5E8XFaHQvIQNfs7IC";
+    private static final String MXM_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    private static volatile String mxmToken;
+
+    private static String mxmSign(String method, java.util.LinkedHashMap<String, String> params) throws Exception {
+        StringBuilder q = new StringBuilder();
+        q.append("app_id=").append(enc(MXM_APP_ID)).append("&format=json");
+        for (Map.Entry<String, String> e : params.entrySet()) q.append('&').append(e.getKey()).append('=').append(enc(e.getValue()));
+        String url = "https://apic.musixmatch.com/ws/1.1/" + method + "?" + q;
+        java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US);
+        df.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        String dateStr = df.format(new java.util.Date());
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(MXM_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String sig = java.util.Base64.getEncoder().encodeToString(mac.doFinal((url + dateStr).getBytes(StandardCharsets.UTF_8)));
+        return url + "&signature=" + enc(sig) + "&signature_protocol=sha256";
+    }
+
+    // Lapis respons Musixmatch selalu {"message":{"header":{"status_code":...},"body":{...}}}.
+    private static JSONObject mxmGet(String url) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(8000); c.setReadTimeout(8000);
+            c.setRequestProperty("User-Agent", MXM_UA);
+            c.setRequestProperty("Accept", "application/json, text/plain, */*");
+            c.setRequestProperty("Cookie", "mxm_bab=AB");
+            int code = c.getResponseCode();
+            InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+            if (in == null) return null;
+            JSONObject root = new JSONObject(new String(readAll(in), StandardCharsets.UTF_8));
+            JSONObject msg = root.optJSONObject("message");
+            JSONObject header = msg == null ? null : msg.optJSONObject("header");
+            if (header == null || header.optInt("status_code", 0) != 200) return null;
+            return msg.optJSONObject("body");
+        } catch (Exception e) { return null; }
+    }
+
+    private static String mxmGetToken() {
+        if (mxmToken != null) return mxmToken;
+        try {
+            JSONObject body = mxmGet(mxmSign("token.get", new java.util.LinkedHashMap<>()));
+            String t = body == null ? "" : body.optString("user_token", "");
+            if (t.isEmpty() || t.startsWith("UpgradeOnly")) return null;
+            mxmToken = t; return t;
+        } catch (Exception e) { return null; }
+    }
+
+    private static java.util.Set<String> mxmWords(String s) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (s == null) return out;
+        for (String w : s.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim().split(" ")) if (!w.isEmpty()) out.add(w);
+        return out;
+    }
+
+    private static double mxmSim(java.util.Set<String> a, java.util.Set<String> b) {
+        if (a.isEmpty() || b.isEmpty()) return 0;
+        java.util.Set<String> inter = new java.util.HashSet<>(a); inter.retainAll(b);
+        java.util.Set<String> uni = new java.util.HashSet<>(a); uni.addAll(b);
+        return uni.isEmpty() ? 0 : (double) inter.size() / uni.size();
+    }
+
+    // Balikin {"synced", teksLrc} atau {"plain", teksBiasa}, atau null kalau gak ketemu sama sekali
+    // (jaringan gagal, token gak kedapetan, gak ada kandidat yang cukup mirip, dst — semua ditelan di sini,
+    // pemanggilnya (lyrics()) tinggal lanjut ke sumber berikutnya seolah Musixmatch emang gak ketemu apa-apa).
+    private static String[] mxmLyrics(String title, String artist, int durationSec) {
+        try {
+            String token = mxmGetToken();
+            if (token == null) return null;
+            java.util.LinkedHashMap<String, String> sp = new java.util.LinkedHashMap<>();
+            sp.put("q_track", title); sp.put("q_artist", artist); sp.put("page_size", "10");
+            sp.put("s_track_rating", "desc"); sp.put("f_has_lyrics", "1"); sp.put("usertoken", token);
+            JSONObject sbody = mxmGet(mxmSign("track.search", sp));
+            JSONArray list = sbody == null ? null : sbody.optJSONArray("track_list");
+            if (list == null || list.length() == 0) return null;
+            JSONObject best = null; double bestScore = -1;
+            java.util.Set<String> wantT = mxmWords(title), wantA = mxmWords(artist);
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject tr = list.optJSONObject(i); if (tr == null) continue;
+                JSONObject track = tr.optJSONObject("track"); if (track == null) continue;
+                double sc = mxmSim(mxmWords(track.optString("track_name", "")), wantT) * 5
+                        + mxmSim(mxmWords(track.optString("artist_name", "")), wantA) * 4;
+                int len = track.optInt("track_length", 0);
+                if (durationSec > 0 && len > 0) sc += Math.max(-1.0, 1.0 - Math.abs(len - durationSec) / 30.0) * 2;
+                if (sc > bestScore) { bestScore = sc; best = track; }
+            }
+            if (best == null || bestScore <= 0) return null;
+            long trackIdL = best.optLong("track_id", -1);
+            if (trackIdL < 0) return null;
+            String trackId = String.valueOf(trackIdL);
+            int len2 = best.optInt("track_length", durationSec);
+            if (best.optInt("has_subtitles", 0) != 0) {
+                java.util.LinkedHashMap<String, String> p2 = new java.util.LinkedHashMap<>();
+                p2.put("track_id", trackId); p2.put("subtitle_format", "lrc");
+                p2.put("f_subtitle_length", String.valueOf(len2 > 0 ? len2 : durationSec));
+                p2.put("f_subtitle_length_max_deviation", "10"); p2.put("usertoken", token);
+                JSONObject b2 = mxmGet(mxmSign("track.subtitle.get", p2));
+                JSONObject sub = b2 == null ? null : b2.optJSONObject("subtitle");
+                String lrc = sub == null ? "" : sub.optString("subtitle_body", "");
+                if (!lrc.trim().isEmpty()) return new String[]{"synced", lrc};
+            }
+            if (best.optInt("has_lyrics", 0) != 0) {
+                java.util.LinkedHashMap<String, String> p3 = new java.util.LinkedHashMap<>();
+                p3.put("track_id", trackId); p3.put("usertoken", token);
+                JSONObject b3 = mxmGet(mxmSign("track.lyrics.get", p3));
+                JSONObject ly = b3 == null ? null : b3.optJSONObject("lyrics");
+                String txt = ly == null ? "" : ly.optString("lyrics_body", "");
+                if (!txt.trim().isEmpty()) return new String[]{"plain", txt};
+            }
+            return null;
+        } catch (Exception e) { return null; }
+    }
+
+    // ===== Paket 31: KuGou, SimpMusic, BetterLyrics — porting dari NanzBeatles (lihat .claude/CLAUDE.md buat
+    // daftar lengkap 7 sumber NanzBeatles; Rush & Paxsenix SENGAJA dilewati, lihat catatan Paket 31) =====
+    // Semua provider lirik (termasuk yang lama: lrclib, JOOX, Musixmatch) sekarang mengembalikan bentuk yang
+    // sama: String[]{"synced"|"plain", teksLrcAtauEnhancedLrc} atau null. Data kata-per-kata (TTML/richsync)
+    // dikonversi jadi format "LRC enhanced" (`[mm:ss.xx]` + tag `<mm:ss.xx>kata` per baris) SUPAYA bisa dipakai
+    // ulang oleh `parseLrc` yang sudah ada (Paket 12) — satu parser buat semua sumber, bukan bikin lagi per sumber.
+
+    // --- KuGou ---
+    private static String kgNormTitle(String s) {
+        return s.replaceAll("\\(.*\\)", "").replaceAll("（.*）", "").replaceAll("「.*」", "").replaceAll("『.*』", "")
+                .replaceAll("<.*>", "").replaceAll("《.*》", "").replaceAll("〈.*〉", "").replaceAll("＜.*＞", "").trim();
+    }
+    private static String kgNormArtist(String s) {
+        return s.replace(", ", "、").replace(" & ", "、").replace(".", "").replace("和", "、")
+                .replaceAll("\\(.*\\)", "").replaceAll("（.*）", "").trim();
+    }
+    // Buang baris kredit (penulis/komposer/dll) yang biasanya nempel di awal/akhir lirik KuGou. Diadaptasi dari
+    // logika asal NanzBeatles (cari pola "]teks:teks" dalam 30 baris pertama/terakhir) — disederhanakan sedikit
+    // di bagian ekor (logika asal agak membingungkan indeksnya), niatnya sama.
+    private static String kgNormalize(String raw) {
+        Pattern accepted = Pattern.compile("^\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})\\].*");
+        Pattern banned = Pattern.compile(".+\\].+[:：].+");
+        List<String> lines = new ArrayList<>();
+        for (String l : raw.replace("&apos;", "'").split("\n", -1)) if (accepted.matcher(l).matches()) lines.add(l);
+        int headCut = 0;
+        for (int i = Math.min(30, lines.size() - 1); i >= 0; i--) if (banned.matcher(lines.get(i)).matches()) { headCut = i + 1; break; }
+        List<String> filtered = new ArrayList<>(lines.subList(Math.min(headCut, lines.size()), lines.size()));
+        int fn = filtered.size(), tailCut = 0;
+        for (int i = Math.min(30, fn - 1); i >= 0; i--) { int idx = fn - 1 - i; if (idx >= 0 && banned.matcher(filtered.get(idx)).matches()) { tailCut = i + 1; break; } }
+        return String.join("\n", filtered.subList(0, Math.max(0, fn - tailCut)));
+    }
+    private static String[] kgLyrics(String title, String artist, int durationSec) {
+        try {
+            String kt = kgNormTitle(title), ka = kgNormArtist(artist), kw = kt + " - " + ka;
+            JSONObject songs = (JSONObject) new JSONTokener(new String(bytes("https://mobileservice.kugou.com/api/v3/search/song?version=9108&plat=0&pagesize=8&showtype=0&keyword=" + enc(kw), FF, 6000), StandardCharsets.UTF_8)).nextValue();
+            JSONArray info = songs == null ? null : songs.optJSONObject("data") == null ? null : songs.optJSONObject("data").optJSONArray("info");
+            Long candId = null; String candKey = null;
+            if (info != null) {
+                for (int i = 0; i < info.length() && candId == null; i++) {
+                    JSONObject s = info.optJSONObject(i); if (s == null) continue;
+                    int dur = s.optInt("duration", 0);
+                    if (durationSec > 0 && Math.abs(dur - durationSec) > 8) continue;
+                    byte[] lb = bytes("https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&hash=" + enc(s.optString("hash", "")), FF, 6000);
+                    if (lb == null) continue;
+                    JSONArray cands = ((JSONObject) new JSONTokener(new String(lb, StandardCharsets.UTF_8)).nextValue()).optJSONArray("candidates");
+                    if (cands != null && cands.length() > 0) { candId = cands.getJSONObject(0).optLong("id"); candKey = cands.getJSONObject(0).optString("accesskey"); }
+                }
+            }
+            if (candId == null) {
+                byte[] lb = bytes("https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=" + enc(kw) + (durationSec > 0 ? "&duration=" + (durationSec * 1000) : ""), FF, 6000);
+                if (lb == null) return null;
+                JSONArray cands = ((JSONObject) new JSONTokener(new String(lb, StandardCharsets.UTF_8)).nextValue()).optJSONArray("candidates");
+                if (cands == null || cands.length() == 0) return null;
+                candId = cands.getJSONObject(0).optLong("id"); candKey = cands.getJSONObject(0).optString("accesskey");
+            }
+            byte[] db = bytes("https://lyrics.kugou.com/download?ver=1&client=pc&fmt=lrc&charset=utf8&id=" + candId + "&accesskey=" + enc(candKey), FF, 6000);
+            if (db == null) return null;
+            String content = ((JSONObject) new JSONTokener(new String(db, StandardCharsets.UTF_8)).nextValue()).optString("content", "");
+            if (content.isEmpty()) return null;
+            String lrc = kgNormalize(new String(android.util.Base64.decode(content, android.util.Base64.DEFAULT), StandardCharsets.UTF_8));
+            return lrc.trim().isEmpty() ? null : new String[]{"synced", lrc};
+        } catch (Throwable e) { logErr("lirik-kg", title + " – " + artist + " · " + e); return null; }
+    }
+
+    // --- SimpMusic (dicari langsung pakai ID video YouTube — gak dipakai buat lagu SoundCloud) ---
+    private static String[] smLyrics(String videoId, int durationSec) {
+        try {
+            byte[] b = bytes("https://api-lyrics.simpmusic.org/v1/" + enc(videoId), FF, 6000);
+            if (b == null) return null;
+            JSONObject o = (JSONObject) new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
+            if (!"success".equals(o.optString("type", ""))) return null;
+            JSONArray data = o.optJSONArray("data");
+            if (data == null || data.length() == 0) return null;
+            JSONObject best = null; int bestDiff = Integer.MAX_VALUE;
+            for (int i = 0; i < data.length(); i++) {
+                JSONObject tr = data.optJSONObject(i); if (tr == null) continue;
+                int dur = tr.optInt("durationSeconds", 0);
+                int diff = durationSec > 0 && dur > 0 ? Math.abs(dur - durationSec) : 0;
+                if (durationSec > 0 && dur > 0 && diff > 10) continue;
+                if (best == null || diff < bestDiff) { best = tr; bestDiff = diff; }
+            }
+            if (best == null) return null;
+            String rich = best.optString("richSyncLyrics", ""), synced = best.optString("syncedLyrics", ""), plain = best.optString("plainLyric", "");
+            if (!rich.trim().isEmpty()) { String lrc = richsyncToLrc(rich); if (lrc != null) return new String[]{"synced", lrc}; }
+            if (!synced.trim().isEmpty()) return new String[]{"synced", synced};
+            if (!plain.trim().isEmpty()) return new String[]{"plain", plain};
+            return null;
+        } catch (Throwable e) { logErr("lirik-sm", videoId + " · " + e); return null; }
+    }
+    // richSyncLyrics SimpMusic formatnya sama kayak "rich sync" Musixmatch: larik JSON [{"ts":mulai,"te":selesai,
+    // "l":[{"c":"kata","o":offsetDetik}],"x":"teks baris"}]. Dikonversi jadi "LRC enhanced" biar lewat parseLrc.
+    private static String richsyncToLrc(String json) {
+        try {
+            Object v = new JSONTokener(json).nextValue();
+            if (!(v instanceof JSONArray)) return null;
+            JSONArray arr = (JSONArray) v;
+            StringBuilder out = new StringBuilder();
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject ln = arr.optJSONObject(i); if (ln == null) continue;
+                double ts = ln.optDouble("ts", -1); if (ts < 0) continue;
+                out.append('[').append(lrcTime(ts)).append(']');
+                JSONArray words = ln.optJSONArray("l");
+                if (words != null && words.length() > 0) {
+                    for (int j = 0; j < words.length(); j++) {
+                        JSONObject w = words.optJSONObject(j); if (w == null) continue;
+                        double wt = ts + w.optDouble("o", 0);
+                        out.append('<').append(lrcTime(wt)).append('>').append(w.optString("c", ""));
+                    }
+                    out.append('\n');
+                } else {
+                    out.append(ln.optString("x", "")).append('\n');
+                }
+            }
+            return out.length() == 0 ? null : out.toString();
+        } catch (Throwable e) { return null; }
+    }
+    private static String lrcTime(double sec) {
+        int m = (int) (sec / 60), s = (int) (sec % 60), cs = (int) Math.round((sec - Math.floor(sec)) * 100);
+        return String.format(java.util.Locale.ROOT, "%02d:%02d.%02d", m, s, cs);
+    }
+
+    // --- BetterLyrics (TTML dari lyrics-api.boidu.dev, cadangan unison.boidu.dev — dua-duanya API publik gratis
+    // gak butuh kunci; cadangan ke-3 di NanzBeatles adalah lrclib lagi, gak diulang di sini karena sudah ada) ---
+    private static class TLine { String text; double start; List<Object[]> words = new ArrayList<>(); } // words: {String text, Double start, Double end}
+    private static List<TLine> ttmlParse(String xml) {
+        List<TLine> out = new ArrayList<>();
+        try {
+            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            f.setNamespaceAware(true);
+            org.w3c.dom.Document doc = f.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
+            org.w3c.dom.NodeList ps = doc.getElementsByTagName("p");
+            for (int i = 0; i < ps.getLength(); i++) {
+                org.w3c.dom.Element p = (org.w3c.dom.Element) ps.item(i);
+                String begin = p.getAttribute("begin"); if (begin == null || begin.isEmpty()) continue;
+                TLine line = new TLine(); line.start = ttmlTime(begin);
+                StringBuilder text = new StringBuilder();
+                org.w3c.dom.NodeList kids = p.getChildNodes();
+                for (int j = 0; j < kids.getLength(); j++) {
+                    org.w3c.dom.Node n = kids.item(j);
+                    if (n.getNodeType() != org.w3c.dom.Node.ELEMENT_NODE) continue;
+                    org.w3c.dom.Element span = (org.w3c.dom.Element) n;
+                    if (!"span".equalsIgnoreCase(span.getLocalName() != null ? span.getLocalName() : span.getTagName())) continue;
+                    String role = ttmlRole(span);
+                    if ("x-translation".equals(role) || "x-roman".equals(role)) continue;
+                    String wb = span.getAttribute("begin"), we = span.getAttribute("end"), wt = span.getTextContent();
+                    wt = wt == null ? "" : wt.trim();
+                    if (wt.isEmpty() || wb.isEmpty() || we.isEmpty()) continue;
+                    if (text.length() > 0) text.append(' ');
+                    text.append(wt);
+                    line.words.add(new Object[]{wt, ttmlTime(wb), ttmlTime(we)});
+                }
+                line.text = text.length() > 0 ? text.toString() : (p.getTextContent() == null ? "" : p.getTextContent().trim());
+                if (!line.text.isEmpty()) out.add(line);
+            }
+        } catch (Throwable e) { return new ArrayList<>(); }
+        return out;
+    }
+    private static String ttmlRole(org.w3c.dom.Element span) {
+        String r = span.getAttributeNS("http://www.w3.org/ns/ttml#metadata", "role");
+        if (r != null && !r.isEmpty()) return r;
+        r = span.getAttribute("ttm:role");
+        return r == null ? "" : r;
+    }
+    private static double ttmlTime(String t) {
+        try {
+            String[] p = t.split(":");
+            if (p.length == 2) return Double.parseDouble(p[0]) * 60 + Double.parseDouble(p[1]);
+            if (p.length == 3) return Double.parseDouble(p[0]) * 3600 + Double.parseDouble(p[1]) * 60 + Double.parseDouble(p[2]);
+            return Double.parseDouble(t.replace("s", ""));
+        } catch (Throwable e) { return 0; }
+    }
+    private static String ttmlToLrc(List<TLine> lines) {
+        StringBuilder out = new StringBuilder();
+        for (TLine l : lines) {
+            out.append('[').append(lrcTime(l.start)).append(']');
+            for (Object[] w : l.words) out.append('<').append(lrcTime((Double) w[1])).append('>').append((String) w[0]);
+            if (l.words.isEmpty()) out.append(l.text);
+            out.append('\n');
+        }
+        return out.toString();
+    }
+    private static String[] blLyrics(String title, String artist, int durationSec) {
+        try {
+            String url = "https://lyrics-api.boidu.dev/getLyrics?s=" + enc(title) + "&a=" + enc(artist) + (durationSec > 0 ? "&d=" + durationSec : "");
+            byte[] b = bytes(url, FF, 6000);
+            if (b != null) {
+                JSONObject o = (JSONObject) new JSONTokener(new String(b, StandardCharsets.UTF_8)).nextValue();
+                String ttml = o == null ? "" : o.optString("ttml", "").trim();
+                if (!ttml.isEmpty()) { List<TLine> ls = ttmlParse(ttml); if (!ls.isEmpty()) return new String[]{"synced", ttmlToLrc(ls)}; }
+            }
+            byte[] b2 = bytes("https://unison.boidu.dev/lyrics?song=" + enc(title) + "&artist=" + enc(artist) + (durationSec > 0 ? "&duration=" + durationSec : ""), FF, 6000);
+            if (b2 == null) return null;
+            JSONObject o2 = (JSONObject) new JSONTokener(new String(b2, StandardCharsets.UTF_8)).nextValue();
+            JSONObject data = o2 == null ? null : o2.optJSONObject("data");
+            if (data == null) return null;
+            String fmt = data.optString("format", "").toLowerCase(java.util.Locale.ROOT), lyr = data.optString("lyrics", "");
+            if (lyr.trim().isEmpty()) return null;
+            if ("ttml".equals(fmt)) { List<TLine> ls = ttmlParse(lyr); return ls.isEmpty() ? null : new String[]{"synced", ttmlToLrc(ls)}; }
+            if ("lrc".equals(fmt)) return new String[]{"synced", lyr};
+            if ("plain".equals(fmt)) return new String[]{"plain", lyr};
+            return null;
+        } catch (Throwable e) { logErr("lirik-bl", title + " – " + artist + " · " + e); return null; }
+    }
+
+    // ===== Paket 29: scrobbling Last.fm =====
+    // Terinspirasi fitur Last.fm di NanzBeatles, ditulis ulang dari nol di sini (NanzBeatles pakai library
+    // Kotlin "lastfm" yang gak bisa dipakai langsung dari Java+WebView; ini implementasi manual mengikuti
+    // dokumentasi resmi Last.fm: https://www.last.fm/api/desktopauth (alur otorisasi) dan
+    // https://www.last.fm/api/show/track.scrobble / track.updateNowPlaying.
+    // API key & shared secret didaftarkan SENDIRI oleh pemilik di last.fm/api/account/create (gratis,
+    // per-pengguna) — bukan kunci bersama/dibagi siapa pun.
+    static final String LASTFM_KEY = "63a7203c2002245375326da82e5e541e";
+    static final String LASTFM_SECRET = "bd8458601877bb2cf1b90ee0a3dbcbe3";
+    private static final String LASTFM_PREF = "alya_lastfm";
+    private static volatile String lfSessionKey, lfUsername;
+
+    // Dipanggil sekali dari initDirs() (lihat di atas) — muat sesi yang sudah tersimpan (kalau sebelumnya
+    // pernah terhubung), biar gak perlu login ulang tiap buka app.
+    private static void lfLoadSaved() {
+        if (appCtx == null) return;
+        android.content.SharedPreferences sp = appCtx.getSharedPreferences(LASTFM_PREF, android.content.Context.MODE_PRIVATE);
+        lfSessionKey = sp.getString("session", null);
+        lfUsername = sp.getString("user", null);
+    }
+
+    static boolean lfConnected() { return lfSessionKey != null; }
+    static String lfUsername() { return lfUsername; }
+
+    // Tanda tangan permintaan: urutkan SEMUA parameter (kecuali "format"/"callback", yang di sini memang
+    // sengaja belum dimasukkan ke map saat lfSig dipanggil) berdasar nama, gabungkan nama+nilai TANPA
+    // pemisah apa pun, tempel SHARED_SECRET di paling akhir, lalu MD5 — persis spesifikasi resmi Last.fm.
+    private static String lfSig(Map<String, String> params) {
+        java.util.TreeMap<String, String> sorted = new java.util.TreeMap<>(params);
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> e : sorted.entrySet()) sb.append(e.getKey()).append(e.getValue());
+        sb.append(LASTFM_SECRET);
+        try { return neHex(MessageDigest.getInstance("MD5").digest(sb.toString().getBytes(StandardCharsets.UTF_8))); }
+        catch (Exception e) { return ""; }
+    }
+
+    private static String lfQuery(Map<String, String> params) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> e : params.entrySet()) { if (sb.length() > 0) sb.append('&'); sb.append(e.getKey()).append('=').append(enc(e.getValue())); }
+        return sb.toString();
+    }
+
+    // Langkah 1 dari alur "desktop authentication": minta token sementara.
+    static String lfGetToken() throws Exception {
+        Map<String, String> p = new java.util.HashMap<>();
+        p.put("method", "auth.getToken"); p.put("api_key", LASTFM_KEY);
+        p.put("api_sig", lfSig(p)); p.put("format", "json");
+        byte[] b = bytes("https://ws.audioscrobbler.com/2.0/?" + lfQuery(p), "AlyaMusicApp/1.0", 10000);
+        if (b == null) throw new Exception("Gagal menghubungi Last.fm");
+        JSONObject o = new JSONObject(new String(b, StandardCharsets.UTF_8));
+        if (o.has("error")) throw new Exception(o.optString("message", "Galat Last.fm"));
+        return o.getString("token");
+    }
+
+    // URL yang perlu dibuka pengguna (di browser) buat login & menyetujui otorisasi app ini.
+    static String lfAuthUrl(String token) { return "https://www.last.fm/api/auth/?api_key=" + enc(LASTFM_KEY) + "&token=" + enc(token); }
+
+    // Langkah 2 (dipanggil SETELAH pengguna klik "Yes, allow access" di halaman Last.fm): tukar token
+    // sementara jadi session key permanen, lalu simpan. Mengembalikan nama pengguna Last.fm kalau berhasil.
+    static String lfConnect(String token) throws Exception {
+        Map<String, String> p = new java.util.HashMap<>();
+        p.put("method", "auth.getSession"); p.put("api_key", LASTFM_KEY); p.put("token", token);
+        p.put("api_sig", lfSig(p)); p.put("format", "json");
+        byte[] b = bytes("https://ws.audioscrobbler.com/2.0/?" + lfQuery(p), "AlyaMusicApp/1.0", 10000);
+        if (b == null) throw new Exception("Gagal menghubungi Last.fm");
+        JSONObject o = new JSONObject(new String(b, StandardCharsets.UTF_8));
+        if (o.has("error")) throw new Exception(o.optString("message", "Otorisasi belum disetujui atau sudah kedaluwarsa, coba lagi dari awal"));
+        JSONObject sess = o.getJSONObject("session");
+        lfSessionKey = sess.getString("key"); lfUsername = sess.getString("name");
+        if (appCtx != null) appCtx.getSharedPreferences(LASTFM_PREF, android.content.Context.MODE_PRIVATE).edit()
+                .putString("session", lfSessionKey).putString("user", lfUsername).apply();
+        return lfUsername;
+    }
+
+    static void lfDisconnect() {
+        lfSessionKey = null; lfUsername = null;
+        if (appCtx != null) appCtx.getSharedPreferences(LASTFM_PREF, android.content.Context.MODE_PRIVATE).edit().clear().apply();
+    }
+
+    private static boolean lfPost(String method, String artist, String title, long startedAtSec) {
+        if (lfSessionKey == null) return false;
+        try {
+            Map<String, String> p = new java.util.HashMap<>();
+            p.put("method", method); p.put("api_key", LASTFM_KEY); p.put("sk", lfSessionKey);
+            p.put("artist", artist); p.put("track", title);
+            if (startedAtSec > 0) p.put("timestamp", String.valueOf(startedAtSec));
+            p.put("api_sig", lfSig(p)); p.put("format", "json");
+            byte[] bb = lfQuery(p).getBytes(StandardCharsets.UTF_8);
+            HttpURLConnection c = (HttpURLConnection) new URL("https://ws.audioscrobbler.com/2.0/").openConnection();
+            c.setConnectTimeout(10000); c.setReadTimeout(10000);
+            c.setRequestMethod("POST"); c.setDoOutput(true);
+            c.setRequestProperty("User-Agent", "AlyaMusicApp/1.0");
+            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            c.setFixedLengthStreamingMode(bb.length);
+            try (OutputStream os = c.getOutputStream()) { os.write(bb); }
+            int code = c.getResponseCode();
+            InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+            if (in != null) in.close();
+            return code < 400;
+        } catch (Exception e) { return false; }
+    }
+
+    // "Now playing" TIDAK dihitung sebagai scrobble permanen di profil Last.fm — cuma nampilin "sedang
+    // dengerin ..." sementara di profil, dipanggil tiap lagu MULAI diputar.
+    static boolean lfNowPlaying(String artist, String title) { return lfPost("track.updateNowPlaying", artist, title, 0); }
+
+    // Scrobble BENERAN (tercatat permanen di riwayat profil) — dipanggil dari JS (player.html) setelah lagu
+    // diputar cukup lama sesuai aturan resmi Last.fm (separuh durasi atau 4 menit, mana yg lebih dulu, dan
+    // lagu minimal 30 detik). startedAtSec WAJIB waktu lagu itu MULAI diputar (bukan waktu scrobble dikirim).
+    static boolean lfScrobble(String artist, String title, long startedAtSec) { return lfPost("track.scrobble", artist, title, startedAtSec); }
 }

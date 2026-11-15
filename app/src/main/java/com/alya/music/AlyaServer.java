@@ -87,6 +87,13 @@ public class AlyaServer extends NanoHTTPD {
                 // default/lainnya tetap YouTube seperti semula. Filter jenis (artis/album/playlist) cuma
                 // berlaku di mode YouTube; SoundCloud belum punya pemisahan jenis semacam itu.
                 if ("soundcloud".equals(s.getParms().get("src"))) return json(Backend.searchSoundCloud(qq, 12).toString());
+                // Paket 42: ?offset=N (tanpa type) = lanjutan pencarian lagu untuk gulir tanpa batas
+                String off = s.getParms().get("offset");
+                if (off != null && (type == null || type.isEmpty())) {
+                    int o2 = 0;
+                    try { o2 = Math.max(0, Integer.parseInt(off.trim())); } catch (NumberFormatException e) { }
+                    return json(Backend.searchMore(qq, o2, 24).toString());
+                }
                 return json((type == null || type.isEmpty() ? Backend.search(qq) : Backend.searchKind(qq, type)).toString());
             }
             if (uri.startsWith("/api/track/") && Backend.validId(last)) {
@@ -105,13 +112,55 @@ public class AlyaServer extends NanoHTTPD {
             }
             if (uri.startsWith("/api/lyrics/") && Backend.validId(last)) {
                 if ("1".equals(s.getParms().get("refresh"))) Backend.lyricsReset(last);
-                return json(Backend.lyricsJson(last).toString());
+                // Paket 31: ?src=kugou dkk buat minta satu sumber lirik spesifik (menu baru di player.html);
+                // tanpa parameter ini tetap jalan otomatis seperti sebelumnya.
+                return json(Backend.lyricsJson(last, s.getParms().get("src")).toString());
+            }
+            if (uri.startsWith("/api/translate/") && Backend.validId(last)) {
+                // Paket 32: terjemahan lirik otomatis, ?lang=id dkk (kode bahasa Google Translate)
+                String lang = s.getParms().get("lang");
+                return json(Backend.translateJson(last, lang == null || lang.isEmpty() ? "id" : lang).toString());
             }
             if (uri.startsWith("/api/prefetch/") && Backend.validId(last)) {
                 // Siapkan alamat audio DAN lirik lagu berikutnya, supaya saat giliran tiba langsung mulai.
                 new Thread(() -> { try { Backend.Track pt = Backend.track(last); Backend.lyrics(last, pt); } catch (Exception e) { } }).start();
                 return json("{\"ok\":true}");
             }
+            // ===== Paket 29: scrobbling Last.fm =====
+            if (uri.equals("/api/lastfm/status")) {
+                JSONObject o = new JSONObject();
+                o.put("connected", Backend.lfConnected());
+                o.put("user", Backend.lfUsername());
+                return json(o.toString());
+            }
+            if (uri.equals("/api/lastfm/start")) {
+                String token = Backend.lfGetToken();
+                JSONObject o = new JSONObject();
+                o.put("token", token);
+                o.put("url", Backend.lfAuthUrl(token));
+                return json(o.toString());
+            }
+            if (uri.equals("/api/lastfm/confirm")) {
+                String token = s.getParms().get("token");
+                if (token == null || token.trim().isEmpty()) throw new Exception("Token tidak ada");
+                String user = Backend.lfConnect(token.trim());
+                JSONObject o = new JSONObject();
+                o.put("user", user);
+                return json(o.toString());
+            }
+            if (uri.equals("/api/lastfm/disconnect")) { Backend.lfDisconnect(); return json("{\"ok\":true}"); }
+            if (uri.equals("/api/lastfm/nowplaying")) {
+                String artist = s.getParms().get("artist"), title = s.getParms().get("title");
+                boolean ok = artist != null && title != null && !title.trim().isEmpty() && Backend.lfNowPlaying(artist.trim(), title.trim());
+                return json("{\"ok\":" + ok + "}");
+            }
+            if (uri.equals("/api/lastfm/scrobble")) {
+                String artist = s.getParms().get("artist"), title = s.getParms().get("title");
+                long started = 0; try { started = Long.parseLong(s.getParms().get("startedAt")); } catch (Exception e) { }
+                boolean ok = artist != null && title != null && !title.trim().isEmpty() && started > 0 && Backend.lfScrobble(artist.trim(), title.trim(), started);
+                return json("{\"ok\":" + ok + "}");
+            }
+
             if (uri.equals("/api/downloads")) return json(Backend.downloadsList().toString());
             if (uri.startsWith("/api/downloads/") && Backend.validId(last)) {
                 if ("1".equals(s.getParms().get("del"))) { Backend.downloadRemove(last); return json("{\"ok\":true}"); }
@@ -123,6 +172,22 @@ public class AlyaServer extends NanoHTTPD {
                 java.io.File off = Backend.downloadFile(last);
                 if (off != null) return localFile(off, Backend.mimeOf(off), s.getHeaders().get("range"));
                 return audio(last, s.getHeaders().get("range"));
+            }
+            // Paket 40: modul sumber data JS (hub.js + satu berkas per sumber) dan proxy-nya.
+            // Nama berkas dibatasi huruf kecil/angka/_ supaya tidak bisa keluar dari folder sources/.
+            if (uri.matches("/sources/[a-z0-9_]+\\.js")) return asset(uri.substring(1), "application/javascript; charset=utf-8");
+            if (uri.equals("/api/proxy")) return proxy(s.getParms().get("url"));
+            // Paket 41: cadangan AI (Gemini web) untuk terjemahan/romaji. POST, isi = prompt (teks biasa).
+            // Wajib header X-Alya: header khusus memaksa preflight CORS yang tidak kita jawab, jadi halaman web
+            // lain di HP ini tidak bisa memanggil rute ini lewat browser.
+            if (uri.equals("/api/gemini")) {
+                if (s.getMethod() != Method.POST || !"1".equals(s.getHeaders().get("x-alya")))
+                    return proxyErr(Response.Status.FORBIDDEN, "Tidak diizinkan");
+                java.util.Map<String, String> files = new java.util.HashMap<>();
+                s.parseBody(files);
+                JSONObject g = new JSONObject();
+                g.put("text", GeminiWeb.ask(files.get("postData")));
+                return json(g.toString());
             }
             return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Tidak ditemukan");
         } catch (Exception e) {
@@ -169,6 +234,35 @@ public class AlyaServer extends NanoHTTPD {
         Response r = newFixedLengthResponse(Response.Status.OK, "image/jpeg", new ByteArrayInputStream(b), b.length);
         r.addHeader("Cache-Control", "max-age=86400");
         return r;
+    }
+
+    // Paket 40: proxy GET untuk modul JS di assets/sources/. WebView tidak boleh memanggil situs luar langsung
+    // (CORS) dan tidak bisa mengatur User-Agent, jadi permintaannya dititipkan ke sini. Hanya https, hanya host
+    // di daftar putih ini (bukan proxy terbuka), balasan dibatasi 5 MB. Tidak memberi header CORS.
+    private static final java.util.Set<String> PROXY_HOSTS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "itunes.apple.com", "music.apple.com", "lyrics.lyricfind.com", "www.lirikonline.com",
+            "www.shazam.com", "m.soundcloud.com", "api-v2.soundcloud.com"));
+
+    private Response proxy(String raw) {
+        if (raw == null || raw.isEmpty() || raw.length() > 2000) return proxyErr(Response.Status.BAD_REQUEST, "URL tidak valid");
+        try {
+            URL u = new URL(raw);
+            int pt = u.getPort();
+            if (!"https".equals(u.getProtocol()) || (pt != -1 && pt != 443) || !PROXY_HOSTS.contains(u.getHost().toLowerCase(java.util.Locale.US)))
+                return proxyErr(Response.Status.FORBIDDEN, "Host tidak diizinkan");
+            byte[] b = Backend.bytes(raw, Backend.FF, 15000);
+            if (b == null) return proxyErr(Response.Status.INTERNAL_ERROR, "Sumber tidak menjawab");
+            if (b.length > (5 << 20)) return proxyErr(Response.Status.INTERNAL_ERROR, "Balasan terlalu besar");
+            Response r = newFixedLengthResponse(Response.Status.OK, "text/plain; charset=utf-8", new ByteArrayInputStream(b), b.length);
+            r.addHeader("Cache-Control", "no-store");
+            return r;
+        } catch (java.net.MalformedURLException e) {
+            return proxyErr(Response.Status.BAD_REQUEST, "URL tidak valid");
+        }
+    }
+
+    private Response proxyErr(Response.IStatus st, String msg) {
+        return newFixedLengthResponse(st, "application/json; charset=utf-8", "{\"error\":\"" + msg + "\"}");
     }
 
     // Paket 20: proxy manifest/segmen HLS (lagu SoundCloud yang cuma nawarin HLS) — lihat Backend.hlsProxy buat
