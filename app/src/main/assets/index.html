@@ -469,6 +469,7 @@ body.roomopen .roomwin{transform:none;visibility:visible;transition:transform .3
 <div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
 <div class="toast" id="toast"></div>
 
+<script src="/sources/hub.js"></script>
 <script>
 (function () {
 'use strict';
@@ -876,6 +877,31 @@ function cached(q) {
   return api(q).then(d => { try { localStorage.setItem(k, JSON.stringify({ t: Date.now(), d: d.map(slim) })); } catch (e) {} return d; });
 }
 let lastQ = '', results = null, searching = false, stype = 'songs', xres = null;
+// Paket 42: gulir tanpa batas di hasil lagu YouTube. Pengamat tunggal mengawasi penanda di dasar daftar;
+// begitu mendekati layar, /api/search?offset=N memuat lanjutannya dan baris baru ditambahkan ke daftar.
+let moreBusy = false, moreDone = false, moreOff = 0, moreErr = 0, moreEl = null, moreL = null;
+const moreIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) loadMore(); }, { rootMargin: '700px' }) : null;
+function loadMore() {
+  if (moreBusy || moreDone || !results || !moreL || searchSrc !== 'youtube') return;
+  moreBusy = true; if (moreEl) moreEl.textContent = 'Memuat lagi...';
+  const q = lastQ, mine = results;
+  fetch('/api/search?q=' + encodeURIComponent(q) + '&offset=' + moreOff).then(r => { if (!r.ok) throw 0; return r.json(); })
+    .then(d => {
+      if (results !== mine || lastQ !== q) return;
+      const arr = Array.isArray(d) ? d : [];
+      moreOff += arr.length; moreErr = 0;
+      if (!arr.length) moreDone = true;
+      const have = new Set(results.map(x => x.id));
+      arr.forEach(t => { if (t && t.id && !have.has(t.id)) { have.add(t.id); results.push(t); if (moreL) moreL.appendChild(row(t, results, results.length - 1)); } });
+    })
+    .catch(() => { if (results === mine && ++moreErr >= 3) moreDone = true; })
+    .then(() => {
+      moreBusy = false;
+      if (!moreEl) return;
+      if (moreDone) { moreEl.remove(); moreEl = null; return; }
+      moreEl.textContent = ''; if (moreIO) { moreIO.unobserve(moreEl); moreIO.observe(moreEl); }
+    });
+}
 const MOODS = [['Santai', 'lagu santai'], ['Semangat', 'lagu semangat'], ['Fokus', 'focus music instrumental'], ['Galau', 'lagu galau'], ['Anime', 'anime songs'], ['Indonesia', 'lagu indonesia populer']];
 const RAILS = [['Hits Indonesia', 'lagu indonesia terbaru hits'], ['Santai & lofi', 'lofi chill beats'], ['Anime OST', 'anime opening ost'], ['J-Pop', 'jpop hits'], ['K-Pop', 'kpop hits'], ['Akustik santai', 'acoustic cover santai']];
 function addHist(q) { DB.hist = [q].concat(DB.hist.filter(x => x !== q)).slice(0, 12); DB.histN[q] = (DB.histN[q] || 0) + 1; save(true); }
@@ -883,7 +909,8 @@ function addHist(q) { DB.hist = [q].concat(DB.hist.filter(x => x !== q)).slice(0
 function topSearch(n) { return Object.keys(DB.histN).sort((a, b) => (DB.histN[b] || 0) - (DB.histN[a] || 0)).slice(0, n); }
 function runSearch(q, noHist) {
   if (!noHist) addHist(q); lastQ = q; results = null; stype = 'songs'; xres = null; searching = true; setView('search'); 
-  api(q).then(d => { results = d; }).catch(() => { results = []; }).then(() => { searching = false; if (V.v === 'search') render(); });
+  moreDone = false; moreBusy = false; moreErr = 0; moreOff = 0; moreEl = null; moreL = null;
+  api(q).then(d => { results = d; moreOff = Array.isArray(d) ? d.length : 0; }).catch(() => { results = []; }).then(() => { searching = false; if (V.v === 'search') render(); });
 }
 function runKind(kind) {
   stype = kind; xres = null;
@@ -1006,10 +1033,17 @@ function shufflePlay() { const p = DB.likes.concat(DB.recent); if (!p.length) { 
 // lihat Backend.isSoundCloud). okId dipakai buat nyaring hampir semua tempat (playlist, unduhan, riwayat,
 // berbagi ke teman) — sebelumnya cuma terima 11 karakter, jadi lagu SoundCloud diam-diam kebuang dari semua itu.
 const okId = x => /^[A-Za-z0-9_-]{11}$/.test(x || '') || /^sc[A-Za-z0-9_-]{4,500}$/.test(x || '');
+// Paket 45: dulu avatar foto CUMA dipasang kalau URL-nya diawali persis 'https://lh3.googleusercontent.com/'
+// (CDN foto Google) — jadi foto profil kustom yang baru ditambahkan di Paket 45 (lihat profileModal) gak
+// akan pernah tampil, selalu jatuh ke inisial. Sekarang diterima URL https:// apa pun; kalau gambarnya gagal
+// dimuat (404/url mati/bukan gambar), `onerror` mengganti balik ke inisial alih-alih ikon rusak kosong.
 function av(name, photo, sz) {
-  let e;
-  if (photo && photo.indexOf('https://lh3.googleusercontent.com/') === 0) { e = h('img', 'av'); e.src = photo; e.alt = ''; e.referrerPolicy = 'no-referrer'; } else { e = h('div', 'av', (name || '?').trim().charAt(0).toUpperCase()); }
-  if (sz) { e.style.width = e.style.height = sz + 'px'; } return e;
+  const initial = () => { const d = h('div', 'av', (name || '?').trim().charAt(0).toUpperCase()); if (sz) d.style.width = d.style.height = sz + 'px'; return d; };
+  if (!photo || !/^https:\/\//i.test(photo)) return initial();
+  const e = h('img', 'av'); e.src = photo; e.alt = ''; e.referrerPolicy = 'no-referrer';
+  if (sz) e.style.width = e.style.height = sz + 'px';
+  e.onerror = () => { e.replaceWith(initial()); };
+  return e;
 }
 function railSlot(m, title, q) {
   sec(m, title, 'Lihat semua', () => runSearch(q, true));
@@ -1251,6 +1285,8 @@ function rSearch(m0) {
   if (!results || !results.length) { m.appendChild(h('div', 'msg', 'Lagu tidak ditemukan. Coba kata kunci lain.')); return; }
   sec(m, 'Hasil untuk "' + lastQ + '"');
   const l = h('div', 'list'); results.forEach((t, k) => l.appendChild(row(t, results, k))); m.appendChild(l);
+  if (moreIO) { if (moreEl && moreIO) moreIO.unobserve(moreEl); moreL = l; moreEl = null; }
+  if (moreIO && searchSrc === 'youtube' && !moreDone) { const s = h('div', 'msg', moreBusy ? 'Memuat lagi...' : ''); s.style.minHeight = '56px'; m.appendChild(s); moreEl = s; moreIO.observe(s); }
 }
 function plCard(l, small) {
   const c = h('button', 'pl'); c.type = 'button'; if (small) c.style.cssText = 'flex:none;width:142px';
@@ -1361,6 +1397,27 @@ window.alyaCmd = c => {
 // ---------- update aplikasi ----------
 let updInfo = null;
 const openExt = url => { if (window.AlyaApp && AlyaApp.openUrl) AlyaApp.openUrl(url); else window.open(url, '_blank'); };
+// Paket 29: status sambungan Last.fm, dimuat sekali pas boot (lepas dari status login Google — dua hal
+// yang gak berhubungan). Server (Backend.lfConnected/lfUsername) yang nyimpen status sebenarnya; ini cuma
+// salinan buat ditampilin, disegarkan ulang tiap balik ke halaman Akun lewat lfRefresh().
+let lfState = { connected: false, user: null };
+function lfRefresh() { return fetch('/api/lastfm/status').then(r => r.json()).then(d => { lfState = d || lfState; }).catch(() => {}); }
+lfRefresh();
+function lfConnectStart() {
+  fetch('/api/lastfm/start').then(r => r.json()).then(d => {
+    if (!d || !d.url || !d.token) { toast('Gagal memulai otorisasi Last.fm'); return; }
+    openExt(d.url);
+    modal('Sambungkan Last.fm', b => {
+      line(b, 'Setujui akses di halaman Last.fm yang baru terbuka (login dulu kalau diminta), lalu ketuk tombol di bawah.');
+      btn(b, 'Saya sudah menyetujui, lanjutkan', () => {
+        fetch('/api/lastfm/confirm?token=' + encodeURIComponent(d.token)).then(r2 => r2.json()).then(d2 => {
+          if (d2 && d2.user) { closeModal(); lfState = { connected: true, user: d2.user }; toast('Last.fm tersambung sebagai @' + d2.user); render(); }
+          else toast('Belum disetujui, atau sudah kedaluwarsa — coba lagi dari awal');
+        }).catch(() => toast('Gagal menghubungi server lokal'));
+      }, 'pbtn');
+    });
+  }).catch(() => toast('Gagal memulai otorisasi Last.fm'));
+}
 let UPD = null;
 window.alyaUpd = d => {
   if (!UPD) return;
@@ -1485,10 +1542,46 @@ function githubModal() {
     btn(b, 'Masuk', () => { closeModal(); login(i.value.trim()); }, 'pbtn');
   });
 }
+// Paket 45: profil (nama+foto) dulu SELALU ikut apa adanya dari akun Google (d.displayName/d.photoUrl saat
+// login, lihat window.alyaGoogle) — gak ada cara mengubahnya dari dalam app. Pemilik minta pengguna bisa
+// atur sendiri. Dibikin modal sederhana (pola sama seperti githubModal/orModal di atas): dua input (nama,
+// URL foto), disimpan ke G.u lalu disinkron ke /users/<uid> dengan put(...,true) yang SUDAH ADA (jalur yang
+// sama dipakai saat login pertama kali) — jadi dipakai otomatis di SEMUA tempat yang baca G.u.name/G.u.photo
+// (room, kirim lagu ke teman, daftar teman, dst.), tanpa perlu ubah apa pun di tempat lain.
+// Batas panjang disamakan dengan firestore.rules yang SUDAH ADA biar gak ada tulisan yang ditolak Firestore
+// (permission-denied) gara-gara kepanjangan: nama <=60 (di bawah batas 'hostName'/'name' 80 di rules),
+// foto <=500 (persis batas 'photo' di rules inbox & pesan room). Foto WAJIB https:// (dicek di av()/
+// avatarNode() juga, lihat perbaikan di atas) — bukan unggah gambar (app ini gak punya penyimpanan
+// berkas/CDN sendiri buat foto, cuma menyimpan URL), jadi cukup tempel tautan gambar langsung.
+function profileModal() {
+  if (!G.u) return;
+  modal('Ubah nama & foto profil', b => {
+    line(b, 'Dipakai di daftar teman, kiriman lagu, dan room dengar bareng.');
+    const pv = h('div', 'ptop'); pv.style.margin = '2px 0 12px';
+    let avEl = av(G.u.name, G.u.photo, 56); pv.appendChild(avEl); b.appendChild(pv);
+    const ni = h('input', 'minput'); ni.value = G.u.name || ''; ni.maxLength = 60; ni.placeholder = 'Nama tampilan'; b.appendChild(ni);
+    const pi = h('input', 'minput'); pi.type = 'url'; pi.value = (G.u.photo || '').indexOf('https://lh3.googleusercontent.com/') === 0 ? '' : (G.u.photo || ''); pi.maxLength = 500; pi.placeholder = 'URL foto https:// (kosongkan = pakai inisial, atau foto Google kalau masih ada)'; b.appendChild(pi);
+    line(b, 'Harus tautan gambar langsung (diawali https://), bukan halaman web biasa.');
+    const refresh = () => { const nv = av(ni.value.trim() || '?', pi.value.trim(), 56); avEl.replaceWith(nv); avEl = nv; };
+    ni.addEventListener('input', refresh); pi.addEventListener('input', refresh);
+    const r = h('div', 'brow'), c = h('button', '', 'Batal'), o = h('button', 'go', 'Simpan');
+    c.onclick = closeModal;
+    o.onclick = () => {
+      const n = ni.value.trim(), p = pi.value.trim();
+      if (!n) { toast('Nama tidak boleh kosong'); return; }
+      if (p && !/^https:\/\//i.test(p)) { toast('URL foto harus diawali https://'); return; }
+      closeModal();
+      G.u.name = n.slice(0, 60); G.u.photo = p.slice(0, 500); gSave();
+      put('/users/' + G.u.uid, { name: G.u.name, photo: G.u.photo, code: gCode() }, true).catch(() => {});
+      toast('Profil diperbarui'); render();
+    };
+    r.append(c, o); b.appendChild(r);
+  });
+}
 function rMe(m) {
   const w = recapStats(7);
   const pc = h('div', 'pcard'), tp = h('div', 'ptop');
-  if (G.u) tp.appendChild(av(G.u.name, G.u.photo, 72)); else { const im = h('img'); im.src = '/mascot.png'; im.alt = ''; tp.appendChild(im); }
+  if (G.u) { const a72 = av(G.u.name, G.u.photo, 72); a72.style.cursor = 'pointer'; a72.title = 'Ubah nama & foto'; a72.onclick = profileModal; tp.appendChild(a72); } else { const im = h('img'); im.src = '/mascot.png'; im.alt = ''; tp.appendChild(im); }
   const tx = h('div'); tx.append(h('h1', '', G.u ? G.u.name : 'Halo!'), h('div', 'mut', G.u ? 'Tersambung dengan Google' : 'Masuk untuk sinkron dan berteman')); tp.appendChild(tx); pc.appendChild(tp);
   if (!G.u) { const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.style.marginTop = '14px'; gb.onclick = gStart; pc.appendChild(gb); }
   const st = h('div', 'pst');
@@ -1521,9 +1614,29 @@ function setTampilan(m) {
   uiSeg(g1, 'Ukuran kartu', 'size', [['k', 'Kecil'], ['m', 'Sedang'], ['b', 'Besar']], 'm');
   uiSeg(g1, 'Akses cepat di beranda', 'qp', [['1', 'Tampil'], ['0', 'Sembunyi']], '1');
 }
+function orModal() {
+  let key = ''; try { key = localStorage.getItem('alya_or_key') || ''; } catch (e) {}
+  let model = ''; try { model = localStorage.getItem('alya_or_model') || ''; } catch (e) {}
+  modal('Terjemahan lirik (AI)', b => {
+    line(b, 'Pakai OpenRouter buat meromanisasi atau menerjemahkan lirik lagu (misalnya Jepang/Korea) langsung di layar lirik pemutar. Butuh API key OpenRouter milik sendiri.');
+    btn(b, 'Buat API key OpenRouter', () => openExt('https://openrouter.ai/keys'));
+    line(b, 'Salin API key-nya, tempel di bawah.');
+    const i = h('input', 'minput'); i.type = 'password'; i.placeholder = 'Tempel API key OpenRouter'; i.value = key; b.appendChild(i);
+    line(b, 'Model (opsional) — dikosongkan = pakai mistralai/mistral-small-3.1-24b-instruct (berbayar, biasanya murah per lagu). Model dengan akhiran ":free" kadang tersedia gratis di OpenRouter, tapi sering berubah/dicabut sewaktu-waktu — coba sendiri di openrouter.ai/models (filter "Free") kalau mau cari yang gratis saat ini.');
+    const im = h('input', 'minput'); im.placeholder = 'mis. mistralai/mistral-small-3.1-24b-instruct'; im.value = model; b.appendChild(im);
+    btn(b, 'Simpan', () => {
+      try { localStorage.setItem('alya_or_key', i.value.trim()); localStorage.setItem('alya_or_model', im.value.trim()); } catch (e) {}
+      closeModal(); toast(i.value.trim() ? 'Tersimpan — coba dari layar lirik' : 'API key dikosongkan, terjemahan AI dimatikan');
+    }, 'pbtn');
+  });
+}
 function setPutar(m) {
   const g2b = sgrp(m, 'Pemutaran');
   srow(g2b, 'Autoplay lagu serupa', 'Saat antrean habis, musik lanjut dengan lagu yang mirip', () => { DB.prefs.radio = !radioOn(); save(true); render(); }, h('span', 'tgl' + (radioOn() ? ' on' : '')));
+  // Paket 35: menu "Terjemahan lirik (AI)" di sini DIHAPUS — API key OpenRouter sekarang di-hardcode
+  // langsung di player.html (diatur lewat repo GitHub pribadi pemilik, bukan lewat UI yang kelihatan
+  // pengguna lain), dan terjemahannya jalan OTOMATIS begitu lirik dimuat (gak perlu menu buat memicunya).
+  // orModal() di atas SENGAJA tidak dihapus (dead code, gampang dipasang lagi kalau nanti berubah pikiran).
   const gd = sgrp(m, 'Unduhan');
   srow(gd, 'Daftar Unduhan', DLS.length ? DLS.length + ' lagu tersimpan di perangkat' : 'Belum ada lagu yang diunduh', () => setView('list', 'dl'));
   if (DLS.length) srow(gd, 'Hapus semua unduhan', 'Mengosongkan penyimpanan offline', () => confirmBox('Hapus semua ' + DLS.length + ' unduhan?', 'Hapus', () => { DLS.slice().forEach(t => { try { AlyaApp.removeDownload(t.id); } catch (e) {} }); })).classList.add('danger');
@@ -1531,12 +1644,18 @@ function setPutar(m) {
 function setAkun(m) {
   if (G.u) {
     const g3 = sgrp(m, 'Akun & sosial');
+    srowI(g3, 'user', 'Nama & foto profil', G.u.name, profileModal);
     srow(g3, 'Kode teman', 'Ketuk untuk membagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); }, gCode());
     const tg = h('span', 'tgl' + (pubOn() ? ' on' : ''));
     srow(g3, 'Profil publik', pubOn() ? 'Teman bisa melihat favorit dan playlist pilihan' : 'Teman hanya melihat namamu dan lagu yang sedang diputar', () => { try { localStorage.setItem('alya_pub', pubOn() ? '0' : '1'); } catch (e) {} pubPush().catch(() => {}); render(); }, tg);
     srow(g3, 'Sinkronkan sekarang', 'Playlist dan favorit ke akun Google', () => gSync().then(() => toast('Tersinkron')));
     srow(g3, 'Keluar', 'Data di HP ini tetap ada', () => confirmBox('Keluar dari akun Google? Data di HP ini tetap ada.', 'Keluar', gOut)).classList.add('danger');
   }
+  // Paket 30: menu "Last.fm" di halaman ini SENGAJA disembunyikan (permintaan pemilik: "gak semua
+  // pengguna paham", app ini dipakai bareng orang lain juga, bukan cuma pribadi) — fiturnya SENDIRI tetap
+  // utuh dan jalan di balik layar (lihat player.html + Backend.java Paket 29), cuma gak ada menu buat
+  // menyambungkannya dari sini lagi. lfState/lfRefresh/lfConnectStart di atas jadi gak kepakai dari sini,
+  // tapi SENGAJA tidak dihapus (bisa dipasang lagi dengan gampang kalau nanti berubah pikiran).
   const g4 = sgrp(m, 'Data & cadangan');
   if (tok()) {
     srow(g4, 'GitHub tersambung', '@' + (localStorage.getItem('alya_user') || 'GitHub') + ' - ' + (syncing ? 'menyinkronkan...' : (syncMsg || 'terakhir ' + ago())), () => syncNow(false));
@@ -1718,22 +1837,43 @@ function rFriends(m0) {
     const pr = h('div', 'promo'); pr.append(h('b', '', 'Masuk dulu untuk berteman'), h('div', 'mut', 'Dengan akun Google kamu punya kode teman, bisa menambah teman, dan melihat lagu yang sedang mereka dengar.'));
     const gb = h('button', 'gbtn', 'Masuk dengan Google'); gb.type = 'button'; gb.onclick = gStart; pr.appendChild(gb); m.appendChild(pr); return;
   }
-  const me = h('div', 'pcard'); m.appendChild(me); me.appendChild(h('div', 'mut', 'Kode temanmu')); me.appendChild(h('div', 'code', gCode())); line(me, 'Bagikan kode ini supaya temanmu bisa menambahkanmu.');
+  // Paket 45: dirombak biar lebih rapi, DUA perubahan utama (bukan ganti total — kartu kode/profil, daftar
+  // teman, dst. tetap sama cara kerjanya, cuma ditata ulang):
+  // 1) Kartu paling atas gabung jadi SATU header profil (pola sama kayak `rMe`: avatar besar + nama + sub)
+  //    ketimbang blok "Kode temanmu" polos sebelumnya — avatar bisa diketuk langsung buat ubah nama/foto
+  //    (lihat profileModal), jadi gak perlu bolak-balik ke Pengaturan > Akun.
+  // 2) "Tambah teman" dulu pakai gaya `box()`/`.set` (judul <h3> tanpa batang aksen) — beda sendiri dari
+  //    seksi lain di tab ini yang semua pakai `sec()` (batang aksen gaya Beranda, CSS `.fteman .sec
+  //    h2::before` yang sudah ada sejak Paket 11). Sekarang disamakan pakai `sec()` + kartu `.pcard` biasa.
+  // Urutan juga ditata ulang supaya hal yang perlu TINDAKAN (permintaan masuk) kelihatan duluan, baru
+  // kelola teman, baru aktivitas (room + kiriman) — bukan acak seperti sebelumnya.
+  const me = h('div', 'pcard'); m.appendChild(me);
+  const mtp = h('div', 'ptop'); const mav = av(G.u.name, G.u.photo, 72); mav.style.cursor = 'pointer'; mav.title = 'Ubah nama & foto'; mav.onclick = profileModal; mtp.appendChild(mav);
+  const mtx = h('div'); mtx.append(h('h1', '', G.u.name || 'Pengguna'), h('div', 'mut', 'Kode teman: ' + gCode())); mtp.appendChild(mtx); me.appendChild(mtp);
+  line(me, 'Bagikan kode ini supaya temanmu bisa menambahkanmu.');
   const mb = h('div', 'acts'); me.appendChild(mb);
   btn(mb, 'Bagikan', () => { const t = 'Ayo berteman di Alya Music! Kode temanku: ' + gCode(); if (window.AlyaApp && AlyaApp.share) AlyaApp.share(t); else if (navigator.clipboard) navigator.clipboard.writeText(t); });
+  btn(mb, 'Ubah profil', profileModal);
   btn(mb, 'Segarkan', () => gLoad().then(() => toast('Diperbarui')));
-  roomSection(m);
-  const ad = box(m, 'Tambah teman'); const i = h('input', 'minput'); i.placeholder = 'Masukkan kode teman'; i.autocapitalize = 'characters'; ad.appendChild(i);
-  btn(ad, 'Kirim permintaan', () => { if (!i.value.trim()) { toast('Isi kodenya dulu'); return; } addFriend(i.value).then(n => { i.value = ''; toast('Permintaan dikirim ke ' + n); }).catch(e => toast(e.message)); }, 'pbtn');
-  inboxSec(m, 20);
+
   if (G.reqs.length) {
     sec(m, 'Permintaan masuk (' + G.reqs.length + ')');
     G.reqs.forEach(q => { const r = h('div', 'fr'); r.appendChild(av(q.name, q.photo)); const b = h('div', 'rb'); b.appendChild(h('div', 'rt', q.name || 'Pengguna')); r.appendChild(b);
       r.append(ib('plus', 'Terima', () => acceptReq(q).then(() => toast('Berteman dengan ' + q.name)).catch(e => toast(e.message))), ib('trash', 'Tolak', () => fs('/reqs/' + q.id, 'DELETE').then(gLoad).catch(e => toast(e.message)))); m.appendChild(r); });
   }
+
+  sec(m, 'Tambah teman');
+  const ad = h('div', 'pcard'); m.appendChild(ad);
+  line(ad, 'Masukkan kode teman (7 karakter) untuk mengirim permintaan pertemanan.');
+  const i = h('input', 'minput'); i.placeholder = 'Masukkan kode teman'; i.autocapitalize = 'characters'; ad.appendChild(i);
+  btn(ad, 'Kirim permintaan', () => { if (!i.value.trim()) { toast('Isi kodenya dulu'); return; } addFriend(i.value).then(n => { i.value = ''; toast('Permintaan dikirim ke ' + n); }).catch(e => toast(e.message)); }, 'pbtn');
+
   sec(m, 'Daftar teman (' + G.friends.length + ')');
   if (!G.friends.length) m.appendChild(h('div', 'msg', 'Belum ada teman. Masukkan kode teman di atas.'));
   G.friends.forEach(f => { const r = friendRow(f, true); r.appendChild(ib('trash', 'Hapus teman', () => confirmBox('Hapus ' + (f.name || 'teman') + ' dari daftar?', 'Hapus', () => dropFriend(f.uid).catch(e => toast(e.message))))); m.appendChild(r); });
+
+  roomSection(m);
+  inboxSec(m, 20);
 }
 function gBox(m) {
   const g = box(m, 'Akun Google');

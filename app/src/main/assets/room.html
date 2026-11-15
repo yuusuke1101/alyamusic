@@ -70,6 +70,7 @@ input{font-family:inherit}
 .crow.me .cbod{background:linear-gradient(135deg,var(--a),var(--b));border-color:transparent;border-radius:16px 16px 4px 16px}
 .crown{font-size:11px}
 .typing{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:-4px 0 14px 2px}
+.typing[hidden]{display:none}
 .tdots{display:flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:7px 11px}
 .tdots i{width:5px;height:5px;border-radius:50%;background:var(--muted);animation:tb 1.2s ease-in-out infinite}
 .tdots i:nth-child(2){animation-delay:.15s}.tdots i:nth-child(3){animation-delay:.3s}
@@ -211,10 +212,17 @@ function fs(path, method, body, q) {
 // thumbnail: sama persis pola thumb() di index.html — SoundCloud lewat /thumb/<id> lokal, YouTube langsung ke i.ytimg.com
 function thumbUrl(id) { return /^sc[A-Za-z0-9_-]{4,500}$/.test(id || '') ? '/thumb/' + id : 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg'; }
 function fmtTime(s) { s = Math.max(0, Math.round(s || 0)); var m = Math.floor(s / 60), r = s % 60; return m + ':' + (r < 10 ? '0' : '') + r; }
+// Paket 45: sama seperti av() di index.html — dulu cuma menerima URL CDN foto Google persis, jadi foto
+// profil kustom (baru, lihat CLAUDE.md Paket 45) gak pernah tampil di jendela room. Sekarang URL https://
+// apa pun diterima, dengan fallback ke inisial kalau gambarnya gagal dimuat.
 function avatarNode(name, photo, big) {
   var av = document.createElement('div'); av.className = 'av' + (big ? ' lg' : '');
-  if (photo && photo.indexOf('https://lh3.googleusercontent.com/') === 0) { var img = document.createElement('img'); img.src = photo; img.alt = ''; img.referrerPolicy = 'no-referrer'; av.appendChild(img); }
-  else av.textContent = (name || '?').trim().charAt(0).toUpperCase();
+  var initial = (name || '?').trim().charAt(0).toUpperCase();
+  if (photo && /^https:\/\//i.test(photo)) {
+    var img = document.createElement('img'); img.src = photo; img.alt = ''; img.referrerPolicy = 'no-referrer';
+    img.onerror = function () { av.textContent = initial; };
+    av.appendChild(img);
+  } else av.textContent = initial;
   return av;
 }
 // ---------- polling (tiap 3 detik) ----------
@@ -232,7 +240,12 @@ function tick() {
     ROOM.name = o.name || ROOM.name;
     $('t-name').textContent = ROOM.name;
     $('t-hostname').textContent = o.hostName || 'Host';
-    $('t-hostav').innerHTML = ''; $('t-hostav').appendChild(avatarNode(o.hostName, '', true));
+    // Paket 27: dulu foto host dikirim string kosong '' ke avatarNode (gak ada field "hostPhoto" tersendiri
+    // di dokumen room) — jadi avatar host SELALU jatuh ke huruf inisial, gak pernah nampilin foto profil
+    // asli. Padahal foto host SUDAH ADA, cuma di tempat lain: host juga tercatat di map "members" (nambahin
+    // diri sendiri pas roomCreate), jadi diambil dari situ.
+    var hostMember = (o.members && o.members[o.host]) || {};
+    $('t-hostav').innerHTML = ''; $('t-hostav').appendChild(avatarNode(o.hostName, hostMember.photo || '', true));
     paintTrack(o);
     members = o.members || {};
     paintListeners();
