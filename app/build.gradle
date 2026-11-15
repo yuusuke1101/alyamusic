@@ -29,6 +29,7 @@ android {
         buildConfigField "String", "WEB_CLIENT_ID", "\"${cfg('ALYA_WEB_CLIENT_ID')}\""
         buildConfigField "String", "FB_KEY", "\"${cfg('ALYA_FB_KEY')}\""
         buildConfigField "String", "FB_PROJECT", "\"${cfg('ALYA_FB_PROJECT')}\""
+        buildConfigField "String", "OR_KEYS", "\"${cfg('ALYA_OR_KEYS').replaceAll('[^A-Za-z0-9_,\\-]+', ',')}\""
     }
     
     signingConfigs {
