@@ -1,8 +1,10 @@
 name: Build APK
+
 on:
   workflow_dispatch:
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,6 +22,7 @@ jobs:
           ALYA_WEB_CLIENT_ID: ${{ secrets.ALYA_WEB_CLIENT_ID }}
           ALYA_FB_KEY: ${{ secrets.ALYA_FB_KEY }}
           ALYA_FB_PROJECT: ${{ secrets.ALYA_FB_PROJECT }}
+          ALYA_OR_KEYS: ${{ secrets.ALYA_OR_KEYS }}
           ALYA_STORE_PASS: ${{ secrets.ALYA_STORE_PASS }}
           ALYA_KEY_ALIAS: ${{ secrets.ALYA_KEY_ALIAS }}
           ALYA_KEY_PASS: ${{ secrets.ALYA_KEY_PASS }}
